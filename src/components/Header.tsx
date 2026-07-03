@@ -13,6 +13,8 @@ interface HeaderProps {
   savedCount: number;
   compareCount: number;
   unreadCount: number;
+  authenticatedUser: { username: string; fullName: string; email: string } | null;
+  onLogout: () => void;
 }
 
 export default function Header({
@@ -24,7 +26,9 @@ export default function Header({
   setCurrentView,
   savedCount,
   compareCount,
-  unreadCount
+  unreadCount,
+  authenticatedUser,
+  onLogout
 }: HeaderProps) {
   const isZh = language === "zh";
 
@@ -123,8 +127,32 @@ export default function Header({
           </nav>
 
           {/* Settings & Switches */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3">
             
+            {/* User Session Chip */}
+            {authenticatedUser && (
+              <div className="flex items-center space-x-2 border border-slate-100 rounded-xl bg-slate-50/70 p-1.5 px-2.5" id="user-session-chip">
+                <div className="w-5 h-5 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-[10px] uppercase">
+                  {authenticatedUser.fullName.charAt(0)}
+                </div>
+                <div className="hidden lg:block text-left max-w-[100px]">
+                  <p className="text-[9px] text-slate-400 font-bold truncate leading-none">
+                    {isZh ? "已登录" : "Logged in"}
+                  </p>
+                  <p className="text-[10px] text-slate-700 font-extrabold truncate leading-tight mt-0.5" title={authenticatedUser.fullName}>
+                    {authenticatedUser.fullName}
+                  </p>
+                </div>
+                <button
+                  onClick={onLogout}
+                  className="text-[10px] text-red-500 hover:text-red-700 font-extrabold ml-1 hover:bg-red-50 px-1.5 py-0.5 rounded-md transition-colors cursor-pointer"
+                  title={isZh ? "退出登录" : "Log Out"}
+                >
+                  {isZh ? "退出" : "Logout"}
+                </button>
+              </div>
+            )}
+
             {/* Language Toggler */}
             <button
               onClick={() => setLanguage(isZh ? "en" : "zh")}

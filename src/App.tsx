@@ -28,6 +28,7 @@ import BuyerDashboard from "./components/BuyerDashboard";
 import ManufacturerDashboard from "./components/ManufacturerDashboard";
 import AdminDashboard from "./components/AdminDashboard";
 import ImportCustomsCenter from "./components/ImportCustomsCenter";
+import AuthPortal from "./components/AuthPortal";
 
 // Icons
 import { Search, SlidersHorizontal, ArrowLeftRight, Heart, Sparkles, Building, Bot, ShieldCheck, Check, RotateCcw } from "lucide-react";
@@ -52,6 +53,34 @@ export default function App() {
   const [language, setLanguage] = useState<Language>("en");
   const [currentRole, setCurrentRole] = useState<UserRole>("buyer");
   const [currentView, setCurrentView] = useState<"browse" | "compare" | "advisor" | "dashboard" | "import-center">("browse");
+
+  // Session Authentication state per role
+  const [authenticatedUsers, setAuthenticatedUsers] = useState<Record<UserRole, { username: string; fullName: string; email: string } | null>>(() => {
+    try {
+      const saved = localStorage.getItem("prefab_sessions");
+      return saved ? JSON.parse(saved) : { buyer: null, manufacturer: null, admin: null };
+    } catch {
+      return { buyer: null, manufacturer: null, admin: null };
+    }
+  });
+
+  const handleLoginSuccess = (role: UserRole, username: string, fullName: string, email: string) => {
+    const updated = {
+      ...authenticatedUsers,
+      [role]: { username, fullName, email }
+    };
+    setAuthenticatedUsers(updated);
+    localStorage.setItem("prefab_sessions", JSON.stringify(updated));
+  };
+
+  const handleLogout = (role: UserRole) => {
+    const updated = {
+      ...authenticatedUsers,
+      [role]: null
+    };
+    setAuthenticatedUsers(updated);
+    localStorage.setItem("prefab_sessions", JSON.stringify(updated));
+  };
 
   // Mock Database States
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
@@ -299,6 +328,8 @@ export default function App() {
         unreadCount={4}
         currentView={currentView === "advisor" ? "ai-advisor" : currentView}
         setCurrentView={(view) => setCurrentView(view === "ai-advisor" ? "advisor" : view as any)}
+        authenticatedUser={authenticatedUsers[currentRole]}
+        onLogout={() => handleLogout(currentRole)}
       />
 
       {/* BODY CONTENT ROUTER */}
@@ -544,52 +575,62 @@ export default function App() {
         {/* VIEW 4: ROLE PORTAL DASHBOARDS */}
         {currentView === "dashboard" && (
           <>
-            {currentRole === "buyer" && (
-              <BuyerDashboard
+            {!authenticatedUsers[currentRole] ? (
+              <AuthPortal
                 language={language}
-                savedProducts={savedProducts}
-                onRemoveSave={handleToggleSave}
-                onViewProduct={(p) => setSelectedProductForDetail(p)}
-                quoteRequests={quoteRequests}
-                quotations={quotations}
-                messages={messages}
-                onSendMessage={handleSendMessage}
-                onUpdateQuoteStatus={handleUpdateQuoteStatus}
+                role={currentRole}
+                onLoginSuccess={(username, fullName, email) => handleLoginSuccess(currentRole, username, fullName, email)}
               />
-            )}
+            ) : (
+              <>
+                {currentRole === "buyer" && (
+                  <BuyerDashboard
+                    language={language}
+                    savedProducts={savedProducts}
+                    onRemoveSave={handleToggleSave}
+                    onViewProduct={(p) => setSelectedProductForDetail(p)}
+                    quoteRequests={quoteRequests}
+                    quotations={quotations}
+                    messages={messages}
+                    onSendMessage={handleSendMessage}
+                    onUpdateQuoteStatus={handleUpdateQuoteStatus}
+                  />
+                )}
 
-            {currentRole === "manufacturer" && (
-              <ManufacturerDashboard
-                language={language}
-                products={products}
-                quoteRequests={quoteRequests}
-                onAddProduct={handleAddProduct}
-                onCreateQuotation={handleCreateQuotation}
-                messages={messages}
-                onSendMessage={handleSendMessage}
-              />
-            )}
+                {currentRole === "manufacturer" && (
+                  <ManufacturerDashboard
+                    language={language}
+                    products={products}
+                    quoteRequests={quoteRequests}
+                    onAddProduct={handleAddProduct}
+                    onCreateQuotation={handleCreateQuotation}
+                    messages={messages}
+                    onSendMessage={handleSendMessage}
+                  />
+                )}
 
-            {currentRole === "admin" && (
-              <AdminDashboard
-                language={language}
-                manufacturers={manufacturers}
-                products={products}
-                adminLogs={adminLogs}
-                onApproveManufacturer={handleApproveManufacturer}
-                onRejectManufacturer={handleRejectManufacturer}
-                onUpdateManufacturers={setManufacturers}
-                onUpdateProducts={setProducts}
-                onAddAdminLog={(action, details) => {
-                  const newLog = {
-                    id: `log_${Date.now()}`,
-                    timestamp: new Date().toISOString().replace("T", " ").slice(0, 19),
-                    action,
-                    details
-                  };
-                  setAdminLogs(prev => [newLog, ...prev]);
-                }}
-              />
+                {currentRole === "admin" && (
+                  <AdminDashboard
+                    language={language}
+                    manufacturers={manufacturers}
+                    products={products}
+                    adminLogs={adminLogs}
+                    onApproveManufacturer={handleApproveManufacturer}
+                    onRejectManufacturer={handleRejectManufacturer}
+                    onUpdateManufacturers={setManufacturers}
+                    onUpdateProducts={setProducts}
+                    onAddAdminLog={(action, details) => {
+                      const newLog = {
+                        id: `log_${Date.now()}`,
+                        timestamp: new Date().toISOString().replace("T", " ").slice(0, 19),
+                        action,
+                        details
+                      };
+                      setAdminLogs(prev => [newLog, ...prev]);
+                    }}
+                  />
+                )}
+              </>
             )}
           </>
         )}
