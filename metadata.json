@@ -1,0 +1,6 @@
+{
+  "name": "PrefabHome Marketplace",
+  "description": "A cross-border prefab home marketplace connecting China manufacturers with U.S. buyers. Features a multi-language bilingual UI, translation system, AI Home Advisor, dedicated Buyer/Manufacturer/Admin portals, and shipping cost estimator.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
