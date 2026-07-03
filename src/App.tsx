@@ -27,6 +27,7 @@ import AIAdvisor from "./components/AIAdvisor";
 import BuyerDashboard from "./components/BuyerDashboard";
 import ManufacturerDashboard from "./components/ManufacturerDashboard";
 import AdminDashboard from "./components/AdminDashboard";
+import ImportCustomsCenter from "./components/ImportCustomsCenter";
 
 // Icons
 import { Search, SlidersHorizontal, ArrowLeftRight, Heart, Sparkles, Building, Bot, ShieldCheck, Check, RotateCcw } from "lucide-react";
@@ -50,7 +51,7 @@ export default function App() {
   // Global App States
   const [language, setLanguage] = useState<Language>("en");
   const [currentRole, setCurrentRole] = useState<UserRole>("buyer");
-  const [currentView, setCurrentView] = useState<"browse" | "compare" | "advisor" | "dashboard">("browse");
+  const [currentView, setCurrentView] = useState<"browse" | "compare" | "advisor" | "dashboard" | "import-center">("browse");
 
   // Mock Database States
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
@@ -532,6 +533,14 @@ export default function App() {
           <AIAdvisor language={language} />
         )}
 
+        {/* VIEW 3.5: IMPORT & CUSTOMS CENTER */}
+        {currentView === "import-center" && (
+          <ImportCustomsCenter 
+            language={language}
+            products={products}
+          />
+        )}
+
         {/* VIEW 4: ROLE PORTAL DASHBOARDS */}
         {currentView === "dashboard" && (
           <>
@@ -569,6 +578,17 @@ export default function App() {
                 adminLogs={adminLogs}
                 onApproveManufacturer={handleApproveManufacturer}
                 onRejectManufacturer={handleRejectManufacturer}
+                onUpdateManufacturers={setManufacturers}
+                onUpdateProducts={setProducts}
+                onAddAdminLog={(action, details) => {
+                  const newLog = {
+                    id: `log_${Date.now()}`,
+                    timestamp: new Date().toISOString().replace("T", " ").slice(0, 19),
+                    action,
+                    details
+                  };
+                  setAdminLogs(prev => [newLog, ...prev]);
+                }}
               />
             )}
           </>

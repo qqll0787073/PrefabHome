@@ -17,13 +17,49 @@ export interface BuyerProfile {
 export interface ManufacturerProfile {
   id: string;
   companyName: string;
+  companyNameCn?: string;
   contactPerson: string;
+  title?: string;
   email: string;
   phone: string;
-  address: string;
+  mobile?: string;
+  whatsapp?: string;
+  wechat?: string;
   website?: string;
-  exportExperience: string; // e.g. "5+ Years"
+  province?: string;
+  city?: string;
+  address: string;
+  postalCode?: string;
+  country?: string;
+  yearEstablished?: number;
+  employees?: number;
+  factoryAreaSqm?: number;
   certifications: string[]; // e.g. ["ISO9001", "CE", "UL", "CSA"]
+  products?: string[]; // e.g. ["Space Capsule", "Expandable Container", "ADU"]
+  exportMarkets?: string[];
+  annualCapacity?: string;
+  oem?: boolean;
+  odm?: boolean;
+  verified?: boolean;
+  source?: string;
+  notes?: string;
+
+  // CRM - Customer Relationship Management fields
+  contactStatus?: "Not Contacted" | "Contacted" | "Replied" | "Follow-up" | "Active" | "Inactive";
+  firstContactDate?: string;
+  lastContactDate?: string;
+  lastEmailSent?: string;
+  responseReceived?: boolean;
+  responseTime?: string; // e.g. "4h" or "24h"
+  productCatalogReceived?: boolean;
+  priceListReceived?: boolean;
+  photosReceived?: boolean;
+  videosReceived?: boolean;
+  cadReceived?: boolean;
+  ndaSigned?: boolean;
+  sampleOrdered?: boolean;
+  preferredSupplier?: boolean;
+
   status: "pending" | "approved" | "rejected" | "suspended";
   factoryPhotos: string[];
 }

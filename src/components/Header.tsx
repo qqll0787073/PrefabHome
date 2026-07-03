@@ -95,6 +95,18 @@ export default function Header({
             </button>
 
             <button
+              onClick={() => setCurrentView("import-center")}
+              className={`flex items-center space-x-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                currentView === "import-center" 
+                  ? "bg-slate-100 text-slate-900 font-semibold" 
+                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+              }`}
+            >
+              <Compass className="w-4 h-4 text-indigo-500" />
+              <span>{getTranslation(language, "importCenter")}</span>
+            </button>
+
+            <button
               onClick={() => setCurrentView("dashboard")}
               className={`flex items-center space-x-1 px-3 py-2 rounded-lg text-sm font-medium transition-all relative ${
                 currentView === "dashboard" 
