@@ -34,6 +34,17 @@
 - `created_at timestamptz`
 - `updated_at timestamptz`
 
+### buyers
+
+- `id uuid primary key`
+- `profile_id uuid references profiles(id)`
+- `preferred_state text`
+- `budget_min numeric`
+- `budget_max numeric`
+- `project_timeline text`
+- `created_at timestamptz`
+- `updated_at timestamptz`
+
 ### products
 
 - `id uuid primary key`
@@ -96,38 +107,27 @@
 - `created_at timestamptz`
 - `read_at timestamptz`
 
-### crm_companies
+### saved_products
+
+- `buyer_id uuid references profiles(id)`
+- `product_id uuid references products(id)`
+- `created_at timestamptz`
+
+### manufacturer_outreach
 
 - `id uuid primary key`
 - `manufacturer_id uuid references manufacturers(id)`
-- `name text`
-- `website text`
-- `region text`
+- `contact_name text`
+- `contact_email text`
+- `company_name text`
 - `stage text`
+- `last_contacted_at timestamptz`
+- `notes text`
 - `metadata jsonb`
 - `created_at timestamptz`
+- `updated_at timestamptz`
 
-### crm_contacts
-
-- `id uuid primary key`
-- `company_id uuid references crm_companies(id)`
-- `name text`
-- `email text`
-- `phone text`
-- `title text`
-- `created_at timestamptz`
-
-### email_events
-
-- `id uuid primary key`
-- `contact_id uuid references crm_contacts(id)`
-- `event_type text`
-- `provider_message_id text`
-- `subject text`
-- `metadata jsonb`
-- `created_at timestamptz`
-
-### documents
+### import_documents
 
 - `id uuid primary key`
 - `owner_id uuid references profiles(id)`
@@ -135,7 +135,9 @@
 - `document_type text`
 - `storage_path text`
 - `status text`
+- `metadata jsonb`
 - `created_at timestamptz`
+- `updated_at timestamptz`
 
 ### advisor_sessions
 

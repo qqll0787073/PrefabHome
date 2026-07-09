@@ -48,9 +48,13 @@ Recommended workflow:
 
 1. Install Supabase CLI.
 2. Run local Supabase stack.
-3. Apply migrations.
+3. Apply migrations from `supabase/migrations`.
 4. Seed safe sample data.
 5. Run the frontend with `.env.local` values.
+
+The frontend build does not require real credentials yet. When `VITE_SUPABASE_URL`
+or `VITE_SUPABASE_ANON_KEY` is missing, `src/lib/supabase.ts` exports a `null`
+client and the current prototype UI continues to use static sample data.
 
 ## Deployment
 
