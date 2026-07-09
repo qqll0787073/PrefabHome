@@ -87,19 +87,23 @@ h3 {
 .nav-tabs,
 .actions,
 .meta-row,
-.tag-row {
+.tag-row,
+.auth-summary {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
 .role-switcher button,
+.auth-summary button,
 .nav-tabs button,
 .actions button,
 .search-panel button,
 .panel button,
 .details-panel button,
-.filters button {
+.filters button,
+.auth-form button,
+.auth-form select {
   min-height: 38px;
   padding: 9px 13px;
   color: #263246;
@@ -112,13 +116,38 @@ h3 {
 
 .role-switcher button.active,
 .nav-tabs button.active,
+.segmented-control button.active,
 .actions button:hover,
 .search-panel button,
 .panel button,
-.details-panel button:last-child {
+.details-panel button:last-child,
+.auth-form button[type="submit"] {
   color: #ffffff;
   background: #111827;
   border-color: #111827;
+}
+
+.auth-summary {
+  align-items: center;
+  min-width: 190px;
+  justify-content: flex-end;
+}
+
+.auth-summary span,
+.auth-summary small {
+  width: 100%;
+  text-align: right;
+}
+
+.auth-summary span {
+  color: #263246;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.auth-summary small {
+  color: #667085;
+  font-size: 12px;
 }
 
 .nav-tabs {
@@ -268,6 +297,86 @@ main {
   padding: 24px;
 }
 
+.auth-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+  gap: 28px;
+  margin-bottom: 24px;
+  padding: 28px;
+  background: #ffffff;
+  border: 1px solid #e3e7ee;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+}
+
+.auth-panel > div:first-child {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+}
+
+.auth-panel h2 {
+  font-size: clamp(26px, 3vw, 40px);
+}
+
+.auth-panel p:not(.eyebrow) {
+  max-width: 640px;
+  color: #536070;
+  line-height: 1.55;
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 7px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.auth-form input,
+.auth-form select {
+  width: 100%;
+  color: #101828;
+  background: #f8fafc;
+  border: 1px solid #d9e0ea;
+  border-radius: 8px;
+}
+
+.auth-form input {
+  min-height: 42px;
+  padding: 10px 12px;
+}
+
+.auth-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.form-error {
+  padding: 10px 12px;
+  color: #9f1239;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.access-panel {
+  max-width: 780px;
+}
+
 .comparison-table,
 .dashboard-grid {
   display: grid;
@@ -327,9 +436,20 @@ main {
     flex-direction: column;
   }
 
+  .auth-summary {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .auth-summary span,
+  .auth-summary small {
+    text-align: left;
+  }
+
   .content-grid,
   .dashboard-grid,
-  .comparison-table {
+  .comparison-table,
+  .auth-panel {
     grid-template-columns: 1fr;
   }
 
