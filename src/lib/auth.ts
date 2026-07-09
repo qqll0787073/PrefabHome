@@ -199,7 +199,7 @@ export function useAuth(): AuthState {
       throw signUpError;
     }
 
-    if (data.user) {
+    if (data.user && data.session) {
       const profilePayload = {
         id: data.user.id,
         email,
@@ -220,6 +220,8 @@ export function useAuth(): AuthState {
         fullName: fullName?.trim() || email.split("@")[0],
         role,
       });
+    } else if (data.user) {
+      setError("Registration created. Check your email to confirm the account before signing in.");
     }
   }
 
