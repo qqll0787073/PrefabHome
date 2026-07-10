@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { isSupabaseConfigured, supabase } from "./supabase";
+import { isRole, sanitizeRegistrationRole } from "./authRoles";
 import type { Role } from "../types";
 
 export interface AuthUser {
@@ -65,7 +66,7 @@ async function loadSupabaseProfile(userId: string, email: string): Promise<AuthU
     id: userId,
     email: data?.email ?? email,
     fullName: data?.full_name ?? email.split("@")[0],
-    role: data?.role ?? "buyer",
+    role: isRole(data?.role) ? data.role : "buyer",
   };
 }
 
@@ -170,13 +171,14 @@ export function useAuth(): AuthState {
 
   async function register({ email, password, fullName, role }: AuthCredentials) {
     setError(null);
+    const registrationRole = sanitizeRegistrationRole(role);
 
     if (!supabase) {
       const demoUser: AuthUser = {
         id: `demo-${Date.now()}`,
         email,
         fullName: fullName?.trim() || email.split("@")[0],
-        role,
+        role: registrationRole,
       };
       setDemoUser(demoUser);
       setUser(demoUser);
@@ -189,7 +191,7 @@ export function useAuth(): AuthState {
       options: {
         data: {
           full_name: fullName,
-          role,
+          role: registrationRole,
         },
       },
     });
@@ -204,7 +206,7 @@ export function useAuth(): AuthState {
         id: data.user.id,
         email,
         full_name: fullName?.trim() || null,
-        role,
+        role: registrationRole,
         status: "active",
       };
 
@@ -218,7 +220,7 @@ export function useAuth(): AuthState {
         id: data.user.id,
         email,
         fullName: fullName?.trim() || email.split("@")[0],
-        role,
+        role: registrationRole,
       });
     } else if (data.user) {
       setError("Registration created. Check your email to confirm the account before signing in.");
