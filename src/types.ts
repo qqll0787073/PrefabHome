@@ -65,6 +65,97 @@ export interface ManufacturerApplicationFormValues {
   companyDescription: string;
 }
 
+export type ProductLifecycleStatus =
+  | "draft"
+  | "submitted"
+  | "published"
+  | "rejected"
+  | "archived";
+
+export interface ProductRecord {
+  id: string;
+  manufacturer_id: string;
+  name: string;
+  sku: string | null;
+  model_name: string | null;
+  slug: string | null;
+  category: string;
+  short_description: string | null;
+  description: string | null;
+  tags: string[];
+  intended_uses: string[];
+  floor_area_sq_ft: number | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  stories: number | null;
+  length_ft: number | null;
+  width_ft: number | null;
+  height_ft: number | null;
+  structure_material: string | null;
+  exterior_finish: string | null;
+  roof_type: string | null;
+  insulation: string | null;
+  electrical_standard: string | null;
+  plumbing_standard: string | null;
+  wind_rating: string | null;
+  snow_load_psf: number | null;
+  currency: string;
+  fob_price: number | null;
+  price_unit: string | null;
+  minimum_order_quantity: number | null;
+  production_lead_time_weeks: number | null;
+  port_of_loading: string | null;
+  hs_code: string | null;
+  certifications: string[];
+  target_markets: string[];
+  notes: string | null;
+  review_notes: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  submitted_at: string | null;
+  published_at: string | null;
+  archived_at: string | null;
+  status: ProductLifecycleStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductFormValues {
+  sku: string;
+  modelName: string;
+  slug: string;
+  category: string;
+  shortDescription: string;
+  description: string;
+  tags: string;
+  intendedUses: string;
+  floorAreaSqFt: string;
+  bedrooms: string;
+  bathrooms: string;
+  stories: string;
+  lengthFt: string;
+  widthFt: string;
+  heightFt: string;
+  structureMaterial: string;
+  exteriorFinish: string;
+  roofType: string;
+  insulation: string;
+  electricalStandard: string;
+  plumbingStandard: string;
+  windRating: string;
+  snowLoadPsf: string;
+  currency: string;
+  fobPrice: string;
+  priceUnit: string;
+  minimumOrderQuantity: string;
+  productionLeadTimeWeeks: string;
+  portOfLoading: string;
+  hsCode: string;
+  certifications: string;
+  targetMarkets: string;
+  notes: string;
+}
+
 export interface Product {
   id: string;
   name: string;

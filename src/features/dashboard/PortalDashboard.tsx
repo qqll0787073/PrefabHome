@@ -2,6 +2,8 @@ import { roleLabels } from "../../app/constants";
 import { AuthPanel } from "../auth/AuthPanel";
 import { AdminManufacturerReview } from "../manufacturers/AdminManufacturerReview";
 import { ManufacturerWorkspace } from "../manufacturers/ManufacturerWorkspace";
+import { AdminProductReview } from "../products/AdminProductReview";
+import { ManufacturerProductList } from "../products/ManufacturerProductList";
 import type { AuthState } from "../../lib/auth";
 import type { Message, QuoteRequest, Role } from "../../types";
 
@@ -87,11 +89,17 @@ export function PortalDashboard({
           </section>
 
           {role === "manufacturer" && auth.user && (
-            <ManufacturerWorkspace user={auth.user} authMode={auth.mode} />
+            <>
+              <ManufacturerWorkspace user={auth.user} authMode={auth.mode} />
+              <ManufacturerProductList user={auth.user} authMode={auth.mode} />
+            </>
           )}
 
           {role === "admin" && auth.user && (
-            <AdminManufacturerReview authMode={auth.mode} />
+            <>
+              <AdminManufacturerReview authMode={auth.mode} />
+              <AdminProductReview authMode={auth.mode} />
+            </>
           )}
         </>
       )}
