@@ -4,6 +4,7 @@ import type {
   ProductFormValues,
   ProductLifecycleStatus,
   ProductRecord,
+  PublicProductRecord,
 } from "../types";
 
 export const productStatuses: ProductLifecycleStatus[] = [
@@ -24,13 +25,6 @@ export const manufacturerSubmittableProductStatuses: ProductLifecycleStatus[] = 
   "rejected",
 ];
 
-export const adminReviewProductStatuses: ProductLifecycleStatus[] = [
-  "draft",
-  "published",
-  "rejected",
-  "archived",
-];
-
 export const productStatusLabels: Record<ProductLifecycleStatus, string> = {
   draft: "Draft",
   submitted: "Submitted",
@@ -38,6 +32,22 @@ export const productStatusLabels: Record<ProductLifecycleStatus, string> = {
   rejected: "Rejected",
   archived: "Archived",
 };
+
+export function getAllowedAdminProductTransitions(
+  currentStatus: ProductLifecycleStatus
+): ProductLifecycleStatus[] {
+  switch (currentStatus) {
+    case "submitted":
+      return ["published", "rejected"];
+    case "published":
+      return ["archived"];
+    case "rejected":
+      return ["draft"];
+    case "draft":
+    case "archived":
+      return [];
+  }
+}
 
 export function emptyProductForm(): ProductFormValues {
   return {
@@ -260,6 +270,10 @@ export function toReadableProductError(error: { code?: string; message?: string 
     return new Error("Invalid product status transition.");
   }
 
+  if (message.includes("invalid admin product lifecycle transition")) {
+    return new Error("Invalid admin product status transition.");
+  }
+
   if (message.includes("permission denied") || message.includes("violates row-level security")) {
     return new Error("You are not authorized to access this product.");
   }
@@ -274,16 +288,15 @@ function ensureSupabase() {
   return supabase;
 }
 
-export async function fetchPublishedProducts(): Promise<ProductRecord[]> {
+export async function fetchPublishedProducts(): Promise<PublicProductRecord[]> {
   const client = ensureSupabase();
   const { data, error } = await client
-    .from("products")
-    .select("id,manufacturer_id,name,sku,model_name,slug,category,short_description,description,tags,intended_uses,floor_area_sq_ft,bedrooms,bathrooms,stories,length_ft,width_ft,height_ft,structure_material,exterior_finish,roof_type,insulation,electrical_standard,plumbing_standard,wind_rating,snow_load_psf,currency,fob_price,price_unit,minimum_order_quantity,production_lead_time_weeks,port_of_loading,hs_code,certifications,target_markets,notes,review_notes,reviewed_by,reviewed_at,submitted_at,published_at,archived_at,status,created_at,updated_at")
-    .eq("status", "published")
+    .from("published_products")
+    .select("id,manufacturer_id,name,sku,model_name,slug,category,short_description,description,tags,intended_uses,floor_area_sq_ft,bedrooms,bathrooms,stories,length_ft,width_ft,height_ft,structure_material,exterior_finish,roof_type,insulation,electrical_standard,plumbing_standard,wind_rating,snow_load_psf,currency,fob_price,price_unit,minimum_order_quantity,production_lead_time_weeks,port_of_loading,hs_code,certifications,target_markets,published_at,status,created_at,updated_at")
     .order("published_at", { ascending: false });
 
   if (error) throw toReadableProductError(error);
-  return (data ?? []) as ProductRecord[];
+  return (data ?? []) as PublicProductRecord[];
 }
 
 export async function fetchOwnProducts(ownerId: string): Promise<ProductRecord[]> {
@@ -388,9 +401,15 @@ export async function submitProduct(
 
 export async function adminReviewProduct(
   productId: string,
+  currentStatus: ProductLifecycleStatus,
   status: ProductLifecycleStatus,
   reviewNotes: string
 ): Promise<ProductRecord> {
+  const allowedStatuses = getAllowedAdminProductTransitions(currentStatus);
+  if (status !== currentStatus && !allowedStatuses.includes(status)) {
+    throw new Error("Invalid admin product status transition.");
+  }
+
   const client = ensureSupabase();
   const { data, error } = await client
     .from("products")
@@ -406,6 +425,9 @@ export async function adminReviewProduct(
   return data as ProductRecord;
 }
 
-export async function archiveProduct(productId: string): Promise<ProductRecord> {
-  return adminReviewProduct(productId, "archived", "Archived by admin.");
+export async function archiveProduct(
+  productId: string,
+  currentStatus: ProductLifecycleStatus
+): Promise<ProductRecord> {
+  return adminReviewProduct(productId, currentStatus, "archived", "Archived by admin.");
 }

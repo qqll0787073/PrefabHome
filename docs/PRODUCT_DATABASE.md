@@ -84,16 +84,38 @@ Admin transitions:
 - `published` -> `archived`
 - `rejected` -> `draft`
 
-Admins can manage all products in all statuses. Publishing sets `published_at`; archiving sets `archived_at`.
+Admins can make same-status edits such as review note updates without resetting lifecycle timestamps.
+
+All other admin lifecycle transitions are rejected at the database trigger, including `draft` -> `published`, `draft` -> `archived`, `published` -> `draft`, `archived` -> `rejected`, `archived` -> `published`, and `rejected` -> `published`.
+
+Timestamp behavior:
+
+- `submitted` -> `published` sets `published_at` and clears `archived_at`
+- `submitted` -> `rejected` records review metadata but does not set `published_at`
+- `published` -> `archived` sets `archived_at`
+- `rejected` -> `draft` clears review workflow fields so the manufacturer can revise
+- same-status admin edits do not reset `submitted_at`, `published_at`, or `archived_at`
 
 ## Public Visibility
 
-Anonymous users and buyers can read only `published` products.
+Anonymous users, buyers, and manufacturers browsing public listings read from `public.published_products`, not from the private `public.products` table.
+
+`public.published_products` is a database-level public projection that includes only buyer-safe fields for `published` products. It excludes internal/review fields such as:
+
+- `notes`
+- `review_notes`
+- `reviewed_by`
+- `reviewed_at`
+- `submitted_at`
+- `archived_at`
+- legacy/internal compatibility blobs such as `specifications` and `compliance_notes`
+
+The view uses an explicit `status = 'published'` predicate and grants `select` on the view to `anon` and `authenticated`. Anonymous direct `select` on `public.products` is revoked. Authenticated direct table visibility is limited by RLS to manufacturer owners and admins.
 
 Manufacturers can read:
 
 - their own products in any status
-- published products from other manufacturers
+- published products from other manufacturers through `public.published_products`
 
 Admins can read and manage all products.
 
@@ -118,7 +140,9 @@ Trigger-level enforcement in `public.manage_product_lifecycle()` protects:
 - manufacturer submit-only transitions
 - manufacturer self-publish/reject/archive prevention
 - immutable `manufacturer_id`
+- admin transition matrix
 - admin publication/archive timestamps
+- public/private product access separation
 
 ## Service Layer
 
@@ -131,7 +155,10 @@ Responsibilities:
 - draft and submit validation
 - readable product errors
 - manufacturer/admin status constants
+- transition-aware `getAllowedAdminProductTransitions(currentStatus)`
 - product lifecycle helper functions
+
+Public browse code uses `PublicProductRecord` from `src/types.ts` and queries `public.published_products`. Manufacturer/admin workflows use private `ProductRecord` from `public.products`.
 
 UI components must not use service-role credentials or place privileged Supabase queries directly in presentation code.
 
@@ -157,6 +184,6 @@ Admin portal:
 - lists all products
 - filters by status
 - reviews submitted products
-- publishes, rejects, archives, or returns products to draft
+- renders only legal lifecycle actions for the current product status
 
 The public marketplace still uses static prototype products in PH-003. Migrating public browse to Supabase belongs to a later phase.

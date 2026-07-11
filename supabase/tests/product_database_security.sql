@@ -300,7 +300,7 @@ begin
 
   perform set_config('request.jwt.claim.sub', (select subject_id::text from product_database_subjects where subject_name = 'approved_owner'), true);
   select count(*) into visible_private_count from public.products where id = other_private_product_id;
-  select count(*) into visible_published_count from public.products where id = other_published_product_id;
+  select count(*) into visible_published_count from public.published_products where id = other_published_product_id;
 
   insert into product_database_subjects values ('other_private_product', other_private_product_id);
   insert into product_database_subjects values ('other_published_product', other_published_product_id);
@@ -323,7 +323,7 @@ begin
   perform set_config('request.jwt.claim.sub', buyer_id::text, true);
 
   select count(*) into buyer_visible_private from public.products where id = private_id;
-  select count(*) into buyer_visible_published from public.products where id = published_id;
+  select count(*) into buyer_visible_published from public.published_products where id = published_id;
 
   insert into product_database_results values ('buyer can read published product only', buyer_visible_private = 0 and buyer_visible_published = 1, 'private: ' || buyer_visible_private || ', published: ' || buyer_visible_published);
 end;
@@ -342,8 +342,8 @@ begin
   select subject_id into private_id from product_database_subjects where subject_name = 'other_private_product';
   select subject_id into published_id from product_database_subjects where subject_name = 'other_published_product';
 
-  select count(*) into anon_visible_private from public.products where id = private_id;
-  select count(*) into anon_visible_published from public.products where id = published_id;
+  select count(*) into anon_visible_private from public.published_products where id = private_id;
+  select count(*) into anon_visible_published from public.published_products where id = published_id;
 
   insert into product_database_results values ('anonymous user can read published product only', anon_visible_private = 0 and anon_visible_published = 1, 'private: ' || anon_visible_private || ', published: ' || anon_visible_published);
 end;
@@ -354,25 +354,51 @@ set local role authenticated;
 do $$
 declare
   admin_id uuid;
+  owner_id uuid;
+  manufacturer_id uuid;
   visible_count integer;
   product_id uuid;
+  reject_product_id uuid;
+  returned_product_id uuid;
   published_at_value timestamptz;
   rejected_status text;
+  returned_status text;
+  returned_review_notes text;
+  returned_reviewed_by uuid;
+  returned_reviewed_at timestamptz;
 begin
   select subject_id into admin_id from product_database_subjects where subject_name = 'admin';
+  select subject_id into owner_id from product_database_subjects where subject_name = 'approved_owner';
+  select subject_id into manufacturer_id from product_database_subjects where subject_name = 'approved_manufacturer';
   select subject_id into product_id from product_database_subjects where subject_name = 'own_product';
+
+  perform set_config('request.jwt.claim.sub', owner_id::text, true);
+  insert into public.products(manufacturer_id, name, model_name, sku, slug, category, status)
+  values (manufacturer_id, 'Reject Me', 'Reject Me', 'SKU-REJECT', 'reject-me-' || manufacturer_id, 'ADU', 'submitted')
+  returning id into reject_product_id;
+
   perform set_config('request.jwt.claim.sub', admin_id::text, true);
   perform set_config('request.jwt.claim.role', 'authenticated', true);
 
   select count(*) into visible_count from public.products;
   update public.products set status = 'published', review_notes = 'Published in verification.' where id = product_id returning published_at into published_at_value;
-  update public.products set status = 'submitted' where id = product_id;
-  update public.products set status = 'rejected', review_notes = 'Rejected in verification.' where id = product_id returning status into rejected_status;
+  update public.products set status = 'rejected', review_notes = 'Rejected in verification.' where id = reject_product_id returning status into rejected_status;
+  update public.products set status = 'draft' where id = reject_product_id returning id into returned_product_id;
+  select status, review_notes, reviewed_by, reviewed_at
+  into returned_status, returned_review_notes, returned_reviewed_by, returned_reviewed_at
+  from public.products
+  where id = returned_product_id;
 
   insert into product_database_results values ('admin can review all products', visible_count >= 3, 'visible products: ' || visible_count);
-  insert into product_database_results values ('admin can publish submitted product', published_at_value is not null, 'published_at: ' || coalesce(published_at_value::text, 'null'));
+  insert into product_database_results values ('admin can perform submitted -> published', published_at_value is not null, 'published_at: ' || coalesce(published_at_value::text, 'null'));
   insert into product_database_results values ('published_at is set on publication', published_at_value is not null, 'published_at: ' || coalesce(published_at_value::text, 'null'));
-  insert into product_database_results values ('admin can reject submitted product', rejected_status = 'rejected', 'status: ' || coalesce(rejected_status, 'null'));
+  insert into product_database_results values ('admin can perform submitted -> rejected', rejected_status = 'rejected', 'status: ' || coalesce(rejected_status, 'null'));
+  insert into product_database_results values ('admin can perform rejected -> draft', returned_status = 'draft', 'status: ' || coalesce(returned_status, 'null'));
+  insert into product_database_results values (
+    'rejected -> draft clears review workflow fields',
+    returned_review_notes is null and returned_reviewed_by is null and returned_reviewed_at is null,
+    'notes: ' || coalesce(returned_review_notes, 'null') || ', reviewed_by: ' || coalesce(returned_reviewed_by::text, 'null') || ', reviewed_at: ' || coalesce(returned_reviewed_at::text, 'null')
+  );
 end;
 $$;
 
@@ -380,11 +406,104 @@ do $$
 declare
   admin_id uuid;
   product_id uuid;
+  archived_at_value timestamptz;
 begin
   select subject_id into admin_id from product_database_subjects where subject_name = 'admin';
   select subject_id into product_id from product_database_subjects where subject_name = 'other_published_product';
   perform set_config('request.jwt.claim.sub', admin_id::text, true);
-  update public.products set status = 'archived' where id = product_id;
+  update public.products set status = 'archived' where id = product_id returning archived_at into archived_at_value;
+
+  insert into product_database_results values ('admin can perform published -> archived', archived_at_value is not null, 'archived_at: ' || coalesce(archived_at_value::text, 'null'));
+end;
+$$;
+
+do $$
+declare
+  admin_id uuid;
+  owner_id uuid;
+  manufacturer_id uuid;
+  archived_id uuid;
+  draft_publish_id uuid;
+  draft_archive_id uuid;
+  submitted_publish_id uuid;
+  submitted_reject_id uuid;
+  published_draft_id uuid;
+  rejected_publish_id uuid;
+  blocked_draft_to_published boolean := false;
+  blocked_draft_to_archived boolean := false;
+  blocked_archived_to_rejected boolean := false;
+  blocked_archived_to_published boolean := false;
+  blocked_published_to_draft boolean := false;
+  blocked_rejected_to_published boolean := false;
+begin
+  select subject_id into admin_id from product_database_subjects where subject_name = 'admin';
+  select subject_id into owner_id from product_database_subjects where subject_name = 'approved_owner';
+  select subject_id into manufacturer_id from product_database_subjects where subject_name = 'approved_manufacturer';
+  select subject_id into archived_id from product_database_subjects where subject_name = 'other_published_product';
+
+  perform set_config('request.jwt.claim.sub', owner_id::text, true);
+  insert into public.products(manufacturer_id, name, model_name, sku, slug, category, status)
+  values (manufacturer_id, 'Draft Publish Block', 'Draft Publish Block', 'SKU-DRAFT-PUB', 'draft-pub-' || manufacturer_id, 'ADU', 'draft')
+  returning id into draft_publish_id;
+
+  insert into public.products(manufacturer_id, name, model_name, sku, slug, category, status)
+  values (manufacturer_id, 'Draft Archive Block', 'Draft Archive Block', 'SKU-DRAFT-ARCH', 'draft-arch-' || manufacturer_id, 'ADU', 'draft')
+  returning id into draft_archive_id;
+
+  insert into public.products(manufacturer_id, name, model_name, sku, slug, category, status)
+  values (manufacturer_id, 'Published Draft Block', 'Published Draft Block', 'SKU-PUB-DRAFT', 'pub-draft-' || manufacturer_id, 'ADU', 'submitted')
+  returning id into submitted_publish_id;
+
+  insert into public.products(manufacturer_id, name, model_name, sku, slug, category, status)
+  values (manufacturer_id, 'Rejected Publish Block', 'Rejected Publish Block', 'SKU-REJ-PUB', 'rej-pub-' || manufacturer_id, 'ADU', 'submitted')
+  returning id into submitted_reject_id;
+
+  perform set_config('request.jwt.claim.sub', admin_id::text, true);
+  update public.products set status = 'published' where id = submitted_publish_id returning id into published_draft_id;
+  update public.products set status = 'rejected' where id = submitted_reject_id returning id into rejected_publish_id;
+
+  begin
+    update public.products set status = 'published' where id = draft_publish_id;
+  exception when others then
+    blocked_draft_to_published := true;
+  end;
+
+  begin
+    update public.products set status = 'archived' where id = draft_archive_id;
+  exception when others then
+    blocked_draft_to_archived := true;
+  end;
+
+  begin
+    update public.products set status = 'rejected' where id = archived_id;
+  exception when others then
+    blocked_archived_to_rejected := true;
+  end;
+
+  begin
+    update public.products set status = 'published' where id = archived_id;
+  exception when others then
+    blocked_archived_to_published := true;
+  end;
+
+  begin
+    update public.products set status = 'draft' where id = published_draft_id;
+  exception when others then
+    blocked_published_to_draft := true;
+  end;
+
+  begin
+    update public.products set status = 'published' where id = rejected_publish_id;
+  exception when others then
+    blocked_rejected_to_published := true;
+  end;
+
+  insert into product_database_results values ('admin cannot perform draft -> published', blocked_draft_to_published, case when blocked_draft_to_published then 'blocked' else 'unexpectedly allowed' end);
+  insert into product_database_results values ('admin cannot perform draft -> archived', blocked_draft_to_archived, case when blocked_draft_to_archived then 'blocked' else 'unexpectedly allowed' end);
+  insert into product_database_results values ('admin cannot perform archived -> rejected', blocked_archived_to_rejected, case when blocked_archived_to_rejected then 'blocked' else 'unexpectedly allowed' end);
+  insert into product_database_results values ('admin cannot perform archived -> published', blocked_archived_to_published, case when blocked_archived_to_published then 'blocked' else 'unexpectedly allowed' end);
+  insert into product_database_results values ('admin cannot perform published -> draft', blocked_published_to_draft, case when blocked_published_to_draft then 'blocked' else 'unexpectedly allowed' end);
+  insert into product_database_results values ('admin cannot perform rejected -> published', blocked_rejected_to_published, case when blocked_rejected_to_published then 'blocked' else 'unexpectedly allowed' end);
 end;
 $$;
 
@@ -398,13 +517,89 @@ declare
 begin
   select subject_id into product_id from product_database_subjects where subject_name = 'other_published_product';
 
-  select count(*) into public_visible_count from public.products where id = product_id;
+  select count(*) into public_visible_count from public.published_products where id = product_id;
 
   insert into product_database_results values ('archived products are hidden from public queries', public_visible_count = 0, 'public visible archived: ' || public_visible_count);
 end;
 $$;
 
 set local role authenticated;
+
+reset role;
+set local role anon;
+
+do $$
+declare
+  product_id uuid;
+  model_name_value text;
+  notes_blocked boolean := false;
+  review_notes_blocked boolean := false;
+  reviewer_blocked boolean := false;
+begin
+  select subject_id into product_id from product_database_subjects where subject_name = 'own_product';
+
+  select model_name into model_name_value from public.published_products where id = product_id;
+
+  begin
+    execute 'select notes from public.published_products limit 1';
+  exception when undefined_column then
+    notes_blocked := true;
+  end;
+
+  begin
+    execute 'select review_notes from public.published_products limit 1';
+  exception when undefined_column then
+    review_notes_blocked := true;
+  end;
+
+  begin
+    execute 'select reviewed_by, reviewed_at from public.published_products limit 1';
+  exception when undefined_column then
+    reviewer_blocked := true;
+  end;
+
+  insert into product_database_results values ('anonymous user can read approved public fields from a published product', model_name_value is not null, 'model_name: ' || coalesce(model_name_value, 'null'));
+  insert into product_database_results values ('anonymous user cannot select notes', notes_blocked, case when notes_blocked then 'blocked' else 'unexpectedly selected' end);
+  insert into product_database_results values ('anonymous user cannot select review_notes', review_notes_blocked, case when review_notes_blocked then 'blocked' else 'unexpectedly selected' end);
+  insert into product_database_results values ('anonymous user cannot select reviewed_by/reviewed_at', reviewer_blocked, case when reviewer_blocked then 'blocked' else 'unexpectedly selected' end);
+end;
+$$;
+
+set local role authenticated;
+
+do $$
+declare
+  buyer_id uuid;
+  owner_id uuid;
+  admin_id uuid;
+  product_id uuid;
+  owner_private_count integer;
+  admin_review_notes text;
+  buyer_private_view_blocked boolean := false;
+begin
+  select subject_id into buyer_id from product_database_subjects where subject_name = 'buyer';
+  select subject_id into owner_id from product_database_subjects where subject_name = 'approved_owner';
+  select subject_id into admin_id from product_database_subjects where subject_name = 'admin';
+  select subject_id into product_id from product_database_subjects where subject_name = 'own_product';
+
+  perform set_config('request.jwt.claim.sub', buyer_id::text, true);
+  begin
+    execute 'select notes from public.published_products limit 1';
+  exception when undefined_column then
+    buyer_private_view_blocked := true;
+  end;
+
+  perform set_config('request.jwt.claim.sub', owner_id::text, true);
+  select count(*) into owner_private_count from public.products where id = product_id;
+
+  perform set_config('request.jwt.claim.sub', admin_id::text, true);
+  select review_notes into admin_review_notes from public.products where id = product_id;
+
+  insert into product_database_results values ('buyer public query cannot expose private fields', buyer_private_view_blocked, case when buyer_private_view_blocked then 'blocked' else 'unexpectedly selected' end);
+  insert into product_database_results values ('manufacturer private product query still works', owner_private_count = 1, 'visible own private products: ' || owner_private_count);
+  insert into product_database_results values ('admin private product query still works', admin_review_notes is not null, 'review_notes: ' || coalesce(admin_review_notes, 'null'));
+end;
+$$;
 
 do $$
 declare

@@ -120,6 +120,16 @@ export interface ProductRecord {
   updated_at: string;
 }
 
+export type PublicProductRecord = Omit<
+  ProductRecord,
+  | "notes"
+  | "review_notes"
+  | "reviewed_by"
+  | "reviewed_at"
+  | "submitted_at"
+  | "archived_at"
+>;
+
 export interface ProductFormValues {
   sku: string;
   modelName: string;

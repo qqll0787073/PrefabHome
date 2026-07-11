@@ -40,19 +40,35 @@ Expected checks:
 7. manufacturer cannot self-publish
 8. manufacturer cannot change manufacturer_id
 9. manufacturer cannot read another manufacturer's private draft
-10. manufacturer can read another manufacturer's published product
-11. buyer can read published product only
-12. anonymous user can read published product only
+10. manufacturer can read another manufacturer's published product through `published_products`
+11. buyer can read published product only through public projection
+12. anonymous user can read published product only through public projection
 13. admin can review all products
-14. admin can publish submitted product
+14. admin can perform submitted -> published
 15. published_at is set on publication
-16. admin can reject submitted product
+16. admin can perform submitted -> rejected
 17. archived products are hidden from public queries
-18. duplicate SKU per manufacturer is blocked
-19. same SKU for different manufacturers is allowed
-20. invalid negative price/dimensions are blocked
-21. invalid status transition is blocked
-22. updated_at changes on valid update
+18. admin can perform published -> archived
+19. admin can perform rejected -> draft
+20. rejected -> draft clears review workflow fields
+21. admin cannot perform draft -> published
+22. admin cannot perform draft -> archived
+23. admin cannot perform archived -> rejected
+24. admin cannot perform archived -> published
+25. admin cannot perform published -> draft
+26. admin cannot perform rejected -> published
+27. anonymous user can read approved public fields from a published product
+28. anonymous user cannot select notes
+29. anonymous user cannot select review_notes
+30. anonymous user cannot select reviewed_by/reviewed_at
+31. buyer public query cannot expose private fields
+32. manufacturer private product query still works
+33. admin private product query still works
+34. duplicate SKU per manufacturer is blocked
+35. same SKU for different manufacturers is allowed
+36. invalid negative price/dimensions are blocked
+37. invalid status transition is blocked
+38. updated_at changes on valid update
 
 ## Application Checks
 
@@ -67,7 +83,32 @@ npm run test
 - No service-role key committed:
 - Secret scan completed:
 - No existing production rows deleted:
-- Product public queries expose only intended published product fields:
+- `0007` was not applied remotely before approval:
+- `0006` was not modified:
+- No production deployment:
+- Product public queries use `public.published_products`:
+- Anonymous users cannot directly select internal fields from the public projection:
+- Buyers use `PublicProductRecord`; manufacturer/admin code uses private `ProductRecord`:
+
+## Admin Transition Matrix
+
+Legal admin lifecycle transitions:
+
+- `submitted` -> `published`
+- `submitted` -> `rejected`
+- `published` -> `archived`
+- `rejected` -> `draft`
+- same-status review edits
+
+All other status changes must fail at service/UI level and at `public.manage_product_lifecycle()`.
+
+## Public And Private Product Access
+
+- Public/buyer listing reads: `public.published_products`
+- Manufacturer private reads/writes: `public.products` under RLS
+- Admin review reads/writes: `public.products` under RLS
+- Public TypeScript type: `PublicProductRecord`
+- Private TypeScript type: `ProductRecord`
 
 ## Deferred Work
 

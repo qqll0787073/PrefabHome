@@ -345,7 +345,26 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["import_documents"]["Insert"]>;
       };
     };
-    Views: Record<string, never>;
+    Views: {
+      published_products: {
+        Row: Omit<
+          Database["public"]["Tables"]["products"]["Row"],
+          | "notes"
+          | "review_notes"
+          | "reviewed_by"
+          | "reviewed_at"
+          | "submitted_at"
+          | "archived_at"
+          | "base_price"
+          | "size_sqft"
+          | "lead_time_weeks"
+          | "specifications"
+          | "compliance_notes"
+        >;
+        Insert: never;
+        Update: never;
+      };
+    };
     Functions: Record<string, never>;
     Enums: Record<string, never>;
   };

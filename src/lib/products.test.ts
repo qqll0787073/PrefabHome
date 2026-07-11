@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  adminReviewProductStatuses,
   emptyProductForm,
+  getAllowedAdminProductTransitions,
   manufacturerEditableProductStatuses,
   manufacturerSubmittableProductStatuses,
   toProductPayload,
@@ -66,13 +66,15 @@ describe("product database helpers", () => {
     assert.equal(manufacturerEditableProductStatuses.includes("archived"), false);
   });
 
-  it("defines admin review statuses", () => {
-    assert.deepEqual(adminReviewProductStatuses, [
-      "draft",
+  it("defines admin review transitions by current product status", () => {
+    assert.deepEqual(getAllowedAdminProductTransitions("draft"), []);
+    assert.deepEqual(getAllowedAdminProductTransitions("submitted"), [
       "published",
       "rejected",
-      "archived",
     ]);
+    assert.deepEqual(getAllowedAdminProductTransitions("published"), ["archived"]);
+    assert.deepEqual(getAllowedAdminProductTransitions("rejected"), ["draft"]);
+    assert.deepEqual(getAllowedAdminProductTransitions("archived"), []);
   });
 
   it("maps database errors into readable product messages", () => {

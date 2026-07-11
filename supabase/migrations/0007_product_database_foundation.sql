@@ -131,7 +131,57 @@ create index if not exists products_submitted_idx
   on public.products (submitted_at)
   where status = 'submitted';
 
-grant select on table public.products to anon;
+revoke select on table public.products from anon;
+
+drop view if exists public.published_products;
+
+create view public.published_products
+with (security_barrier = true)
+as
+select
+  id,
+  manufacturer_id,
+  name,
+  sku,
+  model_name,
+  slug,
+  category,
+  short_description,
+  description,
+  tags,
+  intended_uses,
+  floor_area_sq_ft,
+  bedrooms,
+  bathrooms,
+  stories,
+  length_ft,
+  width_ft,
+  height_ft,
+  structure_material,
+  exterior_finish,
+  roof_type,
+  insulation,
+  electrical_standard,
+  plumbing_standard,
+  wind_rating,
+  snow_load_psf,
+  currency,
+  fob_price,
+  price_unit,
+  minimum_order_quantity,
+  production_lead_time_weeks,
+  port_of_loading,
+  hs_code,
+  certifications,
+  target_markets,
+  published_at,
+  status,
+  created_at,
+  updated_at
+from public.products
+where status = 'published';
+
+grant select on public.published_products to anon, authenticated;
 
 create or replace function public.set_product_updated_at()
 returns trigger
@@ -217,19 +267,34 @@ begin
   new.updated_at := clock_timestamp();
 
   if public.is_admin() then
-    if new.status is distinct from old.status
-      or new.review_notes is distinct from old.review_notes then
+    if new.status is distinct from old.status then
+      if not (
+        (old.status = 'submitted' and new.status in ('published', 'rejected'))
+        or (old.status = 'published' and new.status = 'archived')
+        or (old.status = 'rejected' and new.status = 'draft')
+      ) then
+        raise exception 'Invalid admin product lifecycle transition from % to %.', old.status, new.status;
+      end if;
+
       new.reviewed_by := auth.uid();
       new.reviewed_at := now();
-    end if;
 
-    if new.status = 'published' and old.status is distinct from 'published' then
-      new.published_at := now();
-      new.archived_at := null;
-    elsif new.status = 'archived' and old.status is distinct from 'archived' then
-      new.archived_at := now();
-    elsif new.status = 'submitted' and old.status is distinct from 'submitted' then
-      new.submitted_at := now();
+      if old.status = 'submitted' and new.status = 'published' then
+        new.published_at := now();
+        new.archived_at := null;
+      elsif old.status = 'published' and new.status = 'archived' then
+        new.archived_at := now();
+      elsif old.status = 'rejected' and new.status = 'draft' then
+        new.review_notes := null;
+        new.reviewed_by := null;
+        new.reviewed_at := null;
+        new.submitted_at := null;
+        new.published_at := null;
+        new.archived_at := null;
+      end if;
+    elsif new.review_notes is distinct from old.review_notes then
+      new.reviewed_by := auth.uid();
+      new.reviewed_at := now();
     end if;
 
     return new;
@@ -297,8 +362,7 @@ on public.products
 for select
 to authenticated
 using (
-  status = 'published'
-  or public.owns_manufacturer(manufacturer_id)
+  public.owns_manufacturer(manufacturer_id)
   or public.is_admin()
 );
 

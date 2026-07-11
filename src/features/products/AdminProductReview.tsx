@@ -3,8 +3,8 @@ import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
 import {
   adminReviewProduct,
-  adminReviewProductStatuses,
   fetchAllProductsForAdmin,
+  getAllowedAdminProductTransitions,
   productStatusLabels,
   productStatuses,
 } from "../../lib/products";
@@ -60,6 +60,7 @@ export function AdminProductReview({ authMode }: AdminProductReviewProps) {
     try {
       const updated = await adminReviewProduct(
         product.id,
+        product.status,
         status,
         reviewNotes[product.id] ?? product.review_notes ?? ""
       );
@@ -95,46 +96,73 @@ export function AdminProductReview({ authMode }: AdminProductReviewProps) {
         {!isLoading && filteredProducts.length === 0 && <p>No products match this filter.</p>}
         <div className="review-list">
           {filteredProducts.map((product) => (
-            <article className="review-item" key={product.id}>
-              <div>
-                <p className="eyebrow">{productStatusLabels[product.status]}</p>
-                <h3>{product.model_name ?? product.name}</h3>
-                <p>{product.description || product.short_description || "No description provided."}</p>
-                <p>Manufacturer: {product.manufacturer_id}</p>
-              </div>
-              <ProductStatusPanel product={product} />
-              <label className="review-notes">
-                Review notes
-                <textarea
-                  value={reviewNotes[product.id] ?? product.review_notes ?? ""}
-                  onChange={(event) =>
-                    setReviewNotes((current) => ({
-                      ...current,
-                      [product.id]: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-              <div className="actions">
-                {adminReviewProductStatuses.map((status) => (
-                  <button
-                    key={status}
-                    type="button"
-                    disabled={Boolean(isReviewing)}
-                    onClick={() => void applyReview(product, status)}
-                  >
-                    {isReviewing === `${product.id}:${status}`
-                      ? "Saving..."
-                      : status === "draft"
-                        ? "Return to Draft"
-                        : productStatusLabels[status]}
-                  </button>
-                ))}
-              </div>
-            </article>
+            <AdminProductReviewItem
+              key={product.id}
+              product={product}
+              notes={reviewNotes[product.id] ?? product.review_notes ?? ""}
+              isReviewing={isReviewing}
+              onNotesChange={(value) =>
+                setReviewNotes((current) => ({
+                  ...current,
+                  [product.id]: value,
+                }))
+              }
+              onApplyReview={applyReview}
+            />
           ))}
         </div>
       </section>
     </section>
+  );
+}
+
+interface AdminProductReviewItemProps {
+  product: ProductRecord;
+  notes: string;
+  isReviewing: string | null;
+  onNotesChange: (value: string) => void;
+  onApplyReview: (product: ProductRecord, status: ProductLifecycleStatus) => void;
+}
+
+function AdminProductReviewItem({
+  product,
+  notes,
+  isReviewing,
+  onNotesChange,
+  onApplyReview,
+}: AdminProductReviewItemProps) {
+  const allowedStatuses = getAllowedAdminProductTransitions(product.status);
+
+  return (
+    <article className="review-item">
+      <div>
+        <p className="eyebrow">{productStatusLabels[product.status]}</p>
+        <h3>{product.model_name ?? product.name}</h3>
+        <p>{product.description || product.short_description || "No description provided."}</p>
+        <p>Manufacturer: {product.manufacturer_id}</p>
+      </div>
+      <ProductStatusPanel product={product} />
+      <label className="review-notes">
+        Review notes
+        <textarea value={notes} onChange={(event) => onNotesChange(event.target.value)} />
+      </label>
+      <div className="actions">
+        {allowedStatuses.map((status) => (
+          <button
+            key={status}
+            type="button"
+            disabled={Boolean(isReviewing)}
+            onClick={() => onApplyReview(product, status)}
+          >
+            {isReviewing === `${product.id}:${status}`
+              ? "Saving..."
+              : status === "draft"
+                ? "Return to Draft"
+                : productStatusLabels[status]}
+          </button>
+        ))}
+        {allowedStatuses.length === 0 && <p>No lifecycle actions available.</p>}
+      </div>
+    </article>
   );
 }
