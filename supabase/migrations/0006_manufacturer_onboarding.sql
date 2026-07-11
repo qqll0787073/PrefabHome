@@ -123,8 +123,8 @@ begin
     raise exception 'Submitted timestamp can only change during a valid submission.';
   end if;
 
-  if old.application_status in ('submitted', 'under_review') then
-    raise exception 'Applications under review cannot be edited by the manufacturer.';
+  if old.application_status not in ('draft', 'rejected') then
+    raise exception 'Manufacturers can edit applications only while they are draft or rejected.';
   end if;
 
   if new.application_status is distinct from old.application_status then

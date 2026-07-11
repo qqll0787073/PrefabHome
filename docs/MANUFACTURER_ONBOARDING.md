@@ -44,7 +44,7 @@ Manufacturers cannot transition applications to:
 - `approved`
 - `suspended`
 
-Manufacturers can edit application fields while the application is `draft` or `rejected`. Submitted and under-review applications are locked until an admin returns them to `draft` or rejects them.
+Manufacturers can edit application fields only while the existing application status is `draft` or `rejected`. Applications in `submitted`, `under_review`, `approved`, or `suspended` are locked for manufacturer edits until an admin returns them to `draft` or `rejected`.
 
 The `submitted_at` field is set whenever a manufacturer creates or updates an application into `submitted`. Resubmission updates `submitted_at` to the latest submission time.
 
@@ -91,7 +91,7 @@ Database protections are enforced by RLS and triggers:
 - Manufacturer can create only one own application.
 - Manufacturer can submit only draft or rejected applications.
 - Manufacturer cannot self-approve, suspend, or move to under review.
-- Manufacturer cannot edit submitted or under-review applications.
+- Manufacturer cannot edit submitted, under-review, approved, or suspended applications.
 - Manufacturer cannot set review metadata on insert or update.
 - Duplicate applications are blocked by the unique owner index.
 - Anonymous users have no private application access.
@@ -107,7 +107,8 @@ The SQL script is rollback-only and covers:
 - existing draft can be submitted
 - rejected application can be resubmitted
 - manufacturer cannot self-approve
-- manufacturer cannot edit submitted or under-review applications
+- manufacturer cannot edit submitted, under-review, approved, or suspended applications
+- admin can edit approved and suspended applications
 - manufacturer cannot set review notes on insert
 - duplicate manufacturer application is blocked by the unique owner index
 - insert policy does not recurse

@@ -273,6 +273,88 @@ do $$
 declare
   manufacturer_id uuid;
   admin_id uuid;
+  blocked boolean := false;
+begin
+  select subject_id into manufacturer_id
+  from manufacturer_onboarding_subjects
+  where subject_name = 'manufacturer';
+  select subject_id into admin_id
+  from manufacturer_onboarding_subjects
+  where subject_name = 'admin';
+
+  perform set_config('request.jwt.claim.sub', admin_id::text, true);
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+
+  update public.manufacturers
+  set application_status = 'approved',
+      review_notes = 'Approved for edit enforcement check.'
+  where owner_id = manufacturer_id;
+
+  perform set_config('request.jwt.claim.sub', manufacturer_id::text, true);
+
+  begin
+    update public.manufacturers
+    set city = 'Approved Edit Attempt'
+    where owner_id = manufacturer_id;
+  exception
+    when others then
+      blocked := true;
+  end;
+
+  insert into manufacturer_onboarding_results
+  values (
+    'approved manufacturer cannot edit its application',
+    blocked,
+    case when blocked then 'blocked while approved' else 'approved edit unexpectedly succeeded' end
+  );
+end;
+$$;
+
+do $$
+declare
+  manufacturer_id uuid;
+  admin_id uuid;
+  blocked boolean := false;
+begin
+  select subject_id into manufacturer_id
+  from manufacturer_onboarding_subjects
+  where subject_name = 'manufacturer';
+  select subject_id into admin_id
+  from manufacturer_onboarding_subjects
+  where subject_name = 'admin';
+
+  perform set_config('request.jwt.claim.sub', admin_id::text, true);
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+
+  update public.manufacturers
+  set application_status = 'suspended',
+      review_notes = 'Suspended for edit enforcement check.'
+  where owner_id = manufacturer_id;
+
+  perform set_config('request.jwt.claim.sub', manufacturer_id::text, true);
+
+  begin
+    update public.manufacturers
+    set city = 'Suspended Edit Attempt'
+    where owner_id = manufacturer_id;
+  exception
+    when others then
+      blocked := true;
+  end;
+
+  insert into manufacturer_onboarding_results
+  values (
+    'suspended manufacturer cannot edit its application',
+    blocked,
+    case when blocked then 'blocked while suspended' else 'suspended edit unexpectedly succeeded' end
+  );
+end;
+$$;
+
+do $$
+declare
+  manufacturer_id uuid;
+  admin_id uuid;
   first_submitted_at timestamptz;
   second_submitted_at timestamptz;
 begin
@@ -308,6 +390,46 @@ begin
     'rejected application can be resubmitted',
     second_submitted_at is not null and second_submitted_at >= first_submitted_at,
     'first submitted_at: ' || coalesce(first_submitted_at::text, 'null') || ', resubmitted_at: ' || coalesce(second_submitted_at::text, 'null')
+  );
+end;
+$$;
+
+do $$
+declare
+  manufacturer_id uuid;
+  admin_id uuid;
+  approved_city text;
+  suspended_city text;
+begin
+  select subject_id into manufacturer_id
+  from manufacturer_onboarding_subjects
+  where subject_name = 'manufacturer';
+  select subject_id into admin_id
+  from manufacturer_onboarding_subjects
+  where subject_name = 'admin';
+
+  perform set_config('request.jwt.claim.sub', admin_id::text, true);
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+
+  update public.manufacturers
+  set application_status = 'approved',
+      city = 'Admin Approved Edit',
+      review_notes = 'Admin edited approved application.'
+  where owner_id = manufacturer_id
+  returning city into approved_city;
+
+  update public.manufacturers
+  set application_status = 'suspended',
+      city = 'Admin Suspended Edit',
+      review_notes = 'Admin edited suspended application.'
+  where owner_id = manufacturer_id
+  returning city into suspended_city;
+
+  insert into manufacturer_onboarding_results
+  values (
+    'admin can edit approved and suspended applications',
+    approved_city = 'Admin Approved Edit' and suspended_city = 'Admin Suspended Edit',
+    'approved city: ' || coalesce(approved_city, 'null') || ', suspended city: ' || coalesce(suspended_city, 'null')
   );
 end;
 $$;
