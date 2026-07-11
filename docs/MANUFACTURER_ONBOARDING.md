@@ -11,7 +11,7 @@ Implemented:
 - Admin manufacturer review queue with review notes and status actions.
 - Additive Supabase migration for onboarding fields and approval workflow.
 - RLS and trigger protections for owner-only access, admin review, and approved-manufacturer product creation.
-- Unit tests for frontend role/status payload safety.
+- Unit tests for frontend role/status payload safety and draft validation.
 - Rollback-only SQL verification script for database security checks.
 
 Not implemented:
@@ -31,7 +31,22 @@ Manufacturer application statuses:
 - `rejected`
 - `suspended`
 
-Manufacturers may create one application for their own account as either `draft` or `submitted`. After creation, manufacturers can update profile fields but cannot change `application_status`, `review_notes`, `reviewed_by`, `reviewed_at`, or ownership.
+Manufacturers may create one application for their own account as either `draft` or `submitted`. Draft saves may be incomplete. Submission requires the mandatory onboarding fields.
+
+Allowed manufacturer status transitions:
+
+- `draft` -> `submitted`
+- `rejected` -> `submitted`
+
+Manufacturers cannot transition applications to:
+
+- `under_review`
+- `approved`
+- `suspended`
+
+Manufacturers can edit application fields while the application is `draft` or `rejected`. Submitted and under-review applications are locked until an admin returns them to `draft` or rejects them.
+
+The `submitted_at` field is set whenever a manufacturer creates or updates an application into `submitted`. Resubmission updates `submitted_at` to the latest submission time.
 
 Admins can view all applications and move applications through review statuses. Returning an application for revision uses `draft`.
 
@@ -74,7 +89,11 @@ Database protections are enforced by RLS and triggers:
 - Manufacturer can select only their own application.
 - Admin can select and review all applications.
 - Manufacturer can create only one own application.
-- Manufacturer cannot change approval status or review metadata.
+- Manufacturer can submit only draft or rejected applications.
+- Manufacturer cannot self-approve, suspend, or move to under review.
+- Manufacturer cannot edit submitted or under-review applications.
+- Manufacturer cannot set review metadata on insert or update.
+- Duplicate applications are blocked by the unique owner index.
 - Anonymous users have no private application access.
 - Product insert/update requires the manufacturer application to be approved.
 
@@ -84,11 +103,21 @@ Verification script:
 
 The SQL script is rollback-only and covers:
 
+- incomplete draft can be saved
+- existing draft can be submitted
+- rejected application can be resubmitted
+- manufacturer cannot self-approve
+- manufacturer cannot edit submitted or under-review applications
+- manufacturer cannot set review notes on insert
+- duplicate manufacturer application is blocked by the unique owner index
+- insert policy does not recurse
+- submitted_at is populated on submission
 - manufacturer can access only own application
-- manufacturer cannot change approval status
 - admin can review all applications
 - anonymous user cannot access private applications
 - approved manufacturer status is enforced before product creation
+
+For PR #2 review fixes, this script should be run against a disposable local database or in a rollback-only transaction that first evaluates migration `0006`; do not apply migration `0006` to the linked project before approval.
 
 ## UI
 

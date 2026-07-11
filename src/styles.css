@@ -369,6 +369,13 @@ main {
   opacity: 0.62;
 }
 
+.application-form input:disabled,
+.application-form textarea:disabled {
+  color: #667085;
+  cursor: not-allowed;
+  background: #eef2f6;
+}
+
 .segmented-control {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -390,6 +397,16 @@ main {
   color: #166534;
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.form-notice {
+  padding: 10px 12px;
+  color: #7c2d12;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 700;

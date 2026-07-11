@@ -3,6 +3,8 @@ import { describe, it } from "node:test";
 import {
   emptyManufacturerApplicationForm,
   isManufacturerApplicationStatus,
+  manufacturerEditableStatuses,
+  manufacturerSubmittableStatuses,
   toManufacturerInsertPayload,
   toManufacturerUpdatePayload,
   validateManufacturerApplication,
@@ -22,6 +24,30 @@ describe("manufacturer onboarding helpers", () => {
     assert.ok(errors.includes("Company legal name is required."));
     assert.ok(errors.includes("Company display name is required."));
     assert.ok(errors.includes("At least one product category is required."));
+  });
+
+  it("allows incomplete drafts while preserving provided field validation", () => {
+    const draftErrors = validateManufacturerApplication(emptyManufacturerApplicationForm(), {
+      requireComplete: false,
+    });
+    const yearErrors = validateManufacturerApplication(
+      {
+        ...emptyManufacturerApplicationForm(),
+        yearEstablished: "1700",
+      },
+      { requireComplete: false }
+    );
+
+    assert.deepEqual(draftErrors, []);
+    assert.ok(yearErrors.some((error) => error.startsWith("Year established")));
+  });
+
+  it("allows manufacturers to submit only draft or rejected applications", () => {
+    assert.deepEqual(manufacturerSubmittableStatuses, ["draft", "rejected"]);
+    assert.deepEqual(manufacturerEditableStatuses, ["draft", "rejected"]);
+    assert.equal(manufacturerSubmittableStatuses.includes("approved"), false);
+    assert.equal(manufacturerSubmittableStatuses.includes("suspended"), false);
+    assert.equal(manufacturerSubmittableStatuses.includes("under_review"), false);
   });
 
   it("creates insert payloads without privileged review fields", () => {
@@ -47,6 +73,20 @@ describe("manufacturer onboarding helpers", () => {
     assert.deepEqual(payload.certifications, ["ISO 9001", "CE"]);
     assert.equal("reviewed_by" in payload, false);
     assert.equal("review_notes" in payload, false);
+  });
+
+  it("creates incomplete draft payloads without required submit fields", () => {
+    const payload = toManufacturerInsertPayload(
+      "profile-1",
+      emptyManufacturerApplicationForm(),
+      "draft"
+    );
+
+    assert.equal(payload.company_name, "Untitled manufacturer application");
+    assert.equal(payload.country, "Unspecified");
+    assert.equal(payload.application_status, "draft");
+    assert.equal(payload.company_legal_name, null);
+    assert.deepEqual(payload.product_categories, []);
   });
 
   it("keeps manufacturer updates away from approval status", () => {

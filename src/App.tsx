@@ -8,8 +8,11 @@ import {
   fetchManufacturerApplications,
   fetchOwnManufacturerApplication,
   formFromApplication,
+  manufacturerEditableStatuses,
+  manufacturerSubmittableStatuses,
   reviewManufacturerApplication,
   statusLabels,
+  submitManufacturerApplication,
   updateManufacturerApplication,
   validateManufacturerApplication,
 } from "./lib/manufacturers";
@@ -555,10 +558,16 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
     setValues((current) => ({ ...current, [field]: value }));
   }
 
-  async function saveApplication(
-    status: Extract<ManufacturerApplicationStatus, "draft" | "submitted">
-  ) {
-    const validationErrors = validateManufacturerApplication(values);
+  const isEditable =
+    !application || manufacturerEditableStatuses.includes(application.application_status);
+  const canSubmit =
+    !application || manufacturerSubmittableStatuses.includes(application.application_status);
+
+  async function saveApplication(action: "draft" | "submit") {
+    const isSubmit = action === "submit";
+    const validationErrors = validateManufacturerApplication(values, {
+      requireComplete: isSubmit,
+    });
     setErrors(validationErrors);
     setMessage(null);
 
@@ -572,17 +581,20 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
         const demoApplication: ManufacturerApplication = {
           id: application?.id ?? `demo-manufacturer-${user.id}`,
           owner_id: user.id,
-          company_name: values.companyDisplayName.trim() || values.companyLegalName.trim(),
-          company_legal_name: values.companyLegalName.trim(),
-          company_display_name: values.companyDisplayName.trim(),
-          contact_person: values.contactPerson.trim(),
+          company_name:
+            values.companyDisplayName.trim() ||
+            values.companyLegalName.trim() ||
+            "Untitled manufacturer application",
+          company_legal_name: values.companyLegalName.trim() || null,
+          company_display_name: values.companyDisplayName.trim() || null,
+          contact_person: values.contactPerson.trim() || null,
           contact_title: values.contactTitle.trim() || null,
-          email: values.email.trim(),
+          email: values.email.trim() || null,
           phone: values.phone.trim() || null,
           website: values.website.trim() || null,
-          country: values.country.trim(),
+          country: values.country.trim() || "Unspecified",
           province: values.province.trim() || null,
-          city: values.city.trim(),
+          city: values.city.trim() || null,
           street_address: values.streetAddress.trim() || null,
           postal_code: values.postalCode.trim() || null,
           year_established: values.yearEstablished.trim()
@@ -597,19 +609,19 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
             .split(",")
             .map((item) => item.trim())
             .filter(Boolean),
-          company_description: values.companyDescription.trim(),
-          application_status: application?.application_status ?? status,
-          review_notes: null,
-          reviewed_by: null,
-          reviewed_at: null,
-          submitted_at: status === "submitted" ? now : null,
+          company_description: values.companyDescription.trim() || null,
+          application_status: isSubmit ? "submitted" : application?.application_status ?? "draft",
+          review_notes: application?.review_notes ?? null,
+          reviewed_by: application?.reviewed_by ?? null,
+          reviewed_at: application?.reviewed_at ?? null,
+          submitted_at: isSubmit ? now : application?.submitted_at ?? null,
           created_at: application?.created_at ?? now,
           updated_at: now,
         };
 
         setApplication(demoApplication);
         setMessage(
-          status === "submitted"
+          isSubmit
             ? "Demo application submitted."
             : "Demo application draft saved."
         );
@@ -617,15 +629,17 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
       }
 
       const savedApplication = application
-        ? await updateManufacturerApplication(application.id, values)
-        : await createManufacturerApplication(user.id, values, status);
+        ? isSubmit
+          ? await submitManufacturerApplication(application.id, values)
+          : await updateManufacturerApplication(application.id, values)
+        : await createManufacturerApplication(user.id, values, isSubmit ? "submitted" : "draft");
 
       setApplication(savedApplication);
       setMessage(
-        application
-          ? "Application details updated."
-          : status === "submitted"
-            ? "Application submitted for admin review."
+        isSubmit
+          ? "Application submitted for admin review."
+          : application
+            ? "Application draft updated."
             : "Application draft saved."
       );
     } catch (error) {
@@ -633,6 +647,15 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function editableMessage() {
+    if (!application || isEditable) return null;
+
+    return application.application_status === "submitted" ||
+      application.application_status === "under_review"
+      ? "This application is locked during review. An admin must return it to draft or reject it before manufacturer edits are allowed."
+      : "This application is not currently editable by the manufacturer.";
   }
 
   return (
@@ -672,6 +695,7 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
       <section className="panel">
         <p className="eyebrow">Manufacturer Onboarding</p>
         <h2>Company profile</h2>
+        {editableMessage() && <p className="form-notice">{editableMessage()}</p>}
         {isLoading ? (
           <p>Loading manufacturer application...</p>
         ) : (
@@ -681,6 +705,7 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
               <input
                 value={values.companyLegalName}
                 onChange={(event) => updateField("companyLegalName", event.target.value)}
+                disabled={!isEditable}
                 required
               />
             </label>
@@ -689,6 +714,7 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
               <input
                 value={values.companyDisplayName}
                 onChange={(event) => updateField("companyDisplayName", event.target.value)}
+                disabled={!isEditable}
                 required
               />
             </label>
@@ -697,6 +723,7 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
               <input
                 value={values.contactPerson}
                 onChange={(event) => updateField("contactPerson", event.target.value)}
+                disabled={!isEditable}
                 required
               />
             </label>
@@ -705,6 +732,7 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
               <input
                 value={values.contactTitle}
                 onChange={(event) => updateField("contactTitle", event.target.value)}
+                disabled={!isEditable}
               />
             </label>
             <label>
@@ -713,6 +741,7 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
                 type="email"
                 value={values.email}
                 onChange={(event) => updateField("email", event.target.value)}
+                disabled={!isEditable}
                 required
               />
             </label>
@@ -721,6 +750,7 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
               <input
                 value={values.phone}
                 onChange={(event) => updateField("phone", event.target.value)}
+                disabled={!isEditable}
               />
             </label>
             <label>
@@ -729,6 +759,7 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
                 type="url"
                 value={values.website}
                 onChange={(event) => updateField("website", event.target.value)}
+                disabled={!isEditable}
               />
             </label>
             <label>
@@ -736,6 +767,7 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
               <input
                 value={values.country}
                 onChange={(event) => updateField("country", event.target.value)}
+                disabled={!isEditable}
                 required
               />
             </label>
@@ -744,6 +776,7 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
               <input
                 value={values.province}
                 onChange={(event) => updateField("province", event.target.value)}
+                disabled={!isEditable}
               />
             </label>
             <label>
@@ -751,6 +784,7 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
               <input
                 value={values.city}
                 onChange={(event) => updateField("city", event.target.value)}
+                disabled={!isEditable}
                 required
               />
             </label>
@@ -759,6 +793,7 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
               <input
                 value={values.streetAddress}
                 onChange={(event) => updateField("streetAddress", event.target.value)}
+                disabled={!isEditable}
               />
             </label>
             <label>
@@ -766,6 +801,7 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
               <input
                 value={values.postalCode}
                 onChange={(event) => updateField("postalCode", event.target.value)}
+                disabled={!isEditable}
               />
             </label>
             <label>
@@ -774,6 +810,7 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
                 inputMode="numeric"
                 value={values.yearEstablished}
                 onChange={(event) => updateField("yearEstablished", event.target.value)}
+                disabled={!isEditable}
               />
             </label>
             <label>
@@ -781,6 +818,7 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
               <input
                 value={values.exportExperience}
                 onChange={(event) => updateField("exportExperience", event.target.value)}
+                disabled={!isEditable}
               />
             </label>
             <label>
@@ -789,6 +827,7 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
                 value={values.productCategories}
                 onChange={(event) => updateField("productCategories", event.target.value)}
                 placeholder="ADU, tiny house, container house"
+                disabled={!isEditable}
                 required
               />
             </label>
@@ -798,6 +837,7 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
                 value={values.certifications}
                 onChange={(event) => updateField("certifications", event.target.value)}
                 placeholder="ISO 9001, CE, CSA"
+                disabled={!isEditable}
               />
             </label>
             <label className="full-width">
@@ -805,6 +845,7 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
               <textarea
                 value={values.companyDescription}
                 onChange={(event) => updateField("companyDescription", event.target.value)}
+                disabled={!isEditable}
                 required
               />
             </label>
@@ -821,18 +862,24 @@ function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
         {message && <p className="form-success">{message}</p>}
 
         <div className="actions">
-          {!application && (
-            <button type="button" disabled={isSaving || isLoading} onClick={() => void saveApplication("draft")}>
+          {isEditable && (
+            <button
+              type="button"
+              disabled={isSaving || isLoading}
+              onClick={() => void saveApplication("draft")}
+            >
               Save Draft
             </button>
           )}
-          <button
-            type="button"
-            disabled={isSaving || isLoading}
-            onClick={() => void saveApplication(application ? "draft" : "submitted")}
-          >
-            {isSaving ? "Saving..." : application ? "Update Profile" : "Submit Application"}
-          </button>
+          {canSubmit && (
+            <button
+              type="button"
+              disabled={isSaving || isLoading}
+              onClick={() => void saveApplication("submit")}
+            >
+              {isSaving ? "Saving..." : "Submit Application"}
+            </button>
+          )}
         </div>
       </section>
     </section>

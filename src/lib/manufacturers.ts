@@ -31,6 +31,16 @@ export const statusLabels: Record<ManufacturerApplicationStatus, string> = {
   suspended: "Suspended",
 };
 
+export const manufacturerEditableStatuses: ManufacturerApplicationStatus[] = [
+  "draft",
+  "rejected",
+];
+
+export const manufacturerSubmittableStatuses: ManufacturerApplicationStatus[] = [
+  "draft",
+  "rejected",
+];
+
 export function isManufacturerApplicationStatus(
   value: unknown
 ): value is ManufacturerApplicationStatus {
@@ -109,17 +119,20 @@ function yearFromText(value: string): number | null {
 }
 
 export function validateManufacturerApplication(
-  values: ManufacturerApplicationFormValues
+  values: ManufacturerApplicationFormValues,
+  options: { requireComplete: boolean } = { requireComplete: true }
 ): string[] {
   const errors: string[] = [];
 
-  if (!values.companyLegalName.trim()) errors.push("Company legal name is required.");
-  if (!values.companyDisplayName.trim()) errors.push("Company display name is required.");
-  if (!values.contactPerson.trim()) errors.push("Contact person is required.");
-  if (!values.email.trim()) errors.push("Email is required.");
-  if (!values.country.trim()) errors.push("Country is required.");
-  if (!values.city.trim()) errors.push("City is required.");
-  if (!values.companyDescription.trim()) errors.push("Company description is required.");
+  if (options.requireComplete) {
+    if (!values.companyLegalName.trim()) errors.push("Company legal name is required.");
+    if (!values.companyDisplayName.trim()) errors.push("Company display name is required.");
+    if (!values.contactPerson.trim()) errors.push("Contact person is required.");
+    if (!values.email.trim()) errors.push("Email is required.");
+    if (!values.country.trim()) errors.push("Country is required.");
+    if (!values.city.trim()) errors.push("City is required.");
+    if (!values.companyDescription.trim()) errors.push("Company description is required.");
+  }
 
   const year = yearFromText(values.yearEstablished);
   const currentYear = new Date().getFullYear();
@@ -127,11 +140,19 @@ export function validateManufacturerApplication(
     errors.push(`Year established must be between 1800 and ${currentYear}.`);
   }
 
-  if (listFromText(values.productCategories).length === 0) {
+  if (options.requireComplete && listFromText(values.productCategories).length === 0) {
     errors.push("At least one product category is required.");
   }
 
   return errors;
+}
+
+function fallbackCompanyName(values: ManufacturerApplicationFormValues): string {
+  return (
+    values.companyDisplayName.trim() ||
+    values.companyLegalName.trim() ||
+    "Untitled manufacturer application"
+  );
 }
 
 export function toManufacturerInsertPayload(
@@ -139,57 +160,59 @@ export function toManufacturerInsertPayload(
   values: ManufacturerApplicationFormValues,
   status: Extract<ManufacturerApplicationStatus, "draft" | "submitted">
 ) {
-  const displayName = values.companyDisplayName.trim();
-  const legalName = values.companyLegalName.trim();
-
   return {
     owner_id: ownerId,
-    company_name: displayName || legalName,
-    company_legal_name: legalName,
-    company_display_name: displayName,
-    contact_person: values.contactPerson.trim(),
+    company_name: fallbackCompanyName(values),
+    company_legal_name: optionalText(values.companyLegalName),
+    company_display_name: optionalText(values.companyDisplayName),
+    contact_person: optionalText(values.contactPerson),
     contact_title: optionalText(values.contactTitle),
-    email: values.email.trim(),
+    email: optionalText(values.email),
     phone: optionalText(values.phone),
     website: optionalText(values.website),
-    country: values.country.trim(),
+    country: values.country.trim() || "Unspecified",
     province: optionalText(values.province),
-    city: values.city.trim(),
+    city: optionalText(values.city),
     street_address: optionalText(values.streetAddress),
     postal_code: optionalText(values.postalCode),
     year_established: yearFromText(values.yearEstablished),
     export_experience: optionalText(values.exportExperience),
     product_categories: listFromText(values.productCategories),
     certifications: listFromText(values.certifications),
-    company_description: values.companyDescription.trim(),
+    company_description: optionalText(values.companyDescription),
     application_status: status,
   };
 }
 
 export function toManufacturerUpdatePayload(values: ManufacturerApplicationFormValues) {
-  const displayName = values.companyDisplayName.trim();
-  const legalName = values.companyLegalName.trim();
-
   return {
-    company_name: displayName || legalName,
-    company_legal_name: legalName,
-    company_display_name: displayName,
-    contact_person: values.contactPerson.trim(),
+    company_name: fallbackCompanyName(values),
+    company_legal_name: optionalText(values.companyLegalName),
+    company_display_name: optionalText(values.companyDisplayName),
+    contact_person: optionalText(values.contactPerson),
     contact_title: optionalText(values.contactTitle),
-    email: values.email.trim(),
+    email: optionalText(values.email),
     phone: optionalText(values.phone),
     website: optionalText(values.website),
-    country: values.country.trim(),
+    country: values.country.trim() || "Unspecified",
     province: optionalText(values.province),
-    city: values.city.trim(),
+    city: optionalText(values.city),
     street_address: optionalText(values.streetAddress),
     postal_code: optionalText(values.postalCode),
     year_established: yearFromText(values.yearEstablished),
     export_experience: optionalText(values.exportExperience),
     product_categories: listFromText(values.productCategories),
     certifications: listFromText(values.certifications),
-    company_description: values.companyDescription.trim(),
+    company_description: optionalText(values.companyDescription),
   };
+}
+
+function toReadableManufacturerError(error: { code?: string; message?: string }): Error {
+  if (error.code === "23505" || error.message?.toLowerCase().includes("duplicate key")) {
+    return new Error("A manufacturer application already exists for this account.");
+  }
+
+  return new Error(error.message ?? "Unable to save manufacturer application.");
 }
 
 export async function fetchOwnManufacturerApplication(
@@ -235,7 +258,7 @@ export async function createManufacturerApplication(
     .select("*")
     .single();
 
-  if (error) throw error;
+  if (error) throw toReadableManufacturerError(error);
   return data as ManufacturerApplication;
 }
 
@@ -254,7 +277,29 @@ export async function updateManufacturerApplication(
     .select("*")
     .single();
 
-  if (error) throw error;
+  if (error) throw toReadableManufacturerError(error);
+  return data as ManufacturerApplication;
+}
+
+export async function submitManufacturerApplication(
+  applicationId: string,
+  values: ManufacturerApplicationFormValues
+): Promise<ManufacturerApplication> {
+  if (!supabase) {
+    throw new Error("Supabase is not configured.");
+  }
+
+  const { data, error } = await supabase
+    .from("manufacturers")
+    .update({
+      ...toManufacturerUpdatePayload(values),
+      application_status: "submitted",
+    })
+    .eq("id", applicationId)
+    .select("*")
+    .single();
+
+  if (error) throw toReadableManufacturerError(error);
   return data as ManufacturerApplication;
 }
 

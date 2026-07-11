@@ -70,8 +70,20 @@ set search_path = public
 as $$
 begin
   if tg_op = 'INSERT' then
+    if new.review_notes is not null
+      or new.reviewed_by is not null
+      or new.reviewed_at is not null then
+      raise exception 'Manufacturer review fields cannot be set during application creation.';
+    end if;
+
+    if new.application_status not in ('draft', 'submitted') then
+      raise exception 'Manufacturers can only create draft or submitted applications.';
+    end if;
+
     if new.application_status = 'submitted' then
-      new.submitted_at := coalesce(new.submitted_at, now());
+      new.submitted_at := now();
+    else
+      new.submitted_at := null;
     end if;
 
     return new;
@@ -97,14 +109,32 @@ begin
     raise exception 'Manufacturer ownership cannot be changed by the manufacturer.';
   end if;
 
-  if new.application_status is distinct from old.application_status then
-    raise exception 'Manufacturer application status can only be changed by an admin.';
-  end if;
-
   if new.review_notes is distinct from old.review_notes
     or new.reviewed_by is distinct from old.reviewed_by
     or new.reviewed_at is distinct from old.reviewed_at then
     raise exception 'Manufacturer review fields can only be changed by an admin.';
+  end if;
+
+  if new.submitted_at is distinct from old.submitted_at
+    and not (
+      old.application_status in ('draft', 'rejected')
+      and new.application_status = 'submitted'
+    ) then
+    raise exception 'Submitted timestamp can only change during a valid submission.';
+  end if;
+
+  if old.application_status in ('submitted', 'under_review') then
+    raise exception 'Applications under review cannot be edited by the manufacturer.';
+  end if;
+
+  if new.application_status is distinct from old.application_status then
+    if old.application_status in ('draft', 'rejected')
+      and new.application_status = 'submitted' then
+      new.submitted_at := now();
+      return new;
+    end if;
+
+    raise exception 'Manufacturers can only submit draft or rejected applications.';
   end if;
 
   return new;
@@ -156,13 +186,9 @@ with check (
   owner_id = auth.uid()
   and public.current_profile_role() = 'manufacturer'
   and application_status in ('draft', 'submitted')
+  and review_notes is null
   and reviewed_by is null
   and reviewed_at is null
-  and not exists (
-    select 1
-    from public.manufacturers existing
-    where existing.owner_id = auth.uid()
-  )
 );
 
 create policy "manufacturers_update_own_application"
