@@ -17,7 +17,7 @@ export interface AuthCredentials {
   role: Role;
 }
 
-interface AuthState {
+export interface AuthState {
   user: AuthUser | null;
   isLoading: boolean;
   error: string | null;
