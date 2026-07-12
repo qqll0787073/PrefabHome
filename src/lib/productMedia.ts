@@ -148,6 +148,17 @@ export function primaryImagePayload(): Pick<ProductMediaRecord, "is_primary"> {
   return { is_primary: true };
 }
 
+export function setPrimaryProductMediaRpcArgs(productId: string, mediaId: string) {
+  return {
+    product_uuid: productId,
+    media_uuid: mediaId,
+  };
+}
+
+export function canRequestPublicSignedImageUrl(media: PublicProductMediaRecord): boolean {
+  return media.storage_bucket === productImageBucket && media.visibility === "public";
+}
+
 export function shouldRemoveUploadedObjectAfterMetadataFailure(
   uploadSucceeded: boolean,
   metadataCreated: boolean
@@ -335,20 +346,10 @@ export async function setPrimaryProductImage(
   mediaId: string
 ): Promise<ProductMediaRecord> {
   const client = ensureSupabase();
-  const { error: clearError } = await client
-    .from("product_media")
-    .update({ is_primary: false })
-    .eq("product_id", productId)
-    .eq("storage_bucket", productImageBucket);
-
-  if (clearError) throw toReadableProductMediaError(clearError);
-
-  const { data, error } = await client
-    .from("product_media")
-    .update(primaryImagePayload())
-    .eq("id", mediaId)
-    .select("*")
-    .single();
+  const { data, error } = await client.rpc(
+    "set_primary_product_media",
+    setPrimaryProductMediaRpcArgs(productId, mediaId)
+  );
 
   if (error) throw toReadableProductMediaError(error);
   return data as ProductMediaRecord;
@@ -368,6 +369,35 @@ export async function deleteProductMedia(media: ProductMediaRecord): Promise<voi
       "Storage object was deleted, but the media record could not be removed. Manual cleanup is required."
     );
   }
+}
+
+export async function createSignedImageUrl(
+  media: Pick<ProductMediaRecord, "storage_bucket" | "storage_path">
+): Promise<string> {
+  if (media.storage_bucket !== productImageBucket) {
+    throw new Error("Signed image URLs are only available for product images.");
+  }
+
+  const client = ensureSupabase();
+  const { data, error } = await client.storage
+    .from(media.storage_bucket)
+    .createSignedUrl(media.storage_path, 60 * 10);
+
+  if (error || !data?.signedUrl) {
+    throw toReadableProductMediaError(error ?? { message: "Signed image URL was not created." });
+  }
+
+  return data.signedUrl;
+}
+
+export async function createSignedPublicImageUrl(
+  media: PublicProductMediaRecord
+): Promise<string> {
+  if (!canRequestPublicSignedImageUrl(media)) {
+    throw new Error("Public signed image URLs require a public product image record.");
+  }
+
+  return createSignedImageUrl(media);
 }
 
 export async function createSignedDocumentUrl(media: ProductMediaRecord): Promise<string> {

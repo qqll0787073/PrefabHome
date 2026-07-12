@@ -51,7 +51,7 @@ Constraints:
 
 `product-images`
 
-- Public bucket
+- Private bucket
 - Allowed MIME types: `image/jpeg`, `image/png`, `image/webp`
 - Maximum file size: 10 MB
 
@@ -61,7 +61,7 @@ Constraints:
 - Allowed MIME types: `application/pdf`
 - Maximum file size: 25 MB
 
-Private document URLs must be created with signed URLs. Private document paths are not exposed through the public projection.
+Both buckets are private. "Public media" means application-visible media for a published product, not a public Supabase Storage bucket. Public product images and private documents must be accessed through short-lived signed URLs. Public bucket URLs must not be used.
 
 ## Storage Paths
 
@@ -91,9 +91,11 @@ Admin rules:
 
 Public and buyer rules:
 
-- Anonymous users and buyers read only public media for published products.
+- Anonymous users and buyers read public media metadata only through `public.published_product_media`.
+- Anonymous users and buyers do not receive direct `SELECT` access to `public.product_media`.
+- Public images for published products use signed URLs after the caller can read the public projection row.
 - Private documents are excluded.
-- Unpublished product media is excluded.
+- Unpublished, archived, rejected, or private-visibility product media is excluded from public signed-image access.
 - Internal audit fields such as `created_by` are excluded.
 
 ## RLS And Storage Policies
@@ -103,9 +105,12 @@ Database enforcement includes:
 - `public.can_manage_product_media(product_uuid)`
 - `public.can_view_private_product_media(product_uuid)`
 - `public.can_read_public_product_media(product_uuid)`
+- `public.can_read_public_product_media_item(media_uuid)`
+- `public.can_read_public_product_media_object(object_bucket, object_path)`
 - storage path parsing helpers for manufacturer/product IDs
 - `public.manage_product_media()` trigger
 - `public.enforce_product_media_storage_object()` trigger on `storage.objects`
+- `public.set_primary_product_media(product_uuid, media_uuid)` atomic RPC
 
 RLS policies protect:
 
@@ -114,11 +119,20 @@ RLS policies protect:
 
 The storage write trigger validates path ownership and editable product status. The storage read policy also allows a rightful uploader to read a newly uploaded object before the metadata row is created, which supports the upload-then-record workflow.
 
+Function grants:
+
+- Policy-only helpers revoke `EXECUTE` from `PUBLIC` and are granted only to the roles that policies require.
+- Public read helpers for published image objects are granted to `anon` and `authenticated`.
+- `set_primary_product_media()` is the callable RPC for primary image updates and is granted only to `authenticated`.
+- Trigger functions are not granted to `PUBLIC`.
+
 ## Public Projection
 
 Public view:
 
 - `public.published_product_media`
+
+The view uses explicit public-safe columns and filters to `visibility = 'public'` media for `published` products. It intentionally does not grant direct base-table visibility to anonymous users or buyers. The storage path present in this projection is only for public image records that are already application-visible and is used to request short-lived signed URLs; private document paths and private image paths are excluded.
 
 Included fields:
 
@@ -142,7 +156,26 @@ Excluded:
 - `created_by`
 - `updated_at`
 - private documents
+- private image records
 - unpublished product media
+- archived or rejected product media
+
+## Primary Image RPC
+
+Primary-image selection uses:
+
+- `public.set_primary_product_media(product_uuid uuid, media_uuid uuid)`
+
+The RPC executes in one transaction and:
+
+- verifies the caller can manage media for the product
+- verifies the media belongs to the selected product
+- rejects document media and cross-product media
+- clears any existing primary image for the product
+- sets the selected image as primary
+- returns the selected `product_media` row
+
+Failed validation occurs before clearing the current primary image.
 
 ## Service Layer
 
@@ -159,9 +192,9 @@ Responsibilities:
 - upload file first, then create metadata record
 - compensation cleanup if metadata creation fails after upload
 - metadata updates
-- primary image selection
+- atomic primary image selection through `set_primary_product_media()`
 - delete object first, then delete metadata record
-- signed URL creation for private documents
+- signed URL creation for public images and private documents
 - readable storage and database errors
 
 Public queries use `PublicProductMediaRecord`. Manufacturer/admin workflows use `ProductMediaRecord`.
@@ -183,14 +216,14 @@ Components:
 Manufacturer portal:
 
 - media manager appears for the selected product
-- supports image upload, PDF upload, metadata, sort order, primary image, signed admin document access, and delete controls
+- supports image upload, PDF upload, metadata, sort order, atomic primary image selection, signed image/document access, and delete controls
 - shows locked state for submitted, published, and archived products
 
 Admin portal:
 
 - media manager appears inside product review items
 - admins can view/manage all product media
-- private documents are opened through signed URLs
+- images and private documents are opened through signed URLs
 
 The public marketplace still uses static prototype data in PH-004.
 

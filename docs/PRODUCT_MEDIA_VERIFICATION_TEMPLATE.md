@@ -33,31 +33,46 @@ If `0008` has not been applied remotely, evaluate `0008_product_media_foundation
 
 Expected checks:
 
-1. unapproved manufacturer cannot upload media metadata
-2. approved manufacturer can create media for own draft product
-3. manufacturer cannot create media for another manufacturer product
-4. manufacturer cannot edit media for submitted product
-5. manufacturer cannot delete media for published product
-6. manufacturer can edit media for own rejected product
-7. manufacturer cannot forge manufacturer storage path
-8. anonymous cannot read unpublished product media
-9. buyer cannot read private document media
-10. anonymous can read public media for published product
-11. public projection excludes created_by
-12. public projection excludes private document
-13. admin can view all media
-14. admin can manage media for published product
-15. only one primary media item is allowed per product
-16. duplicate storage path is blocked
-17. invalid visibility is blocked
-18. invalid media_type is blocked
-19. negative file size is blocked
-20. negative sort order is blocked
-21. cascade delete removes media records when product is deleted
-22. updated_at changes on valid update
-23. storage policy blocks upload to another manufacturer path
-24. storage policy blocks unauthorized document read
-25. storage policy permits valid owner upload to editable product
+1. direct public URL access is not possible because product-images is private
+2. product-documents bucket is private
+3. unapproved manufacturer cannot upload media metadata
+4. approved manufacturer can create media for own draft product
+5. manufacturer cannot create media for another manufacturer product
+6. manufacturer cannot edit media for submitted product
+7. manufacturer cannot delete media for published product
+8. manufacturer can edit media for own rejected product
+9. manufacturer cannot forge manufacturer storage path
+10. anon cannot directly select public.product_media
+11. buyer cannot directly select public.product_media public rows
+12. buyer cannot read private document media
+13. owner manufacturer can select own private media
+14. admin can select all private media
+15. anonymous cannot read unpublished product media
+16. anonymous can read public media for published product
+17. public projection excludes created_by
+18. public projection excludes private document
+19. published public image can receive a signed URL through the approved flow
+20. unpublished image cannot receive a public or buyer signed URL
+21. visibility private image cannot receive a public or buyer signed URL
+22. archived product image cannot receive a public or buyer signed URL
+23. admin can view all media
+24. admin can manage media for published product
+25. set-primary RPC is atomic
+26. set-primary RPC rejects media from another product
+27. set-primary RPC rejects documents
+28. failed target validation does not clear current primary image
+29. only one primary media item is allowed per product
+30. duplicate storage path is blocked
+31. invalid visibility is blocked
+32. invalid media_type is blocked
+33. negative file size is blocked
+34. negative sort order is blocked
+35. cascade delete removes media records when product is deleted
+36. updated_at changes on valid update
+37. storage policy blocks upload to another manufacturer path
+38. storage policy blocks unauthorized document read
+39. storage policy permits valid owner upload to editable product
+40. security-definer helper EXECUTE grants are restricted
 
 ## Application Checks
 
@@ -77,9 +92,13 @@ npm run test
 - Migration `0008` not remotely applied before approval:
 - No production deployment:
 - Public marketplace still uses static prototype data:
+- Product-images bucket remains private:
 - Private documents require signed URLs:
+- Public images require signed URLs:
 - Product documents bucket remains private:
 - Public media projection excludes internal fields:
+- Direct public.product_media access remains owner/admin only:
+- Atomic primary image RPC verified:
 
 ## Deferred Work
 

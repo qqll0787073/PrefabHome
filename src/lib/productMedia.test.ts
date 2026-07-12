@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   canEditProductMedia,
+  canRequestPublicSignedImageUrl,
   createProductMediaStoragePath,
   documentMediaTypes,
   getProductMediaBucket,
@@ -10,11 +11,13 @@ import {
   productDocumentBucket,
   productImageBucket,
   sanitizeFilename,
+  setPrimaryProductMediaRpcArgs,
   shouldRemoveUploadedObjectAfterMetadataFailure,
   toProductMediaInsertPayload,
   toReadableProductMediaError,
   validateProductMediaFile,
 } from "./productMedia";
+import type { PublicProductMediaRecord } from "../types";
 
 const imageFile = {
   name: "Front Hero.JPG",
@@ -147,6 +150,38 @@ describe("product media helpers", () => {
 
   it("builds the primary image selection payload", () => {
     assert.deepEqual(primaryImagePayload(), { is_primary: true });
+  });
+
+  it("builds atomic primary image RPC arguments", () => {
+    assert.deepEqual(
+      setPrimaryProductMediaRpcArgs(
+        "22222222-2222-2222-2222-222222222222",
+        "33333333-3333-3333-3333-333333333333"
+      ),
+      {
+        product_uuid: "22222222-2222-2222-2222-222222222222",
+        media_uuid: "33333333-3333-3333-3333-333333333333",
+      }
+    );
+  });
+
+  it("allows public signed image URLs only for public image projection rows", () => {
+    const publicImage = {
+      storage_bucket: productImageBucket,
+      visibility: "public",
+    } as PublicProductMediaRecord;
+    const privateImage = {
+      storage_bucket: productImageBucket,
+      visibility: "private",
+    } as PublicProductMediaRecord;
+    const publicDocument = {
+      storage_bucket: productDocumentBucket,
+      visibility: "public",
+    } as PublicProductMediaRecord;
+
+    assert.equal(canRequestPublicSignedImageUrl(publicImage), true);
+    assert.equal(canRequestPublicSignedImageUrl(privateImage), false);
+    assert.equal(canRequestPublicSignedImageUrl(publicDocument), false);
   });
 
   it("requests upload compensation cleanup only after metadata failure", () => {

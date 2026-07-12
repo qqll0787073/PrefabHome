@@ -432,7 +432,15 @@ export interface Database {
         Update: never;
       };
     };
-    Functions: Record<string, never>;
+    Functions: {
+      set_primary_product_media: {
+        Args: {
+          product_uuid: string;
+          media_uuid: string;
+        };
+        Returns: Database["public"]["Tables"]["product_media"]["Row"];
+      };
+    };
     Enums: Record<string, never>;
   };
 }

@@ -12,7 +12,7 @@ values
   (
     'product-images',
     'product-images',
-    true,
+    false,
     10485760,
     array['image/jpeg', 'image/png', 'image/webp']
   ),
@@ -108,7 +108,7 @@ create index if not exists product_media_public_idx
   on public.product_media (product_id, sort_order)
   where visibility = 'public';
 
-grant select on public.product_media to anon;
+revoke select on public.product_media from anon;
 grant select, insert, update, delete on public.product_media to authenticated;
 
 create or replace function public.product_media_owner_id(product_uuid uuid)
@@ -186,6 +186,45 @@ as $$
     select 1
     from public.products p
     where p.id = product_uuid
+      and p.status = 'published'
+  )
+$$;
+
+create or replace function public.can_read_public_product_media_item(media_uuid uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.product_media pm
+    join public.products p on p.id = pm.product_id
+    where pm.id = media_uuid
+      and pm.visibility = 'public'
+      and p.status = 'published'
+  )
+$$;
+
+create or replace function public.can_read_public_product_media_object(
+  object_bucket text,
+  object_path text
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.product_media pm
+    join public.products p on p.id = pm.product_id
+    where pm.storage_bucket = object_bucket
+      and pm.storage_path = object_path
+      and pm.storage_bucket = 'product-images'
+      and pm.visibility = 'public'
       and p.status = 'published'
   )
 $$;
@@ -367,6 +406,59 @@ begin
 end;
 $$;
 
+create or replace function public.set_primary_product_media(
+  product_uuid uuid,
+  media_uuid uuid
+)
+returns public.product_media
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  selected_media public.product_media;
+begin
+  if not public.can_manage_product_media(product_uuid) then
+    raise exception 'Only approved manufacturers can manage media for draft or rejected products.';
+  end if;
+
+  select *
+  into selected_media
+  from public.product_media
+  where id = media_uuid
+    and product_id = product_uuid
+  for update;
+
+  if not found then
+    raise exception 'Primary media must belong to the selected product.';
+  end if;
+
+  if selected_media.storage_bucket <> 'product-images'
+    or selected_media.media_type not in (
+      'exterior_image',
+      'interior_image',
+      'floor_plan',
+      'rendering',
+      'factory_photo'
+    ) then
+    raise exception 'Primary product media must be an image.';
+  end if;
+
+  update public.product_media
+  set is_primary = false
+  where product_id = product_uuid
+    and is_primary = true
+    and id <> media_uuid;
+
+  update public.product_media
+  set is_primary = true
+  where id = media_uuid
+  returning * into selected_media;
+
+  return selected_media;
+end;
+$$;
+
 drop trigger if exists manage_product_media on public.product_media;
 
 create trigger manage_product_media
@@ -381,26 +473,11 @@ drop policy if exists "product_media_insert_manageable" on public.product_media;
 drop policy if exists "product_media_update_manageable" on public.product_media;
 drop policy if exists "product_media_delete_manageable" on public.product_media;
 
-create policy "product_media_public_select_published"
-on public.product_media
-for select
-to anon
-using (
-  visibility = 'public'
-  and public.can_read_public_product_media(product_id)
-);
-
 create policy "product_media_authenticated_select_visible"
 on public.product_media
 for select
 to authenticated
-using (
-  (
-    visibility = 'public'
-    and public.can_read_public_product_media(product_id)
-  )
-  or public.can_view_private_product_media(product_id)
-);
+using (public.can_view_private_product_media(product_id));
 
 create policy "product_media_insert_manageable"
 on public.product_media
@@ -448,6 +525,29 @@ where p.status = 'published'
 
 grant select on public.published_product_media to anon, authenticated;
 
+revoke execute on function public.product_media_owner_id(uuid) from public;
+revoke execute on function public.product_media_path_prefix(uuid) from public;
+revoke execute on function public.can_manage_product_media(uuid) from public;
+revoke execute on function public.can_view_private_product_media(uuid) from public;
+revoke execute on function public.can_read_public_product_media(uuid) from public;
+revoke execute on function public.can_read_public_product_media_item(uuid) from public;
+revoke execute on function public.can_read_public_product_media_object(text, text) from public;
+revoke execute on function public.is_valid_product_media_storage_path(uuid, text) from public;
+revoke execute on function public.is_product_media_storage_object_path(text) from public;
+revoke execute on function public.enforce_product_media_storage_object() from public;
+revoke execute on function public.manage_product_media() from public;
+revoke execute on function public.set_primary_product_media(uuid, uuid) from public;
+
+grant execute on function public.product_media_owner_id(uuid) to authenticated;
+grant execute on function public.product_media_path_prefix(uuid) to authenticated;
+grant execute on function public.can_manage_product_media(uuid) to authenticated;
+grant execute on function public.can_view_private_product_media(uuid) to authenticated;
+grant execute on function public.can_read_public_product_media(uuid) to anon, authenticated;
+grant execute on function public.can_read_public_product_media_item(uuid) to anon, authenticated;
+grant execute on function public.can_read_public_product_media_object(text, text) to anon, authenticated;
+grant execute on function public.is_valid_product_media_storage_path(uuid, text) to authenticated;
+grant execute on function public.set_primary_product_media(uuid, uuid) to authenticated;
+
 grant select on storage.objects to anon;
 grant select, insert, update, delete on storage.objects to authenticated;
 
@@ -463,14 +563,7 @@ for select
 to anon, authenticated
 using (
   bucket_id = 'product-images'
-  and exists (
-    select 1
-    from public.product_media pm
-    where pm.storage_bucket = storage.objects.bucket_id
-      and pm.storage_path = storage.objects.name
-      and pm.visibility = 'public'
-      and public.can_read_public_product_media(pm.product_id)
-  )
+  and public.can_read_public_product_media_object(storage.objects.bucket_id, storage.objects.name)
 );
 
 create policy "product_media_owner_admin_read"
