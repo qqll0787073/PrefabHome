@@ -17,6 +17,7 @@ import {
 } from "../../lib/products";
 import type { AuthUser } from "../../lib/auth";
 import type { ManufacturerApplication, ProductFormValues, ProductRecord } from "../../types";
+import { ProductMediaManager } from "../product-media/ProductMediaManager";
 import { ManufacturerProductForm } from "./ManufacturerProductForm";
 import { ProductStatusPanel } from "./ProductStatusPanel";
 
@@ -204,6 +205,10 @@ export function ManufacturerProductList({ user, authMode }: ManufacturerProductL
           )}
         </div>
       </section>
+
+      {selectedProduct && (
+        <ProductMediaManager product={selectedProduct} authMode={authMode} mode="manufacturer" />
+      )}
     </section>
   );
 }

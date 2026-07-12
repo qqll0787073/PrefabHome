@@ -225,6 +225,65 @@ export interface Database {
         };
         Update: Partial<Database["public"]["Tables"]["products"]["Insert"]>;
       };
+      product_media: {
+        Row: {
+          id: string;
+          product_id: string;
+          media_type:
+            | "exterior_image"
+            | "interior_image"
+            | "floor_plan"
+            | "rendering"
+            | "factory_photo"
+            | "specification_sheet"
+            | "catalog"
+            | "installation_manual"
+            | "certification"
+            | "other_document";
+          storage_bucket: string;
+          storage_path: string;
+          original_filename: string | null;
+          mime_type: string | null;
+          file_size_bytes: number | null;
+          title: string | null;
+          alt_text: string | null;
+          sort_order: number;
+          is_primary: boolean;
+          visibility: "public" | "private";
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          product_id: string;
+          media_type:
+            | "exterior_image"
+            | "interior_image"
+            | "floor_plan"
+            | "rendering"
+            | "factory_photo"
+            | "specification_sheet"
+            | "catalog"
+            | "installation_manual"
+            | "certification"
+            | "other_document";
+          storage_bucket: string;
+          storage_path: string;
+          original_filename?: string | null;
+          mime_type?: string | null;
+          file_size_bytes?: number | null;
+          title?: string | null;
+          alt_text?: string | null;
+          sort_order?: number;
+          is_primary?: boolean;
+          visibility?: "public" | "private";
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["product_media"]["Insert"]>;
+      };
       quote_requests: {
         Row: {
           id: string;
@@ -360,6 +419,14 @@ export interface Database {
           | "lead_time_weeks"
           | "specifications"
           | "compliance_notes"
+        >;
+        Insert: never;
+        Update: never;
+      };
+      published_product_media: {
+        Row: Omit<
+          Database["public"]["Tables"]["product_media"]["Row"],
+          "created_by" | "updated_at"
         >;
         Insert: never;
         Update: never;
