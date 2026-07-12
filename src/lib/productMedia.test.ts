@@ -7,13 +7,13 @@ import {
   documentMediaTypes,
   getProductMediaBucket,
   imageMediaTypes,
-  primaryImagePayload,
   productDocumentBucket,
   productImageBucket,
   sanitizeFilename,
   setPrimaryProductMediaRpcArgs,
   shouldRemoveUploadedObjectAfterMetadataFailure,
   toProductMediaInsertPayload,
+  toProductMediaMetadataPayload,
   toReadableProductMediaError,
   validateProductMediaFile,
 } from "./productMedia";
@@ -106,7 +106,6 @@ describe("product media helpers", () => {
       mediaType: "exterior_image",
       title: " Hero ",
       altText: " Front elevation ",
-      isPrimary: true,
     });
 
     const documentPayload = toProductMediaInsertPayload({
@@ -114,13 +113,14 @@ describe("product media helpers", () => {
       manufacturerId: "11111111-1111-1111-1111-111111111111",
       file: documentFile,
       mediaType: "specification_sheet",
+      visibility: "public",
     });
 
     assert.equal(imagePayload.storage_bucket, productImageBucket);
     assert.equal(imagePayload.visibility, "public");
     assert.equal(imagePayload.title, "Hero");
     assert.equal(imagePayload.alt_text, "Front elevation");
-    assert.equal(imagePayload.is_primary, true);
+    assert.equal(imagePayload.is_primary, false);
     assert.equal(documentPayload.storage_bucket, productDocumentBucket);
     assert.equal(documentPayload.visibility, "private");
   });
@@ -148,11 +148,21 @@ describe("product media helpers", () => {
     );
   });
 
-  it("builds the primary image selection payload", () => {
-    assert.deepEqual(primaryImagePayload(), { is_primary: true });
+  it("keeps generic metadata payloads away from primary image state", () => {
+    const payload = toProductMediaMetadataPayload({
+      title: "Updated",
+      visibility: "private",
+      is_primary: true,
+    } as Parameters<typeof toProductMediaMetadataPayload>[0] & { is_primary: boolean });
+
+    assert.deepEqual(payload, {
+      title: "Updated",
+      visibility: "private",
+    });
+    assert.equal("is_primary" in payload, false);
   });
 
-  it("builds atomic primary image RPC arguments", () => {
+  it("builds atomic primary image RPC arguments for the only primary-image operation", () => {
     assert.deepEqual(
       setPrimaryProductMediaRpcArgs(
         "22222222-2222-2222-2222-222222222222",
@@ -167,21 +177,30 @@ describe("product media helpers", () => {
 
   it("allows public signed image URLs only for public image projection rows", () => {
     const publicImage = {
+      media_type: "exterior_image",
       storage_bucket: productImageBucket,
       visibility: "public",
     } as PublicProductMediaRecord;
     const privateImage = {
+      media_type: "interior_image",
       storage_bucket: productImageBucket,
       visibility: "private",
     } as PublicProductMediaRecord;
     const publicDocument = {
+      media_type: "specification_sheet",
       storage_bucket: productDocumentBucket,
+      visibility: "public",
+    } as PublicProductMediaRecord;
+    const malformedPublicDocumentInImageBucket = {
+      media_type: "catalog",
+      storage_bucket: productImageBucket,
       visibility: "public",
     } as PublicProductMediaRecord;
 
     assert.equal(canRequestPublicSignedImageUrl(publicImage), true);
     assert.equal(canRequestPublicSignedImageUrl(privateImage), false);
     assert.equal(canRequestPublicSignedImageUrl(publicDocument), false);
+    assert.equal(canRequestPublicSignedImageUrl(malformedPublicDocumentInImageBucket), false);
   });
 
   it("requests upload compensation cleanup only after metadata failure", () => {

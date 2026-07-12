@@ -436,8 +436,12 @@ declare
   buyer_public_count integer;
   buyer_private_count integer;
   public_private_count integer;
+  public_document_count integer;
   owner_private_count integer;
   admin_private_count integer;
+  document_private_allowed boolean := false;
+  document_public_insert_blocked boolean := false;
+  document_public_update_blocked boolean := false;
 begin
   select subject_id into admin_id from product_media_subjects where subject_name = 'admin';
   select subject_id into buyer_id from product_media_subjects where subject_name = 'buyer';
@@ -448,11 +452,28 @@ begin
   insert into public.product_media(product_id, media_type, storage_bucket, storage_path, mime_type, visibility)
   values (target_product_id, 'specification_sheet', 'product-documents', manufacturer_id || '/' || target_product_id || '/private.pdf', 'application/pdf', 'private')
   returning id into private_media_id;
+  document_private_allowed := private_media_id is not null;
+
+  begin
+    insert into public.product_media(product_id, media_type, storage_bucket, storage_path, mime_type, visibility)
+    values (target_product_id, 'catalog', 'product-documents', manufacturer_id || '/' || target_product_id || '/public-catalog.pdf', 'application/pdf', 'public');
+  exception when others then
+    document_public_insert_blocked := true;
+  end;
+
+  begin
+    update public.product_media
+    set visibility = 'public'
+    where id = private_media_id;
+  exception when others then
+    document_public_update_blocked := true;
+  end;
 
   perform set_config('request.jwt.claim.sub', buyer_id::text, true);
   select count(*) into buyer_public_count from public.product_media where public.product_media.product_id = target_product_id and visibility = 'public';
   select count(*) into buyer_private_count from public.product_media where id = private_media_id;
   select count(*) into public_private_count from public.published_product_media where id = private_media_id;
+  select count(*) into public_document_count from public.published_product_media where product_id = target_product_id and storage_bucket = 'product-documents';
 
   perform set_config('request.jwt.claim.sub', (select subject_id::text from product_media_subjects where subject_name = 'approved_owner'), true);
   select count(*) into owner_private_count from public.product_media where id = private_media_id;
@@ -465,6 +486,10 @@ begin
   insert into product_media_results values ('owner manufacturer can select own private media', owner_private_count = 1, 'owner visible private docs: ' || owner_private_count);
   insert into product_media_results values ('admin can select all private media', admin_private_count = 1, 'admin visible private docs: ' || admin_private_count);
   insert into product_media_results values ('public projection excludes private document', public_private_count = 0, 'public visible private docs: ' || public_private_count);
+  insert into product_media_results values ('document visibility can be private', document_private_allowed, 'private document id: ' || coalesce(private_media_id::text, 'null'));
+  insert into product_media_results values ('document visibility public insert is blocked', document_public_insert_blocked, case when document_public_insert_blocked then 'blocked' else 'unexpectedly inserted' end);
+  insert into product_media_results values ('document visibility update private to public is blocked', document_public_update_blocked, case when document_public_update_blocked then 'blocked' else 'unexpectedly updated' end);
+  insert into product_media_results values ('published_product_media never returns document records', public_document_count = 0, 'public document rows: ' || public_document_count);
 end;
 $$;
 
@@ -520,6 +545,7 @@ begin
   select count(*) into buyer_draft_storage_count from storage.objects where bucket_id = 'product-images' and name = manufacturer_id || '/' || draft_product_id || '/draft-image.jpg';
 
   insert into product_media_results values ('published public image can receive a signed URL through the approved flow', public_projection_count >= 1 and buyer_published_storage_count = 1, 'projection: ' || public_projection_count || ', storage: ' || buyer_published_storage_count);
+  insert into product_media_results values ('published_product_media still returns public published images', public_projection_count >= 1, 'public image rows: ' || public_projection_count);
   insert into product_media_results values ('unpublished image cannot receive a public or buyer signed URL', buyer_draft_storage_count = 0, 'buyer visible draft storage objects: ' || buyer_draft_storage_count);
   insert into product_media_results values ('visibility private image cannot receive a public or buyer signed URL', buyer_private_storage_count = 0, 'buyer visible private image objects: ' || buyer_private_storage_count);
   insert into product_media_results values ('archived product image cannot receive a public or buyer signed URL', buyer_archived_storage_count = 0, 'buyer visible archived image objects: ' || buyer_archived_storage_count);
@@ -569,10 +595,15 @@ declare
   document_media_id uuid;
   other_product_media_id uuid;
   selected_media public.product_media;
+  initial_selected_media public.product_media;
   primary_count integer;
   target_is_primary boolean;
   cross_product_blocked boolean := false;
   document_blocked boolean := false;
+  document_primary_insert_blocked boolean := false;
+  document_primary_update_blocked boolean := false;
+  direct_image_primary_update_blocked boolean := false;
+  primary_after_direct_failures uuid;
   primary_after_failure uuid;
   duplicate_primary_blocked boolean := false;
   duplicate_path_blocked boolean := false;
@@ -585,17 +616,44 @@ begin
   select subject_id into primary_other_product_id from product_media_subjects where subject_name = 'primary_other_product';
   perform set_config('request.jwt.claim.sub', owner_id::text, true);
 
-  insert into public.product_media(product_id, media_type, storage_bucket, storage_path, mime_type, is_primary)
-  values (target_product_id, 'exterior_image', 'product-images', manufacturer_id || '/' || target_product_id || '/primary-1.jpg', 'image/jpeg', true)
+  begin
+    insert into public.product_media(product_id, media_type, storage_bucket, storage_path, mime_type, is_primary, visibility)
+    values (target_product_id, 'specification_sheet', 'product-documents', manufacturer_id || '/' || target_product_id || '/primary-doc-insert.pdf', 'application/pdf', true, 'private');
+  exception when others then
+    document_primary_insert_blocked := true;
+  end;
+
+  insert into public.product_media(product_id, media_type, storage_bucket, storage_path, mime_type)
+  values (target_product_id, 'exterior_image', 'product-images', manufacturer_id || '/' || target_product_id || '/primary-1.jpg', 'image/jpeg')
   returning id into initial_primary_id;
+
+  select * into initial_selected_media from public.set_primary_product_media(target_product_id, initial_primary_id);
 
   insert into public.product_media(product_id, media_type, storage_bucket, storage_path, mime_type)
   values (target_product_id, 'interior_image', 'product-images', manufacturer_id || '/' || target_product_id || '/primary-target.jpg', 'image/jpeg')
   returning id into target_image_id;
 
-  insert into public.product_media(product_id, media_type, storage_bucket, storage_path, mime_type)
-  values (target_product_id, 'specification_sheet', 'product-documents', manufacturer_id || '/' || target_product_id || '/primary-doc.pdf', 'application/pdf')
+  insert into public.product_media(product_id, media_type, storage_bucket, storage_path, mime_type, visibility)
+  values (target_product_id, 'specification_sheet', 'product-documents', manufacturer_id || '/' || target_product_id || '/primary-doc.pdf', 'application/pdf', 'private')
   returning id into document_media_id;
+
+  begin
+    update public.product_media
+    set is_primary = true
+    where id = document_media_id;
+  exception when others then
+    document_primary_update_blocked := true;
+  end;
+
+  begin
+    update public.product_media
+    set is_primary = true
+    where id = target_image_id;
+  exception when others then
+    direct_image_primary_update_blocked := true;
+  end;
+
+  select id into primary_after_direct_failures from public.product_media where public.product_media.product_id = target_product_id and is_primary = true;
 
   perform set_config('request.jwt.claim.sub', other_owner_id::text, true);
   insert into public.product_media(product_id, media_type, storage_bucket, storage_path, mime_type)
@@ -635,10 +693,16 @@ begin
     duplicate_path_blocked := true;
   end;
 
+  insert into product_media_results values ('direct insert of a document with is_primary true is blocked', document_primary_insert_blocked, case when document_primary_insert_blocked then 'blocked' else 'unexpectedly inserted' end);
+  insert into product_media_results values ('direct update of a document to is_primary true is blocked', document_primary_update_blocked, case when document_primary_update_blocked then 'blocked' else 'unexpectedly updated' end);
+  insert into product_media_results values ('direct update of an image to is_primary true is blocked', direct_image_primary_update_blocked, case when direct_image_primary_update_blocked then 'blocked' else 'unexpectedly updated' end);
+  insert into product_media_results values ('existing primary image remains unchanged after invalid direct primary attempts', primary_after_direct_failures = initial_primary_id, 'primary after direct failures: ' || coalesce(primary_after_direct_failures::text, 'null'));
+  insert into product_media_results values ('set-primary RPC can set a valid image primary', initial_selected_media.id = initial_primary_id and selected_media.id = target_image_id and target_is_primary = true, 'initial: ' || coalesce(initial_selected_media.id::text, 'null') || ', selected: ' || coalesce(selected_media.id::text, 'null'));
   insert into product_media_results values ('set-primary RPC is atomic', selected_media.id = target_image_id and primary_count = 1 and target_is_primary = true, 'selected: ' || coalesce(selected_media.id::text, 'null') || ', primary_count: ' || primary_count);
   insert into product_media_results values ('set-primary RPC rejects media from another product', cross_product_blocked, case when cross_product_blocked then 'blocked' else 'unexpectedly selected' end);
   insert into product_media_results values ('set-primary RPC rejects documents', document_blocked, case when document_blocked then 'blocked' else 'unexpectedly selected' end);
   insert into product_media_results values ('failed target validation does not clear current primary image', primary_after_failure = target_image_id, 'primary after failures: ' || coalesce(primary_after_failure::text, 'null'));
+  insert into product_media_results values ('existing primary image remains unchanged after invalid RPC attempt', primary_after_failure = target_image_id, 'primary after RPC failures: ' || coalesce(primary_after_failure::text, 'null'));
   insert into product_media_results values ('only one primary media item is allowed per product', duplicate_primary_blocked, case when duplicate_primary_blocked then 'blocked' else 'unexpectedly inserted' end);
   insert into product_media_results values ('duplicate storage path is blocked', duplicate_path_blocked, case when duplicate_path_blocked then 'blocked' else 'unexpectedly inserted' end);
 end;

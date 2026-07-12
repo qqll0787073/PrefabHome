@@ -45,7 +45,9 @@ Constraints:
 - non-negative `sort_order`
 - supported buckets only
 - unique `(storage_bucket, storage_path)`
-- only one primary media item per product
+- only one primary image per product
+- primary media must use `product-images` and a supported image media type
+- document media must always have `visibility = 'private'`
 
 ## Storage Buckets
 
@@ -94,7 +96,7 @@ Public and buyer rules:
 - Anonymous users and buyers read public media metadata only through `public.published_product_media`.
 - Anonymous users and buyers do not receive direct `SELECT` access to `public.product_media`.
 - Public images for published products use signed URLs after the caller can read the public projection row.
-- Private documents are excluded.
+- Documents are always private and excluded.
 - Unpublished, archived, rejected, or private-visibility product media is excluded from public signed-image access.
 - Internal audit fields such as `created_by` are excluded.
 
@@ -134,6 +136,15 @@ Public view:
 
 The view uses explicit public-safe columns and filters to `visibility = 'public'` media for `published` products. It intentionally does not grant direct base-table visibility to anonymous users or buyers. The storage path present in this projection is only for public image records that are already application-visible and is used to request short-lived signed URLs; private document paths and private image paths are excluded.
 
+`published_product_media` is image-only. It requires:
+
+- `storage_bucket = 'product-images'`
+- a supported image `media_type`
+- `visibility = 'public'`
+- product `status = 'published'`
+
+Document metadata must never appear in the public projection, even if malformed legacy data exists.
+
 Included fields:
 
 - `id`
@@ -166,6 +177,8 @@ Primary-image selection uses:
 
 - `public.set_primary_product_media(product_uuid uuid, media_uuid uuid)`
 
+Primary means primary image. Documents can never be primary.
+
 The RPC executes in one transaction and:
 
 - verifies the caller can manage media for the product
@@ -176,6 +189,8 @@ The RPC executes in one transaction and:
 - returns the selected `product_media` row
 
 Failed validation occurs before clearing the current primary image.
+
+Direct inserts and generic metadata updates may not set `is_primary = true`. Ordinary media records are inserted with `is_primary = false`; manufacturers and admins must use `set_primary_product_media()` to promote an image.
 
 ## Service Layer
 
@@ -192,6 +207,7 @@ Responsibilities:
 - upload file first, then create metadata record
 - compensation cleanup if metadata creation fails after upload
 - metadata updates
+- generic metadata updates do not accept `is_primary`
 - atomic primary image selection through `set_primary_product_media()`
 - delete object first, then delete metadata record
 - signed URL creation for public images and private documents

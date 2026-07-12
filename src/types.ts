@@ -176,7 +176,6 @@ export interface ProductMediaUploadInput {
   title?: string;
   altText?: string;
   sortOrder?: number;
-  isPrimary?: boolean;
   visibility?: ProductMediaVisibility;
 }
 

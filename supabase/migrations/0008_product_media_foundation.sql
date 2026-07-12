@@ -94,6 +94,46 @@ alter table public.product_media
 alter table public.product_media
   validate constraint product_media_bucket_check;
 
+alter table public.product_media
+  drop constraint if exists product_media_primary_image_check;
+
+alter table public.product_media
+  add constraint product_media_primary_image_check
+  check (
+    is_primary = false
+    or (
+      storage_bucket = 'product-images'
+      and media_type in (
+        'exterior_image',
+        'interior_image',
+        'floor_plan',
+        'rendering',
+        'factory_photo'
+      )
+    )
+  )
+  not valid;
+
+alter table public.product_media
+  drop constraint if exists product_media_documents_private_check;
+
+alter table public.product_media
+  add constraint product_media_documents_private_check
+  check (
+    not (
+      storage_bucket = 'product-documents'
+      or media_type in (
+        'specification_sheet',
+        'catalog',
+        'installation_manual',
+        'certification',
+        'other_document'
+      )
+    )
+    or visibility = 'private'
+  )
+  not valid;
+
 create unique index if not exists product_media_storage_path_key
   on public.product_media (storage_bucket, storage_path);
 
@@ -339,10 +379,16 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  primary_rpc_context boolean := current_setting('app.set_primary_product_media', true) = 'on';
 begin
   if tg_op = 'INSERT' then
     if not public.can_manage_product_media(new.product_id) then
       raise exception 'Only approved manufacturers can manage media for draft or rejected products.';
+    end if;
+
+    if new.is_primary = true then
+      raise exception 'Primary images must be selected with set_primary_product_media.';
     end if;
 
     new.created_by := auth.uid();
@@ -362,6 +408,10 @@ begin
 
     if not public.can_manage_product_media(old.product_id) then
       raise exception 'This product is locked. Media can be changed only while draft or rejected.';
+    end if;
+
+    if old.is_primary = false and new.is_primary = true and not primary_rpc_context then
+      raise exception 'Primary images must be selected with set_primary_product_media.';
     end if;
   end if;
 
@@ -383,6 +433,33 @@ begin
     'other_document'
   ) and new.storage_bucket <> 'product-documents' then
     raise exception 'Document media must be stored in product-documents.';
+  end if;
+
+  if new.is_primary = true
+    and (
+      new.storage_bucket <> 'product-images'
+      or new.media_type not in (
+        'exterior_image',
+        'interior_image',
+        'floor_plan',
+        'rendering',
+        'factory_photo'
+      )
+    ) then
+    raise exception 'Primary media must be a product image.';
+  end if;
+
+  if (
+    new.storage_bucket = 'product-documents'
+    or new.media_type in (
+      'specification_sheet',
+      'catalog',
+      'installation_manual',
+      'certification',
+      'other_document'
+    )
+  ) and new.visibility <> 'private' then
+    raise exception 'Document media must be private.';
   end if;
 
   if not public.is_valid_product_media_storage_path(new.product_id, new.storage_path) then
@@ -417,6 +494,7 @@ set search_path = public
 as $$
 declare
   selected_media public.product_media;
+  previous_primary_context text;
 begin
   if not public.can_manage_product_media(product_uuid) then
     raise exception 'Only approved manufacturers can manage media for draft or rejected products.';
@@ -444,16 +522,26 @@ begin
     raise exception 'Primary product media must be an image.';
   end if;
 
-  update public.product_media
-  set is_primary = false
-  where product_id = product_uuid
-    and is_primary = true
-    and id <> media_uuid;
+  previous_primary_context := current_setting('app.set_primary_product_media', true);
+  perform set_config('app.set_primary_product_media', 'on', true);
 
-  update public.product_media
-  set is_primary = true
-  where id = media_uuid
-  returning * into selected_media;
+  begin
+    update public.product_media
+    set is_primary = false
+    where product_id = product_uuid
+      and is_primary = true
+      and id <> media_uuid;
+
+    update public.product_media
+    set is_primary = true
+    where id = media_uuid
+    returning * into selected_media;
+  exception when others then
+    perform set_config('app.set_primary_product_media', coalesce(previous_primary_context, 'off'), true);
+    raise;
+  end;
+
+  perform set_config('app.set_primary_product_media', coalesce(previous_primary_context, 'off'), true);
 
   return selected_media;
 end;
@@ -521,7 +609,15 @@ select
 from public.product_media pm
 join public.products p on p.id = pm.product_id
 where p.status = 'published'
-  and pm.visibility = 'public';
+  and pm.visibility = 'public'
+  and pm.storage_bucket = 'product-images'
+  and pm.media_type in (
+    'exterior_image',
+    'interior_image',
+    'floor_plan',
+    'rendering',
+    'factory_photo'
+  );
 
 grant select on public.published_product_media to anon, authenticated;
 

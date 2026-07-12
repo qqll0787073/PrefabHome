@@ -139,13 +139,9 @@ export function toProductMediaInsertPayload(input: ProductMediaUploadInput) {
     title: input.title?.trim() || null,
     alt_text: input.altText?.trim() || null,
     sort_order: input.sortOrder ?? 0,
-    is_primary: input.isPrimary ?? false,
-    visibility: input.visibility ?? (storageBucket === productImageBucket ? "public" : "private"),
+    is_primary: false,
+    visibility: storageBucket === productImageBucket ? input.visibility ?? "public" : "private",
   };
-}
-
-export function primaryImagePayload(): Pick<ProductMediaRecord, "is_primary"> {
-  return { is_primary: true };
 }
 
 export function setPrimaryProductMediaRpcArgs(productId: string, mediaId: string) {
@@ -156,7 +152,11 @@ export function setPrimaryProductMediaRpcArgs(productId: string, mediaId: string
 }
 
 export function canRequestPublicSignedImageUrl(media: PublicProductMediaRecord): boolean {
-  return media.storage_bucket === productImageBucket && media.visibility === "public";
+  return (
+    media.storage_bucket === productImageBucket &&
+    isImageMediaType(media.media_type) &&
+    media.visibility === "public"
+  );
 }
 
 export function shouldRemoveUploadedObjectAfterMetadataFailure(
@@ -164,6 +164,17 @@ export function shouldRemoveUploadedObjectAfterMetadataFailure(
   metadataCreated: boolean
 ): boolean {
   return uploadSucceeded && !metadataCreated;
+}
+
+export function toProductMediaMetadataPayload(
+  values: Partial<Pick<ProductMediaRecord, "title" | "alt_text" | "sort_order" | "visibility">>
+) {
+  return {
+    ...(values.title !== undefined ? { title: values.title } : {}),
+    ...(values.alt_text !== undefined ? { alt_text: values.alt_text } : {}),
+    ...(values.sort_order !== undefined ? { sort_order: values.sort_order } : {}),
+    ...(values.visibility !== undefined ? { visibility: values.visibility } : {}),
+  };
 }
 
 export function toReadableProductMediaError(error: {
@@ -320,19 +331,19 @@ export async function uploadProductDocument(
     throw new Error("Document uploads must use a document media type.");
   }
 
-  return uploadProductMedia({ ...input, visibility: input.visibility ?? "private" });
+  return uploadProductMedia({ ...input, visibility: "private" });
 }
 
 export async function updateProductMediaMetadata(
   mediaId: string,
   values: Partial<
-    Pick<ProductMediaRecord, "title" | "alt_text" | "sort_order" | "visibility" | "is_primary">
+    Pick<ProductMediaRecord, "title" | "alt_text" | "sort_order" | "visibility">
   >
 ): Promise<ProductMediaRecord> {
   const client = ensureSupabase();
   const { data, error } = await client
     .from("product_media")
-    .update(values)
+    .update(toProductMediaMetadataPayload(values))
     .eq("id", mediaId)
     .select("*")
     .single();

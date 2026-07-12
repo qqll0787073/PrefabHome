@@ -51,28 +51,39 @@ Expected checks:
 16. anonymous can read public media for published product
 17. public projection excludes created_by
 18. public projection excludes private document
-19. published public image can receive a signed URL through the approved flow
-20. unpublished image cannot receive a public or buyer signed URL
-21. visibility private image cannot receive a public or buyer signed URL
-22. archived product image cannot receive a public or buyer signed URL
-23. admin can view all media
-24. admin can manage media for published product
-25. set-primary RPC is atomic
-26. set-primary RPC rejects media from another product
-27. set-primary RPC rejects documents
-28. failed target validation does not clear current primary image
-29. only one primary media item is allowed per product
-30. duplicate storage path is blocked
-31. invalid visibility is blocked
-32. invalid media_type is blocked
-33. negative file size is blocked
-34. negative sort order is blocked
-35. cascade delete removes media records when product is deleted
-36. updated_at changes on valid update
-37. storage policy blocks upload to another manufacturer path
-38. storage policy blocks unauthorized document read
-39. storage policy permits valid owner upload to editable product
-40. security-definer helper EXECUTE grants are restricted
+19. document visibility can be private
+20. document visibility public insert is blocked
+21. document visibility update private to public is blocked
+22. published_product_media never returns document records
+23. published public image can receive a signed URL through the approved flow
+24. published_product_media still returns public published images
+25. unpublished image cannot receive a public or buyer signed URL
+26. visibility private image cannot receive a public or buyer signed URL
+27. archived product image cannot receive a public or buyer signed URL
+28. admin can view all media
+29. admin can manage media for published product
+30. direct insert of a document with is_primary true is blocked
+31. direct update of a document to is_primary true is blocked
+32. direct update of an image to is_primary true is blocked
+33. existing primary image remains unchanged after invalid direct primary attempts
+34. set-primary RPC can set a valid image primary
+35. set-primary RPC is atomic
+36. set-primary RPC rejects media from another product
+37. set-primary RPC rejects documents
+38. failed target validation does not clear current primary image
+39. existing primary image remains unchanged after invalid RPC attempt
+40. only one primary media item is allowed per product
+41. duplicate storage path is blocked
+42. invalid visibility is blocked
+43. invalid media_type is blocked
+44. negative file size is blocked
+45. negative sort order is blocked
+46. cascade delete removes media records when product is deleted
+47. updated_at changes on valid update
+48. storage policy blocks upload to another manufacturer path
+49. storage policy blocks unauthorized document read
+50. storage policy permits valid owner upload to editable product
+51. security-definer helper EXECUTE grants are restricted
 
 ## Application Checks
 
@@ -99,6 +110,9 @@ npm run test
 - Public media projection excludes internal fields:
 - Direct public.product_media access remains owner/admin only:
 - Atomic primary image RPC verified:
+- Primary image cannot be set through generic table updates:
+- Documents are always private:
+- Public media projection contains images only:
 
 ## Deferred Work
 
