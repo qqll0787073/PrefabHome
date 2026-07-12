@@ -9,6 +9,7 @@ import {
   productStatuses,
 } from "../../lib/products";
 import type { ProductLifecycleStatus, ProductRecord } from "../../types";
+import { ProductMediaManager } from "../product-media/ProductMediaManager";
 import { ProductStatusPanel } from "./ProductStatusPanel";
 
 interface AdminProductReviewProps {
@@ -108,6 +109,7 @@ export function AdminProductReview({ authMode }: AdminProductReviewProps) {
                 }))
               }
               onApplyReview={applyReview}
+              authMode={authMode}
             />
           ))}
         </div>
@@ -120,6 +122,7 @@ interface AdminProductReviewItemProps {
   product: ProductRecord;
   notes: string;
   isReviewing: string | null;
+  authMode: "supabase" | "demo";
   onNotesChange: (value: string) => void;
   onApplyReview: (product: ProductRecord, status: ProductLifecycleStatus) => void;
 }
@@ -128,6 +131,7 @@ function AdminProductReviewItem({
   product,
   notes,
   isReviewing,
+  authMode,
   onNotesChange,
   onApplyReview,
 }: AdminProductReviewItemProps) {
@@ -163,6 +167,7 @@ function AdminProductReviewItem({
         ))}
         {allowedStatuses.length === 0 && <p>No lifecycle actions available.</p>}
       </div>
+      <ProductMediaManager product={product} authMode={authMode} mode="admin" />
     </article>
   );
 }

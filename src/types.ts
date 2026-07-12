@@ -72,6 +72,20 @@ export type ProductLifecycleStatus =
   | "rejected"
   | "archived";
 
+export type ProductMediaType =
+  | "exterior_image"
+  | "interior_image"
+  | "floor_plan"
+  | "rendering"
+  | "factory_photo"
+  | "specification_sheet"
+  | "catalog"
+  | "installation_manual"
+  | "certification"
+  | "other_document";
+
+export type ProductMediaVisibility = "public" | "private";
+
 export interface ProductRecord {
   id: string;
   manufacturer_id: string;
@@ -129,6 +143,41 @@ export type PublicProductRecord = Omit<
   | "submitted_at"
   | "archived_at"
 >;
+
+export interface ProductMediaRecord {
+  id: string;
+  product_id: string;
+  media_type: ProductMediaType;
+  storage_bucket: string;
+  storage_path: string;
+  original_filename: string | null;
+  mime_type: string | null;
+  file_size_bytes: number | null;
+  title: string | null;
+  alt_text: string | null;
+  sort_order: number;
+  is_primary: boolean;
+  visibility: ProductMediaVisibility;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PublicProductMediaRecord = Omit<
+  ProductMediaRecord,
+  "created_by" | "updated_at"
+>;
+
+export interface ProductMediaUploadInput {
+  productId: string;
+  manufacturerId: string;
+  file: File;
+  mediaType: ProductMediaType;
+  title?: string;
+  altText?: string;
+  sortOrder?: number;
+  visibility?: ProductMediaVisibility;
+}
 
 export interface ProductFormValues {
   sku: string;
