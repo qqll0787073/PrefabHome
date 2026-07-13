@@ -1,6 +1,6 @@
 # Product Media Verification
 
-Date: 2026-07-12
+Date: 2026-07-13
 
 Branch: `auth-profiles`
 
@@ -18,6 +18,8 @@ npx.cmd supabase db push --yes
 
 Result: migration `0008_product_media_foundation.sql` applied successfully through the linked Supabase CLI flow.
 
+Follow-up result: migration `0009_fix_product_media_storage_authorization.sql` applied successfully through the linked Supabase CLI flow after the authenticated Storage smoke isolated the custom `storage.objects` trigger as incompatible with the live Storage API write path.
+
 Remote migration confirmation:
 
 - `0001`: applied
@@ -28,6 +30,7 @@ Remote migration confirmation:
 - `0006`: applied
 - `0007`: applied
 - `0008`: applied
+- `0009`: applied
 
 No production deployment was performed.
 
@@ -48,7 +51,7 @@ Command:
 npx.cmd supabase db query --linked --file supabase/tests/product_media_security.sql
 ```
 
-Result: 51/51 checks passed.
+Result after `0009`: 61/61 checks passed.
 
 Passed checks:
 
@@ -63,79 +66,88 @@ Passed checks:
 9. buyer cannot directly select public.product_media public rows
 10. buyer cannot read private document media
 11. cascade delete removes media records when product is deleted
-12. direct insert of a document with is_primary true is blocked
-13. direct public URL access is not possible because product-images is private
-14. direct update of a document to is_primary true is blocked
-15. direct update of an image to is_primary true is blocked
-16. document visibility can be private
-17. document visibility public insert is blocked
-18. document visibility update private to public is blocked
-19. duplicate storage path is blocked
-20. existing primary image remains unchanged after invalid direct primary attempts
-21. existing primary image remains unchanged after invalid RPC attempt
-22. failed target validation does not clear current primary image
-23. invalid media_type is blocked
-24. invalid visibility is blocked
-25. manufacturer can edit media for own rejected product
-26. manufacturer cannot create media for another manufacturer product
-27. manufacturer cannot delete media for published product
-28. manufacturer cannot edit media for submitted product
-29. manufacturer cannot forge manufacturer storage path
-30. negative file size is blocked
-31. negative sort order is blocked
-32. only one primary media item is allowed per product
-33. owner manufacturer can select own private media
-34. product-documents bucket is private
-35. public projection excludes created_by
-36. public projection excludes private document
-37. published public image can receive a signed URL through the approved flow
-38. published_product_media never returns document records
-39. published_product_media still returns public published images
-40. security-definer helper EXECUTE grants are restricted
-41. set-primary RPC can set a valid image primary
-42. set-primary RPC is atomic
-43. set-primary RPC rejects documents
-44. set-primary RPC rejects media from another product
-45. storage policy blocks unauthorized document read
-46. storage policy blocks upload to another manufacturer path
-47. storage policy permits valid owner upload to editable product
-48. unapproved manufacturer cannot upload media metadata
-49. unpublished image cannot receive a public or buyer signed URL
-50. updated_at changes on valid update
-51. visibility private image cannot receive a public or buyer signed URL
+12. custom storage.objects trigger no longer exists
+13. direct insert of a document with is_primary true is blocked
+14. direct public URL access is not possible because product-images is private
+15. direct update of a document to is_primary true is blocked
+16. direct update of an image to is_primary true is blocked
+17. document visibility can be private
+18. document visibility public insert is blocked
+19. document visibility update private to public is blocked
+20. duplicate storage path is blocked
+21. existing primary image remains unchanged after invalid direct primary attempts
+22. existing primary image remains unchanged after invalid RPC attempt
+23. failed target validation does not clear current primary image
+24. invalid media_type is blocked
+25. invalid visibility is blocked
+26. manufacturer can edit media for own rejected product
+27. manufacturer cannot create media for another manufacturer product
+28. manufacturer cannot delete media for published product
+29. manufacturer cannot edit media for submitted product
+30. manufacturer cannot forge manufacturer storage path
+31. negative file size is blocked
+32. negative sort order is blocked
+33. only one primary media item is allowed per product
+34. owner manufacturer can select own private media
+35. product-documents bucket is private
+36. public projection excludes created_by
+37. public projection excludes private document
+38. published public image can receive a signed URL through the approved flow
+39. published_product_media never returns document records
+40. published_product_media still returns public published images
+41. security-definer helper EXECUTE grants are restricted
+42. set-primary RPC can set a valid image primary
+43. set-primary RPC is atomic
+44. set-primary RPC rejects documents
+45. set-primary RPC rejects media from another product
+46. storage policy allows admin upload
+47. storage policy blocks delete by unauthorized manufacturer
+48. storage policy blocks invalid UUID path upload
+49. storage policy blocks published product manufacturer upload
+50. storage policy blocks rename into another product path
+51. storage policy blocks submitted product manufacturer upload
+52. storage policy blocks unauthorized document read
+53. storage policy blocks unapproved manufacturer upload
+54. storage policy blocks upload to another manufacturer path
+55. storage policy blocks upload to another product path
+56. storage policy permits valid owner upload to editable product
+57. unapproved manufacturer cannot upload media metadata
+58. unpublished image cannot receive a public or buyer signed URL
+59. updated_at changes on valid update
+60. valid authenticated owner upload policy evaluates true
+61. visibility private image cannot receive a public or buyer signed URL
 
 ## Temporary Storage Smoke Test
 
-Status: blocked by linked Supabase Auth constraints, with cleanup confirmed.
+Status: passed with a pre-existing approved manufacturer account and draft product.
 
-Attempted flow:
+Credential handling:
 
-1. Create a temporary manufacturer auth user.
-2. Create a temporary approved manufacturer and draft product.
-3. Upload a small temporary image to `product-images`.
-4. Create a matching `product_media` row.
-5. Retrieve the image through an authorized signed URL.
-6. Delete the object and metadata.
-7. Confirm no temporary rows or objects remain.
+- Credentials were read only from `.env.smoke.local`.
+- `.env.smoke.local` is ignored by Git via `.gitignore`.
+- The smoke used the manufacturer account, not an admin account.
+- No password, access token, refresh token, or signed URL query token was printed or recorded.
+- No service-role key was used.
 
-Observed blockers:
+Verified flow:
 
-- Supabase Auth rejected temporary `.test` and `example.com` signup addresses.
-- Subsequent signup attempts hit project email rate limiting.
-- Direct SQL-created temporary Auth users could not sign in through GoTrue on this linked project.
-- The linked database did not expose `app.settings.jwt_secret`, so a short-lived local authenticated JWT could not be generated for the temporary user.
+1. Authenticated sign-in passed.
+2. Approved manufacturer lookup passed.
+3. Draft product lookup passed.
+4. Small temporary PNG creation passed.
+5. Private `product-images` upload passed.
+6. Matching `product_media` metadata creation passed.
+7. Manufacturer metadata read passed.
+8. Signed image URL retrieval passed.
+9. Signed URL image-byte fetch passed.
+10. `set_primary_product_media(product_id, media_id)` passed.
+11. Primary-image verification passed.
+12. Storage object cleanup passed.
+13. Metadata cleanup passed.
+14. Verification confirmed no temporary storage object remained.
+15. Verification confirmed no temporary `product_media` row remained.
 
-Cleanup confirmation after interrupted attempts:
-
-- `product_media`: `0` temporary rows remaining
-- `storage.objects`: `0` temporary objects remaining
-- `products`: `0` temporary rows remaining
-- `manufacturers`: `0` temporary rows remaining
-- `auth.users`: `0` temporary users remaining
-
-No service-role key was used in frontend code. No temporary Storage object was left behind.
-
-Required follow-up: run the authenticated Storage smoke test with either a pre-approved temporary test account or temporary Auth email limits relaxed for the linked project.
+Historical note: an earlier authenticated Storage smoke attempt isolated a live Storage API authorization failure in the custom `storage.objects` trigger from `0008`. Migration `0009_fix_product_media_storage_authorization.sql` removed that trigger and moved write authorization into Storage RLS policies. The same live smoke flow passed after `0009`.
 
 ## Build And Test Results
 
@@ -157,11 +169,11 @@ Results:
 
 Secret scan result: no committed secrets found.
 
-The only match was the documented placeholder `SUPABASE_SERVICE_ROLE_KEY` in `docs/SUPABASE_SETUP.md`.
+The only matches were documentation references to the placeholder `SUPABASE_SERVICE_ROLE_KEY`; no credential values were found.
 
 ## Production Safety
 
-- Migration `0008` was applied through the linked Supabase CLI flow.
+- Migrations `0008` and `0009` were applied through the linked Supabase CLI flow.
 - Existing production data was not manually edited or deleted.
 - No production deployment occurred.
 - `auth-profiles` was not merged into `main`.

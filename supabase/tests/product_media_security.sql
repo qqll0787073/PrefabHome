@@ -798,18 +798,33 @@ declare
   anon_can_read_public boolean;
   anon_can_read_public_object boolean;
   public_can_read_public_object boolean;
+  authenticated_can_write_storage_object boolean;
+  public_can_write_storage_object boolean;
   authenticated_can_rpc boolean;
   public_can_rpc boolean;
   public_can_trigger boolean;
+  custom_storage_trigger_exists boolean;
 begin
   public_can_manage := has_function_privilege('public', 'public.can_manage_product_media(uuid)', 'execute');
   anon_can_manage := has_function_privilege('anon', 'public.can_manage_product_media(uuid)', 'execute');
   anon_can_read_public := has_function_privilege('anon', 'public.can_read_public_product_media(uuid)', 'execute');
   anon_can_read_public_object := has_function_privilege('anon', 'public.can_read_public_product_media_object(text, text)', 'execute');
   public_can_read_public_object := has_function_privilege('public', 'public.can_read_public_product_media_object(text, text)', 'execute');
+  authenticated_can_write_storage_object := has_function_privilege('authenticated', 'public.can_write_product_media_storage_object(text, text)', 'execute');
+  public_can_write_storage_object := has_function_privilege('public', 'public.can_write_product_media_storage_object(text, text)', 'execute');
   authenticated_can_rpc := has_function_privilege('authenticated', 'public.set_primary_product_media(uuid, uuid)', 'execute');
   public_can_rpc := has_function_privilege('public', 'public.set_primary_product_media(uuid, uuid)', 'execute');
   public_can_trigger := has_function_privilege('public', 'public.manage_product_media()', 'execute');
+  custom_storage_trigger_exists := exists (
+    select 1
+    from pg_trigger t
+    join pg_class c on c.oid = t.tgrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'storage'
+      and c.relname = 'objects'
+      and t.tgname = 'enforce_product_media_storage_object'
+      and not t.tgisinternal
+  );
 
   insert into product_media_results values (
     'security-definer helper EXECUTE grants are restricted',
@@ -818,34 +833,66 @@ begin
       and anon_can_read_public = true
       and anon_can_read_public_object = true
       and public_can_read_public_object = false
+      and authenticated_can_write_storage_object = true
+      and public_can_write_storage_object = false
       and authenticated_can_rpc = true
       and public_can_rpc = false
       and public_can_trigger = false,
-    'public_can_manage: ' || public_can_manage || ', anon_can_manage: ' || anon_can_manage || ', anon_can_read_public: ' || anon_can_read_public || ', anon_can_read_public_object: ' || anon_can_read_public_object || ', public_can_read_public_object: ' || public_can_read_public_object || ', authenticated_can_rpc: ' || authenticated_can_rpc || ', public_can_rpc: ' || public_can_rpc || ', public_can_trigger: ' || public_can_trigger
+    'public_can_manage: ' || public_can_manage || ', anon_can_manage: ' || anon_can_manage || ', anon_can_read_public: ' || anon_can_read_public || ', anon_can_read_public_object: ' || anon_can_read_public_object || ', public_can_read_public_object: ' || public_can_read_public_object || ', authenticated_can_write_storage_object: ' || authenticated_can_write_storage_object || ', public_can_write_storage_object: ' || public_can_write_storage_object || ', authenticated_can_rpc: ' || authenticated_can_rpc || ', public_can_rpc: ' || public_can_rpc || ', public_can_trigger: ' || public_can_trigger
   );
+  insert into product_media_results values ('custom storage.objects trigger no longer exists', custom_storage_trigger_exists = false, 'exists: ' || custom_storage_trigger_exists);
 end;
 $$;
 
 do $$
 declare
+  admin_id uuid;
   owner_id uuid;
+  unapproved_owner_id uuid;
+  other_owner_id uuid;
   buyer_id uuid;
   manufacturer_id uuid;
+  unapproved_manufacturer_id uuid;
   other_manufacturer_id uuid;
   product_id uuid;
+  unapproved_product_id uuid;
+  submitted_product_id uuid;
+  published_product_id uuid;
+  other_product_id uuid;
   valid_upload_id uuid;
+  owner_delete_test_id uuid;
+  owner_update_test_id uuid;
+  admin_upload_id uuid;
   valid_upload_inserted boolean := false;
   forged_upload_blocked boolean := false;
+  other_product_upload_blocked boolean := false;
+  unapproved_upload_blocked boolean := false;
+  submitted_upload_blocked boolean := false;
+  published_upload_blocked boolean := false;
+  admin_upload_inserted boolean := false;
+  invalid_uuid_upload_blocked boolean := false;
+  rename_to_another_product_blocked boolean := false;
+  unauthorized_delete_blocked boolean := false;
+  valid_policy_check boolean := false;
   valid_upload_error text := '';
   document_read_count integer;
 begin
+  select subject_id into admin_id from product_media_subjects where subject_name = 'admin';
   select subject_id into owner_id from product_media_subjects where subject_name = 'approved_owner';
+  select subject_id into unapproved_owner_id from product_media_subjects where subject_name = 'unapproved_owner';
+  select subject_id into other_owner_id from product_media_subjects where subject_name = 'other_owner';
   select subject_id into buyer_id from product_media_subjects where subject_name = 'buyer';
   select subject_id into manufacturer_id from product_media_subjects where subject_name = 'approved_manufacturer';
+  select subject_id into unapproved_manufacturer_id from product_media_subjects where subject_name = 'unapproved_manufacturer';
   select subject_id into other_manufacturer_id from product_media_subjects where subject_name = 'other_manufacturer';
   select subject_id into product_id from product_media_subjects where subject_name = 'draft_product';
+  select subject_id into unapproved_product_id from product_media_subjects where subject_name = 'unapproved_product';
+  select subject_id into submitted_product_id from product_media_subjects where subject_name = 'submitted_product';
+  select subject_id into published_product_id from product_media_subjects where subject_name = 'published_product';
+  select subject_id into other_product_id from product_media_subjects where subject_name = 'other_product';
 
   perform set_config('request.jwt.claim.sub', owner_id::text, true);
+  valid_policy_check := public.can_write_product_media_storage_object(manufacturer_id || '/' || product_id || '/valid-owner-upload.jpg', owner_id::text);
 
   begin
     insert into storage.objects(bucket_id, name, owner, owner_id, metadata)
@@ -864,17 +911,96 @@ begin
     forged_upload_blocked := true;
   end;
 
+  begin
+    insert into storage.objects(bucket_id, name, owner, owner_id, metadata)
+    values ('product-images', other_manufacturer_id || '/' || other_product_id || '/other-product-upload.jpg', owner_id, owner_id::text, '{}'::jsonb);
+  exception when others then
+    other_product_upload_blocked := true;
+  end;
+
+  perform set_config('request.jwt.claim.sub', unapproved_owner_id::text, true);
+  begin
+    insert into storage.objects(bucket_id, name, owner, owner_id, metadata)
+    values ('product-images', unapproved_manufacturer_id || '/' || unapproved_product_id || '/unapproved-upload.jpg', unapproved_owner_id, unapproved_owner_id::text, '{}'::jsonb);
+  exception when others then
+    unapproved_upload_blocked := true;
+  end;
+
+  perform set_config('request.jwt.claim.sub', owner_id::text, true);
+  begin
+    insert into storage.objects(bucket_id, name, owner, owner_id, metadata)
+    values ('product-images', manufacturer_id || '/' || submitted_product_id || '/submitted-upload.jpg', owner_id, owner_id::text, '{}'::jsonb);
+  exception when others then
+    submitted_upload_blocked := true;
+  end;
+
+  begin
+    insert into storage.objects(bucket_id, name, owner, owner_id, metadata)
+    values ('product-images', manufacturer_id || '/' || published_product_id || '/published-upload.jpg', owner_id, owner_id::text, '{}'::jsonb);
+  exception when others then
+    published_upload_blocked := true;
+  end;
+
+  begin
+    insert into storage.objects(bucket_id, name, owner, owner_id, metadata)
+    values ('product-images', 'not-a-uuid/' || product_id || '/invalid-upload.jpg', owner_id, owner_id::text, '{}'::jsonb);
+  exception when others then
+    invalid_uuid_upload_blocked := true;
+  end;
+
+  insert into storage.objects(bucket_id, name, owner, owner_id, metadata)
+  values ('product-images', manufacturer_id || '/' || product_id || '/rename-source.jpg', owner_id, owner_id::text, '{}'::jsonb)
+  returning id into owner_update_test_id;
+
+  begin
+    update storage.objects
+    set name = other_manufacturer_id || '/' || other_product_id || '/rename-target.jpg'
+    where id = owner_update_test_id;
+  exception when others then
+    rename_to_another_product_blocked := true;
+  end;
+
+  insert into storage.objects(bucket_id, name, owner, owner_id, metadata)
+  values ('product-images', manufacturer_id || '/' || product_id || '/delete-source.jpg', owner_id, owner_id::text, '{}'::jsonb)
+  returning id into owner_delete_test_id;
+
+  perform set_config('request.jwt.claim.sub', other_owner_id::text, true);
+  begin
+    delete from storage.objects where id = owner_delete_test_id;
+  exception when others then
+    unauthorized_delete_blocked := true;
+  end;
+
+  perform set_config('request.jwt.claim.sub', admin_id::text, true);
+  begin
+    insert into storage.objects(bucket_id, name, owner, owner_id, metadata)
+    values ('product-images', manufacturer_id || '/' || published_product_id || '/admin-upload.jpg', admin_id, admin_id::text, '{}'::jsonb)
+    returning id into admin_upload_id;
+    admin_upload_inserted := true;
+  exception when others then
+    admin_upload_inserted := false;
+  end;
+
   perform set_config('request.jwt.claim.sub', buyer_id::text, true);
   select count(*) into document_read_count
   from storage.objects
   where bucket_id = 'product-documents';
 
+  insert into product_media_results values ('valid authenticated owner upload policy evaluates true', valid_policy_check, 'policy: ' || valid_policy_check);
   insert into product_media_results values (
     'storage policy permits valid owner upload to editable product',
     valid_upload_inserted,
     'object: ' || coalesce(valid_upload_id::text, 'null') || case when valid_upload_error = '' then '' else ', error: ' || valid_upload_error end
   );
   insert into product_media_results values ('storage policy blocks upload to another manufacturer path', forged_upload_blocked, case when forged_upload_blocked then 'blocked' else 'unexpectedly inserted' end);
+  insert into product_media_results values ('storage policy blocks upload to another product path', other_product_upload_blocked, case when other_product_upload_blocked then 'blocked' else 'unexpectedly inserted' end);
+  insert into product_media_results values ('storage policy blocks unapproved manufacturer upload', unapproved_upload_blocked, case when unapproved_upload_blocked then 'blocked' else 'unexpectedly inserted' end);
+  insert into product_media_results values ('storage policy blocks submitted product manufacturer upload', submitted_upload_blocked, case when submitted_upload_blocked then 'blocked' else 'unexpectedly inserted' end);
+  insert into product_media_results values ('storage policy blocks published product manufacturer upload', published_upload_blocked, case when published_upload_blocked then 'blocked' else 'unexpectedly inserted' end);
+  insert into product_media_results values ('storage policy allows admin upload', admin_upload_inserted, 'object: ' || coalesce(admin_upload_id::text, 'null'));
+  insert into product_media_results values ('storage policy blocks invalid UUID path upload', invalid_uuid_upload_blocked, case when invalid_uuid_upload_blocked then 'blocked' else 'unexpectedly inserted' end);
+  insert into product_media_results values ('storage policy blocks rename into another product path', rename_to_another_product_blocked, case when rename_to_another_product_blocked then 'blocked' else 'unexpectedly renamed' end);
+  insert into product_media_results values ('storage policy blocks delete by unauthorized manufacturer', unauthorized_delete_blocked, case when unauthorized_delete_blocked then 'blocked' else 'unexpectedly deleted' end);
   insert into product_media_results values ('storage policy blocks unauthorized document read', document_read_count = 0, 'buyer visible documents: ' || document_read_count);
 end;
 $$;

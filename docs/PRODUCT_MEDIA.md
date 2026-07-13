@@ -18,8 +18,11 @@ Deferred:
 Migration file:
 
 - `supabase/migrations/0008_product_media_foundation.sql`
+- `supabase/migrations/0009_fix_product_media_storage_authorization.sql`
 
-The migration is additive and does not delete or modify existing product rows.
+The migrations are additive and do not delete or modify existing product rows.
+
+Migration `0009` removes the custom `storage.objects` write trigger from `0008` and moves product media object write authorization fully into Storage RLS policies. The table-level `public.product_media` trigger and metadata authorization remain in place.
 
 ## Table Schema
 
@@ -109,9 +112,9 @@ Database enforcement includes:
 - `public.can_read_public_product_media(product_uuid)`
 - `public.can_read_public_product_media_item(media_uuid)`
 - `public.can_read_public_product_media_object(object_bucket, object_path)`
+- `public.can_write_product_media_storage_object(object_name, object_owner_id)`
 - storage path parsing helpers for manufacturer/product IDs
 - `public.manage_product_media()` trigger
-- `public.enforce_product_media_storage_object()` trigger on `storage.objects`
 - `public.set_primary_product_media(product_uuid, media_uuid)` atomic RPC
 
 RLS policies protect:
@@ -119,12 +122,13 @@ RLS policies protect:
 - `public.product_media`
 - `storage.objects`
 
-The storage write trigger validates path ownership and editable product status. The storage read policy also allows a rightful uploader to read a newly uploaded object before the metadata row is created, which supports the upload-then-record workflow.
+Storage write policies validate path ownership, editable product status, and caller authorization using Storage RLS. The storage read policy also allows a rightful uploader to read a newly uploaded object before the metadata row is created, which supports the upload-then-record workflow.
 
 Function grants:
 
 - Policy-only helpers revoke `EXECUTE` from `PUBLIC` and are granted only to the roles that policies require.
 - Public read helpers for published image objects are granted to `anon` and `authenticated`.
+- The Storage write helper is granted only to `authenticated`.
 - `set_primary_product_media()` is the callable RPC for primary image updates and is granted only to `authenticated`.
 - Trigger functions are not granted to `PUBLIC`.
 
