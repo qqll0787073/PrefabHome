@@ -168,6 +168,105 @@ export type PublicProductMediaRecord = Omit<
   "created_by" | "updated_at"
 >;
 
+export interface MarketplaceProductImage {
+  id: string;
+  product_id: string;
+  media_type: ProductMediaType;
+  storage_bucket: string;
+  storage_path: string;
+  original_filename: string | null;
+  mime_type: string | null;
+  title: string | null;
+  alt_text: string | null;
+  sort_order: number;
+  is_primary: boolean;
+  signed_url: string | null;
+}
+
+export interface MarketplaceProduct {
+  id: string;
+  manufacturer_id: string;
+  manufacturer_display_name: string;
+  manufacturer_country: string | null;
+  manufacturer_province: string | null;
+  manufacturer_city: string | null;
+  manufacturer_website: string | null;
+  name: string;
+  model_name: string | null;
+  slug: string | null;
+  category: string;
+  short_description: string | null;
+  description: string | null;
+  tags: string[];
+  intended_uses: string[];
+  floor_area_sq_ft: number | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  stories: number | null;
+  length_ft: number | null;
+  width_ft: number | null;
+  height_ft: number | null;
+  structure_material: string | null;
+  exterior_finish: string | null;
+  roof_type: string | null;
+  insulation: string | null;
+  electrical_standard: string | null;
+  plumbing_standard: string | null;
+  wind_rating: string | null;
+  snow_load_psf: number | null;
+  currency: string;
+  fob_price: number | null;
+  price_unit: string | null;
+  minimum_order_quantity: number | null;
+  production_lead_time_weeks: number | null;
+  port_of_loading: string | null;
+  hs_code: string | null;
+  certifications: string[];
+  target_markets: string[];
+  published_at: string | null;
+  primary_image: MarketplaceProductImage | null;
+  image_url: string | null;
+}
+
+export type MarketplaceSort =
+  | "newest"
+  | "price_asc"
+  | "price_desc"
+  | "area_asc"
+  | "area_desc";
+
+export interface MarketplaceFilters {
+  search: string;
+  category: string;
+  minBedrooms: string;
+  minBathrooms: string;
+  minFloorArea: string;
+  maxFloorArea: string;
+  minPrice: string;
+  maxPrice: string;
+  targetMarket: string;
+  certification: string;
+}
+
+export interface MarketplacePagination {
+  page: number;
+  pageSize: number;
+}
+
+export interface MarketplacePageResult {
+  products: MarketplaceProduct[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface MarketplaceFilterOptions {
+  categories: string[];
+  targetMarkets: string[];
+  certifications: string[];
+}
+
 export interface ProductMediaUploadInput {
   productId: string;
   manufacturerId: string;

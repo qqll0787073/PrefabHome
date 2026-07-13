@@ -405,6 +405,68 @@ export interface Database {
       };
     };
     Views: {
+      marketplace_products: {
+        Row: {
+          id: string;
+          manufacturer_id: string;
+          manufacturer_display_name: string;
+          manufacturer_country: string | null;
+          manufacturer_province: string | null;
+          manufacturer_city: string | null;
+          manufacturer_website: string | null;
+          name: string;
+          model_name: string | null;
+          slug: string | null;
+          category: string;
+          short_description: string | null;
+          description: string | null;
+          tags: string[];
+          intended_uses: string[];
+          floor_area_sq_ft: number | null;
+          bedrooms: number | null;
+          bathrooms: number | null;
+          stories: number | null;
+          length_ft: number | null;
+          width_ft: number | null;
+          height_ft: number | null;
+          structure_material: string | null;
+          exterior_finish: string | null;
+          roof_type: string | null;
+          insulation: string | null;
+          electrical_standard: string | null;
+          plumbing_standard: string | null;
+          wind_rating: string | null;
+          snow_load_psf: number | null;
+          currency: string;
+          fob_price: number | null;
+          price_unit: string | null;
+          minimum_order_quantity: number | null;
+          production_lead_time_weeks: number | null;
+          port_of_loading: string | null;
+          hs_code: string | null;
+          certifications: string[];
+          target_markets: string[];
+          published_at: string | null;
+          primary_media_id: string | null;
+          primary_media_type:
+            | "exterior_image"
+            | "interior_image"
+            | "floor_plan"
+            | "rendering"
+            | "factory_photo"
+            | null;
+          primary_storage_bucket: string | null;
+          primary_storage_path: string | null;
+          primary_original_filename: string | null;
+          primary_mime_type: string | null;
+          primary_title: string | null;
+          primary_alt_text: string | null;
+          primary_sort_order: number | null;
+          primary_is_primary: boolean | null;
+        };
+        Insert: never;
+        Update: never;
+      };
       published_products: {
         Row: Omit<
           Database["public"]["Tables"]["products"]["Row"],
