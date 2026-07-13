@@ -447,6 +447,7 @@ export interface Database {
           certifications: string[];
           target_markets: string[];
           published_at: string | null;
+          search_text: string | null;
           primary_media_id: string | null;
           primary_media_type:
             | "exterior_image"

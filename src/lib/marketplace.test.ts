@@ -12,6 +12,7 @@ import {
   marketplaceSortOrder,
   paginationRange,
   resolveMarketplaceImageUrls,
+  sanitizeMarketplacePageSize,
 } from "./marketplace";
 
 const marketplaceRow = {
@@ -55,6 +56,7 @@ const marketplaceRow = {
   certifications: ["CE"],
   target_markets: ["United States"],
   published_at: "2026-07-01T00:00:00Z",
+  search_text: "Prefab ADU ADU-20 ADU Compact published home folding adu",
   primary_media_id: "media-1",
   primary_media_type: "exterior_image",
   primary_storage_bucket: "product-images",
@@ -108,6 +110,11 @@ describe("marketplace helpers", () => {
     assert.equal(payload.certification, "CE");
   });
 
+  it("maps searchable tag text through the public product projection", () => {
+    const product = mapMarketplaceProduct(marketplaceRow);
+    assert.ok(product.search_text?.includes("folding"));
+  });
+
   it("maps sorting options to safe database columns", () => {
     assert.deepEqual(marketplaceSortOrder("newest"), {
       column: "published_at",
@@ -128,6 +135,8 @@ describe("marketplace helpers", () => {
 
   it("calculates pagination ranges and page counts", () => {
     assert.deepEqual(paginationRange(2, 12), { from: 12, to: 23 });
+    assert.equal(sanitizeMarketplacePageSize(500), 24);
+    assert.equal(sanitizeMarketplacePageSize(0), 12);
     assert.equal(calculateTotalPages(0, 12), 1);
     assert.equal(calculateTotalPages(25, 12), 3);
   });

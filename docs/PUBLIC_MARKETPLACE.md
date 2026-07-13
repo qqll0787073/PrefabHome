@@ -39,6 +39,7 @@ The migration is additive and does not modify migrations `0001` through `0009`.
 - published product fields needed for browse and detail pages
 - approved manufacturer public display fields
 - one primary or first public product image metadata record
+- a public `search_text` helper built from public product names, category, short description, and tags
 
 The projection excludes:
 
@@ -47,6 +48,7 @@ The projection excludes:
 - private address fields
 - product notes
 - review notes and reviewer identities
+- private notes in public search text
 - submitted or archived workflow timestamps
 - private images
 - product documents
@@ -68,6 +70,7 @@ Responsibilities:
 - keep `ProductRecord` and `ProductMediaRecord` internal to manufacturer/admin workflows
 - construct safe search, filter, sort, and pagination queries
 - resolve image signed URLs with limited concurrency
+- reuse an already-signed primary image URL when opening the detail gallery
 - fall back gracefully when a signed image URL cannot be created
 - support anonymous users and authenticated buyers
 - preserve demo fallback when Supabase env vars are missing
@@ -82,6 +85,7 @@ Search covers:
 - model name
 - category
 - short description
+- tags
 
 Filter controls include:
 
@@ -103,9 +107,17 @@ Sorting includes:
 - floor area low to high
 - floor area high to low
 
-Pagination is server-side with a fixed page size of 12. Filter and sort changes reset the page to 1.
+Pagination is server-side with a default page size of 12 and a service-layer maximum of 24. Filter and sort changes reset the page to 1.
 
-Current limitation: partial full-text search across array tags is not implemented in SQL. Exact target market and certification filters use array containment.
+Exact target market and certification filters use array containment.
+
+Migration `0010` adds partial indexes for common marketplace filters and sorts:
+
+- category
+- FOB price
+- floor area
+- target markets
+- certifications
 
 ## Signed Image URL Flow
 
@@ -120,6 +132,7 @@ Marketplace images:
 5. Never use public bucket URLs.
 
 Signed image URL lifetime is documented in `marketplaceSignedUrlTtlSeconds` as 10 minutes.
+The detail gallery reuses the primary image signed URL generated for the listing/detail entry and signs only additional gallery images.
 
 ## Empty Image Fallback
 

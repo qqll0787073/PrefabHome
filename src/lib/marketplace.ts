@@ -53,6 +53,7 @@ type MarketplaceProductRow = {
   certifications: string[];
   target_markets: string[];
   published_at: string | null;
+  search_text: string | null;
   primary_media_id: string | null;
   primary_media_type: MarketplaceProductImage["media_type"] | null;
   primary_storage_bucket: string | null;
@@ -66,6 +67,7 @@ type MarketplaceProductRow = {
 };
 
 export const marketplacePageSize = 12;
+export const marketplaceMaxPageSize = 24;
 export const marketplaceSignedUrlTtlSeconds = 60 * 10;
 
 export const defaultMarketplaceFilters: MarketplaceFilters = {
@@ -116,8 +118,14 @@ export function calculateTotalPages(total: number, pageSize: number): number {
 
 export function paginationRange(page: number, pageSize: number) {
   const safePage = Math.max(1, page);
-  const from = (safePage - 1) * pageSize;
-  return { from, to: from + pageSize - 1 };
+  const safePageSize = sanitizeMarketplacePageSize(pageSize);
+  const from = (safePage - 1) * safePageSize;
+  return { from, to: from + safePageSize - 1 };
+}
+
+export function sanitizeMarketplacePageSize(pageSize: number | undefined): number {
+  if (!pageSize || !Number.isFinite(pageSize)) return marketplacePageSize;
+  return Math.min(marketplaceMaxPageSize, Math.max(1, Math.floor(pageSize)));
 }
 
 export function normalizeMarketplaceFilters(
@@ -227,6 +235,7 @@ export function mapMarketplaceProduct(row: MarketplaceProductRow): MarketplacePr
     certifications: row.certifications ?? [],
     target_markets: row.target_markets ?? [],
     published_at: row.published_at,
+    search_text: row.search_text,
     primary_image: primaryImage,
     image_url: null,
   };
@@ -242,7 +251,10 @@ export async function resolveMarketplaceImageUrls(
     const chunkResults = await Promise.all(
       chunk.map(async (image) => {
         try {
-          const signedUrl = await createSignedPublicImageUrl(toPublicMediaRecord(image));
+          const signedUrl = await createSignedPublicImageUrl(
+            toPublicMediaRecord(image),
+            marketplaceSignedUrlTtlSeconds
+          );
           return { ...image, signed_url: signedUrl };
         } catch {
           return { ...image, signed_url: null };
@@ -265,7 +277,7 @@ export async function fetchMarketplaceProducts(
 
   const client = supabase;
   const page = Math.max(1, pagination.page ?? 1);
-  const pageSize = pagination.pageSize ?? marketplacePageSize;
+  const pageSize = sanitizeMarketplacePageSize(pagination.pageSize);
   const { from, to } = paginationRange(page, pageSize);
   const payload = marketplaceFilterPayload(normalizeMarketplaceFilters(filters));
   let query = client
@@ -348,7 +360,8 @@ export async function fetchMarketplaceProductById(id: string): Promise<Marketpla
 }
 
 export async function fetchMarketplaceProductImages(
-  productId: string
+  productId: string,
+  cachedImages: MarketplaceProductImage[] = []
 ): Promise<MarketplaceProductImage[]> {
   if (!isSupabaseConfigured || !supabase) return [];
 
@@ -362,6 +375,7 @@ export async function fetchMarketplaceProductImages(
 
   if (error) throw toReadableMarketplaceError(error);
 
+  const cachedById = new Map(cachedImages.map((image) => [image.id, image]));
   const images = ((data ?? []) as PublicProductMediaRecord[])
     .filter((item) => item.storage_bucket === productImageBucket)
     .map((item) => ({
@@ -379,7 +393,14 @@ export async function fetchMarketplaceProductImages(
       signed_url: null,
     }));
 
-  return resolveMarketplaceImageUrls(images);
+  const reusedImages = images.map((image) => {
+    const cached = cachedById.get(image.id);
+    return cached?.signed_url ? { ...image, signed_url: cached.signed_url } : image;
+  });
+  const unresolvedImages = reusedImages.filter((image) => !image.signed_url);
+  const resolvedImages = await resolveMarketplaceImageUrls(unresolvedImages);
+  const resolvedById = new Map(resolvedImages.map((image) => [image.id, image]));
+  return reusedImages.map((image) => resolvedById.get(image.id) ?? image);
 }
 
 export async function fetchMarketplaceFilterOptions(): Promise<MarketplaceFilterOptions> {
@@ -412,9 +433,7 @@ function applyMarketplaceFilters(query: any, filters: ReturnType<typeof marketpl
 
   if (filters.search) {
     const search = escapePostgrestSearch(filters.search);
-    next = next.or(
-      `name.ilike.%${search}%,model_name.ilike.%${search}%,category.ilike.%${search}%,short_description.ilike.%${search}%`
-    );
+    next = next.ilike("search_text", `%${search}%`);
   }
   if (filters.category) next = next.eq("category", filters.category);
   if (filters.minBedrooms !== null) next = next.gte("bedrooms", filters.minBedrooms);
@@ -437,7 +456,7 @@ function positiveNumber(value: string): number | null {
 }
 
 function escapePostgrestSearch(value: string): string {
-  return value.trim().replace(/[,%()]/g, " ").replace(/\s+/g, " ");
+  return value.trim().replace(/[,%_()]/g, " ").replace(/\s+/g, " ");
 }
 
 function toPublicMediaRecord(image: MarketplaceProductImage): PublicProductMediaRecord {
@@ -478,7 +497,7 @@ function demoMarketplaceProducts(
 ): MarketplacePageResult {
   const normalized = marketplaceFilterPayload(normalizeMarketplaceFilters(filters));
   const page = Math.max(1, pagination.page ?? 1);
-  const pageSize = pagination.pageSize ?? marketplacePageSize;
+  const pageSize = sanitizeMarketplacePageSize(pagination.pageSize);
   const { from, to } = paginationRange(page, pageSize);
   const rows = demoMarketplaceRows().map(mapMarketplaceProduct).map(withDemoImage);
   const filtered = rows.filter((product) => demoMatches(product, normalized));
@@ -536,6 +555,13 @@ function demoMarketplaceRows(): MarketplaceProductRow[] {
     certifications: product.compliance,
     target_markets: ["United States"],
     published_at: new Date(0).toISOString(),
+    search_text: [
+      product.name,
+      product.name,
+      product.category,
+      product.description,
+      product.tags.join(" "),
+    ].join(" "),
     primary_media_id: `${product.id}-demo-image`,
     primary_media_type: "exterior_image",
     primary_storage_bucket: productImageBucket,
@@ -647,6 +673,7 @@ const marketplaceProductSelect = [
   "certifications",
   "target_markets",
   "published_at",
+  "search_text",
   "primary_media_id",
   "primary_media_type",
   "primary_storage_bucket",

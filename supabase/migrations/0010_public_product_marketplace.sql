@@ -2,6 +2,26 @@
 -- Adds a public-safe product browse view without exposing private product,
 -- manufacturer, media, review, or ownership fields.
 
+create index if not exists products_marketplace_category_idx
+  on public.products (category)
+  where status = 'published';
+
+create index if not exists products_marketplace_price_idx
+  on public.products (fob_price)
+  where status = 'published';
+
+create index if not exists products_marketplace_area_idx
+  on public.products (floor_area_sq_ft)
+  where status = 'published';
+
+create index if not exists products_marketplace_target_markets_idx
+  on public.products using gin (target_markets)
+  where status = 'published';
+
+create index if not exists products_marketplace_certifications_idx
+  on public.products using gin (certifications)
+  where status = 'published';
+
 drop view if exists public.marketplace_products;
 
 create view public.marketplace_products
@@ -48,6 +68,14 @@ select
   p.certifications,
   p.target_markets,
   p.published_at,
+  concat_ws(
+    ' ',
+    p.name,
+    p.model_name,
+    p.category,
+    p.short_description,
+    array_to_string(p.tags, ' ')
+  ) as search_text,
   primary_media.id as primary_media_id,
   primary_media.media_type as primary_media_type,
   primary_media.storage_bucket as primary_storage_bucket,

@@ -270,6 +270,21 @@ begin
 
   select count(*) into visible_count from public.marketplace_products where id = no_image_product_id and primary_media_id is null;
   insert into public_marketplace_results values ('product with no image remains readable', visible_count = 1, 'visible no-image products: ' || visible_count);
+
+  select count(*) into visible_count
+  from public.marketplace_products
+  where id = published_product_id
+    and search_text ilike '%public%';
+  insert into public_marketplace_results values ('marketplace search text includes public tag text', visible_count = 1, 'searchable rows: ' || visible_count);
+
+  select count(*) into leaked_count
+  from public.marketplace_products
+  where id = published_product_id
+    and (
+      search_text ilike '%private note%'
+      or search_text ilike '%review note%'
+    );
+  insert into public_marketplace_results values ('marketplace search text excludes private notes', leaked_count = 0, 'private search matches: ' || leaked_count);
 end;
 $$;
 

@@ -42,7 +42,9 @@ Current check coverage:
 17. duplicate or malformed media does not expose private content
 18. search/filter query still returns only published rows
 19. count/pagination does not leak unpublished row counts
-20. direct private-table permissions remain unchanged
+20. marketplace search text includes public tag text
+21. marketplace search text excludes private notes
+22. direct private-table permissions remain unchanged
 
 ## Frontend Validation
 

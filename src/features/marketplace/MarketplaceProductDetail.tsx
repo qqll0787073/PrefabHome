@@ -20,7 +20,7 @@ export function MarketplaceProductDetail({ product, onBack }: MarketplaceProduct
     let isMounted = true;
     setIsLoadingImages(true);
     setImageError("");
-    fetchMarketplaceProductImages(product.id)
+    fetchMarketplaceProductImages(product.id, product.primary_image ? [product.primary_image] : [])
       .then((items) => {
         if (!isMounted) return;
         setImages(items.length > 0 ? items : product.primary_image ? [product.primary_image] : []);
