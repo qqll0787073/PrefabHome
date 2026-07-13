@@ -37,7 +37,7 @@ The migration is additive and does not modify migrations `0001` through `0009`.
 `marketplace_products` exposes explicit public-safe columns only:
 
 - published product fields needed for browse and detail pages
-- approved manufacturer public display fields
+- approved manufacturer display name and country
 - one primary or first public product image metadata record
 - a public `search_text` helper built from public product names, category, short description, and tags
 
@@ -45,7 +45,7 @@ The projection excludes:
 
 - manufacturer `owner_id`
 - manufacturer private email and phone
-- private address fields
+- manufacturer onboarding province, city, street address, postal code, and website
 - product notes
 - review notes and reviewer identities
 - private notes in public search text
@@ -56,6 +56,8 @@ The projection excludes:
 - products from unapproved manufacturers
 
 The view uses `security_barrier = true` and explicit predicates rather than `security_invoker` because anon direct base-table grants would weaken existing private-table permission boundaries.
+
+Explicit Manufacturer Public Profile fields and visibility controls are deferred to a later phase. PH-005 does not automatically expose manufacturer onboarding location or website fields merely because an application is approved.
 
 ## Service Responsibilities
 
@@ -73,9 +75,21 @@ Responsibilities:
 - reuse an already-signed primary image URL when opening the detail gallery
 - fall back gracefully when a signed image URL cannot be created
 - support anonymous users and authenticated buyers
-- preserve demo fallback when Supabase env vars are missing
+- fail safely when Supabase env vars are missing unless local demo mode is explicitly enabled
 
 No public marketplace component queries Supabase directly.
+
+## Demo Mode
+
+Marketplace demo data is disabled by default.
+
+Local development may opt in with:
+
+```bash
+VITE_ENABLE_MARKETPLACE_DEMO=true
+```
+
+When enabled without Supabase configuration, the UI displays a visible "Demo data" banner. Production must keep this flag disabled. Missing or invalid Supabase configuration in production should render a safe unavailable/error state rather than static inventory from `src/data`.
 
 ## Search, Filters, Sorting, Pagination
 
@@ -170,7 +184,7 @@ The app still uses the existing lightweight app state approach and does not add 
 Anonymous users and buyers may see:
 
 - published products only
-- approved manufacturer public display information
+- approved manufacturer display name and country
 - public image metadata
 - signed URLs for public published product images
 
@@ -184,5 +198,6 @@ Anonymous users and buyers may not see:
 - reviewer identities
 - manufacturer owner IDs
 - private manufacturer contact fields
+- manufacturer onboarding location or website fields
 
 Manufacturer/admin product and media workflows remain on their existing private services and RLS policies.

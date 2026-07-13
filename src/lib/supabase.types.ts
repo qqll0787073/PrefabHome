@@ -411,9 +411,6 @@ export interface Database {
           manufacturer_id: string;
           manufacturer_display_name: string;
           manufacturer_country: string | null;
-          manufacturer_province: string | null;
-          manufacturer_city: string | null;
-          manufacturer_website: string | null;
           name: string;
           model_name: string | null;
           slug: string | null;

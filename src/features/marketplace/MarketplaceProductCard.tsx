@@ -29,6 +29,7 @@ export function MarketplaceProductCard({ product, onSelect }: MarketplaceProduct
         <h3>{title}</h3>
         <p>{product.short_description || product.description || "Published prefab home model."}</p>
         <p className="manufacturer-line">{product.manufacturer_display_name}</p>
+        {product.manufacturer_country && <p>{product.manufacturer_country}</p>}
         <div className="meta-row">
           <span>{formatOptionalCurrency(product.fob_price, product.currency)}</span>
           <span>{formatOptionalNumber(product.floor_area_sq_ft, "sq ft")}</span>

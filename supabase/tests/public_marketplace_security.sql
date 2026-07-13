@@ -268,6 +268,47 @@ begin
     and column_name in ('email', 'phone', 'street_address', 'postal_code');
   insert into public_marketplace_results values ('marketplace projection excludes private manufacturer contact data', column_count = 0, 'private contact columns: ' || column_count);
 
+  select count(*) into column_count
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'marketplace_products'
+    and column_name = 'manufacturer_province';
+  insert into public_marketplace_results values ('marketplace_products does not expose manufacturer province', column_count = 0, 'province columns: ' || column_count);
+
+  select count(*) into column_count
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'marketplace_products'
+    and column_name = 'manufacturer_city';
+  insert into public_marketplace_results values ('marketplace_products does not expose manufacturer city', column_count = 0, 'city columns: ' || column_count);
+
+  select count(*) into column_count
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'marketplace_products'
+    and column_name = 'manufacturer_website';
+  insert into public_marketplace_results values ('marketplace_products does not expose manufacturer website', column_count = 0, 'website columns: ' || column_count);
+
+  select count(*) into leaked_count
+  from public.marketplace_products
+  where id = published_product_id
+    and (
+      manufacturer_display_name ilike '%private street%'
+      or manufacturer_display_name ilike '%shenzhen%'
+      or manufacturer_display_name ilike '%example.test%'
+      or manufacturer_country ilike '%private street%'
+      or manufacturer_country ilike '%shenzhen%'
+      or manufacturer_country ilike '%example.test%'
+    );
+  insert into public_marketplace_results values ('manufacturer private onboarding location data cannot be selected through public view', leaked_count = 0, 'private location matches: ' || leaked_count);
+
+  select count(*) into visible_count
+  from public.marketplace_products
+  where id = published_product_id
+    and manufacturer_display_name = 'Public Marketplace Factory'
+    and manufacturer_country = 'China';
+  insert into public_marketplace_results values ('approved manufacturer name and country remain visible', visible_count = 1, 'visible public manufacturer rows: ' || visible_count);
+
   select count(*) into visible_count from public.marketplace_products where id = no_image_product_id and primary_media_id is null;
   insert into public_marketplace_results values ('product with no image remains readable', visible_count = 1, 'visible no-image products: ' || visible_count);
 

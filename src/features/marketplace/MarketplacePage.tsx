@@ -4,6 +4,7 @@ import {
   fetchMarketplaceFilterOptions,
   fetchMarketplaceProductBySlug,
   fetchMarketplaceProducts,
+  isMarketplaceDemoActive,
   marketplaceFiltersKey,
   marketplacePageSize,
   marketplaceProductSlug,
@@ -36,6 +37,7 @@ const emptyOptions: MarketplaceFilterOptions = {
 };
 
 export function MarketplacePage({ onViewChange }: MarketplacePageProps) {
+  const isDemo = isMarketplaceDemoActive();
   const [filters, setFilters] = useState<MarketplaceFilters>(defaultMarketplaceFilters);
   const [sort, setSort] = useState<MarketplaceSort>("newest");
   const [page, setPage] = useState(1);
@@ -149,6 +151,13 @@ export function MarketplacePage({ onViewChange }: MarketplacePageProps) {
           onReset={resetFilters}
         />
         <div className="marketplace-results">
+          {isDemo && (
+            <section className="panel marketplace-demo-banner" role="status">
+              <p className="eyebrow">Demo data</p>
+              <p>Local marketplace demo data is enabled. Production must use Supabase data.</p>
+            </section>
+          )}
+
           <div className="marketplace-toolbar">
             <div>
               <p className="eyebrow">Published products</p>

@@ -4,10 +4,10 @@ import {
   calculateTotalPages,
   defaultMarketplaceFilters,
   fetchMarketplaceProducts,
+  isMarketplaceDemoModeEnabled,
   mapMarketplaceProduct,
   marketplaceFilterPayload,
   marketplaceFiltersKey,
-  marketplaceProductLocation,
   marketplaceProductSlug,
   marketplaceSortOrder,
   paginationRange,
@@ -20,9 +20,6 @@ const marketplaceRow = {
   manufacturer_id: "manufacturer-1",
   manufacturer_display_name: "Public Factory",
   manufacturer_country: "China",
-  manufacturer_province: "Guangdong",
-  manufacturer_city: "Shenzhen",
-  manufacturer_website: "https://example.com",
   name: "Prefab ADU",
   model_name: "ADU-20",
   slug: "adu-20",
@@ -74,13 +71,16 @@ describe("marketplace helpers", () => {
     const product = mapMarketplaceProduct(marketplaceRow);
 
     assert.equal(product.manufacturer_display_name, "Public Factory");
-    assert.equal(marketplaceProductLocation(product), "Shenzhen, Guangdong, China");
+    assert.equal(product.manufacturer_country, "China");
     assert.equal(product.primary_image?.storage_bucket, "product-images");
     assert.equal("notes" in product, false);
     assert.equal("review_notes" in product, false);
     assert.equal("owner_id" in product, false);
     assert.equal("email" in product, false);
     assert.equal("phone" in product, false);
+    assert.equal("manufacturer_province" in product, false);
+    assert.equal("manufacturer_city" in product, false);
+    assert.equal("manufacturer_website" in product, false);
   });
 
   it("builds search and filter payloads with numeric parsing", () => {
@@ -174,15 +174,62 @@ describe("marketplace helpers", () => {
     assert.equal(image.signed_url, null);
   });
 
-  it("uses demo marketplace data without Supabase for anonymous loading fallback", async () => {
-    const result = await fetchMarketplaceProducts(
-      { ...defaultMarketplaceFilters, search: "container" },
-      { page: 1, pageSize: 12 },
-      "newest"
-    );
+  it("does not return demo products when Supabase configuration is missing by default", async () => {
+    const previous = process.env.VITE_ENABLE_MARKETPLACE_DEMO;
+    try {
+      delete process.env.VITE_ENABLE_MARKETPLACE_DEMO;
+      await assert.rejects(
+        () => fetchMarketplaceProducts({}, { page: 1, pageSize: 12 }, "newest"),
+        /Marketplace Supabase configuration is missing/
+      );
+    } finally {
+      restoreDemoEnv(previous);
+    }
+  });
+
+  it("parses explicit marketplace demo mode as local-only opt-in", () => {
+    assert.equal(isMarketplaceDemoModeEnabled({ VITE_ENABLE_MARKETPLACE_DEMO: "true" }), true);
+    assert.equal(isMarketplaceDemoModeEnabled({ VITE_ENABLE_MARKETPLACE_DEMO: "false" }), false);
+    assert.equal(isMarketplaceDemoModeEnabled({}), false);
+  });
+
+  it("uses demo marketplace data only when the explicit demo flag is enabled", async () => {
+    const previous = process.env.VITE_ENABLE_MARKETPLACE_DEMO;
+    let result;
+    try {
+      process.env.VITE_ENABLE_MARKETPLACE_DEMO = "true";
+      result = await fetchMarketplaceProducts(
+        { ...defaultMarketplaceFilters, search: "container" },
+        { page: 1, pageSize: 12 },
+        "newest"
+      );
+    } finally {
+      restoreDemoEnv(previous);
+    }
 
     assert.equal(result.page, 1);
     assert.ok(result.total >= 1);
     assert.ok(result.products.every((product) => product.image_url));
   });
+
+  it("keeps demo products clearly identifiable as demo data", async () => {
+    const previous = process.env.VITE_ENABLE_MARKETPLACE_DEMO;
+    let result;
+    try {
+      process.env.VITE_ENABLE_MARKETPLACE_DEMO = "true";
+      result = await fetchMarketplaceProducts({}, { page: 1, pageSize: 12 }, "newest");
+    } finally {
+      restoreDemoEnv(previous);
+    }
+
+    assert.ok(result.products.every((product) => product.manufacturer_id.startsWith("demo-")));
+  });
 });
+
+function restoreDemoEnv(value: string | undefined) {
+  if (value === undefined) {
+    delete process.env.VITE_ENABLE_MARKETPLACE_DEMO;
+  } else {
+    process.env.VITE_ENABLE_MARKETPLACE_DEMO = value;
+  }
+}

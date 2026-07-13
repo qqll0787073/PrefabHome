@@ -33,18 +33,23 @@ Current check coverage:
 8. marketplace projection excludes review fields
 9. marketplace projection excludes manufacturer owner_id
 10. marketplace projection excludes private manufacturer contact data
-11. only approved manufacturer public data appears
-12. unpublished product images are excluded
-13. private images are excluded
-14. product documents are excluded
-15. primary public published image can appear
-16. product with no image remains readable
-17. duplicate or malformed media does not expose private content
-18. search/filter query still returns only published rows
-19. count/pagination does not leak unpublished row counts
-20. marketplace search text includes public tag text
-21. marketplace search text excludes private notes
-22. direct private-table permissions remain unchanged
+11. marketplace_products does not expose manufacturer province
+12. marketplace_products does not expose manufacturer city
+13. marketplace_products does not expose manufacturer website
+14. manufacturer private onboarding location data cannot be selected through public view
+15. approved manufacturer name and country remain visible
+16. only approved manufacturer public data appears
+17. unpublished product images are excluded
+18. private images are excluded
+19. product documents are excluded
+20. primary public published image can appear
+21. product with no image remains readable
+22. duplicate or malformed media does not expose private content
+23. search/filter query still returns only published rows
+24. count/pagination does not leak unpublished row counts
+25. marketplace search text includes public tag text
+26. marketplace search text excludes private notes
+27. direct private-table permissions remain unchanged
 
 ## Frontend Validation
 
@@ -60,6 +65,8 @@ Expected:
 
 - build passes
 - marketplace helper tests pass
+- missing Supabase configuration fails safely by default
+- marketplace demo products appear only with `VITE_ENABLE_MARKETPLACE_DEMO=true`
 - existing auth, manufacturer, product, and media tests continue passing
 
 ## UI Smoke
@@ -95,6 +102,7 @@ Confirm:
 
 - no service-role key added
 - no signed URL query tokens printed or documented
+- `VITE_ENABLE_MARKETPLACE_DEMO` is disabled in production
 - `.env.smoke.local` remains ignored
 - no production data deleted
 - no permanent demo data inserted

@@ -17,9 +17,6 @@ type MarketplaceProductRow = {
   manufacturer_id: string;
   manufacturer_display_name: string;
   manufacturer_country: string | null;
-  manufacturer_province: string | null;
-  manufacturer_city: string | null;
-  manufacturer_website: string | null;
   name: string;
   model_name: string | null;
   slug: string | null;
@@ -91,6 +88,36 @@ export const marketplaceSortLabels: Record<MarketplaceSort, string> = {
   area_desc: "Floor area high to low",
 };
 
+const marketplaceEnv = (import.meta as ImportMeta & {
+  env?: Record<string, string | undefined>;
+}).env;
+
+function nodeEnvValue(name: string): string | undefined {
+  return typeof process !== "undefined"
+    ? (process.env as Record<string, string | undefined>)[name]
+    : undefined;
+}
+
+export function isMarketplaceDemoModeEnabled(
+  env: Record<string, string | undefined> | undefined = marketplaceEnv
+): boolean {
+  return (env?.VITE_ENABLE_MARKETPLACE_DEMO ?? nodeEnvValue("VITE_ENABLE_MARKETPLACE_DEMO") ?? "")
+    .trim()
+    .toLowerCase() === "true";
+}
+
+export function isMarketplaceDemoActive(): boolean {
+  return !isSupabaseConfigured && isMarketplaceDemoModeEnabled();
+}
+
+function ensureMarketplaceDataSource() {
+  if (isSupabaseConfigured && supabase) return supabase;
+  if (isMarketplaceDemoModeEnabled()) return null;
+  throw new Error(
+    "Marketplace Supabase configuration is missing. Configure Supabase or enable VITE_ENABLE_MARKETPLACE_DEMO=true for local development only."
+  );
+}
+
 export function toReadableMarketplaceError(error: { message?: string }): Error {
   const message = error.message?.toLowerCase() ?? "";
   if (message.includes("permission denied") || message.includes("row-level security")) {
@@ -102,10 +129,8 @@ export function toReadableMarketplaceError(error: { message?: string }): Error {
   return new Error(error.message ?? "Marketplace data could not be loaded.");
 }
 
-export function marketplaceProductLocation(product: MarketplaceProduct): string {
-  return [product.manufacturer_city, product.manufacturer_province, product.manufacturer_country]
-    .filter(Boolean)
-    .join(", ");
+export function marketplaceManufacturerCountry(product: MarketplaceProduct): string {
+  return product.manufacturer_country ?? "";
 }
 
 export function marketplaceProductSlug(product: Pick<MarketplaceProduct, "id" | "slug">): string {
@@ -199,9 +224,6 @@ export function mapMarketplaceProduct(row: MarketplaceProductRow): MarketplacePr
     manufacturer_id: row.manufacturer_id,
     manufacturer_display_name: row.manufacturer_display_name,
     manufacturer_country: row.manufacturer_country,
-    manufacturer_province: row.manufacturer_province,
-    manufacturer_city: row.manufacturer_city,
-    manufacturer_website: row.manufacturer_website,
     name: row.name,
     model_name: row.model_name,
     slug: row.slug,
@@ -271,11 +293,11 @@ export async function fetchMarketplaceProducts(
   pagination: Partial<MarketplacePagination> = {},
   sort: MarketplaceSort = "newest"
 ): Promise<MarketplacePageResult> {
-  if (!isSupabaseConfigured || !supabase) {
+  const client = ensureMarketplaceDataSource();
+  if (!client) {
     return demoMarketplaceProducts(filters, pagination, sort);
   }
 
-  const client = supabase;
   const page = Math.max(1, pagination.page ?? 1);
   const pageSize = sanitizeMarketplacePageSize(pagination.pageSize);
   const { from, to } = paginationRange(page, pageSize);
@@ -322,14 +344,15 @@ export async function fetchMarketplaceProducts(
 export async function fetchMarketplaceProductBySlug(
   slug: string
 ): Promise<MarketplaceProduct | null> {
-  if (!isSupabaseConfigured || !supabase) {
+  const client = ensureMarketplaceDataSource();
+  if (!client) {
     const demo = demoMarketplaceRows()
       .map(mapMarketplaceProduct)
       .find((product) => marketplaceProductSlug(product) === slug);
     return demo ? withDemoImage(demo) : null;
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from("marketplace_products")
     .select(marketplaceProductSelect)
     .eq("slug", slug)
@@ -341,14 +364,15 @@ export async function fetchMarketplaceProductBySlug(
 }
 
 export async function fetchMarketplaceProductById(id: string): Promise<MarketplaceProduct | null> {
-  if (!isSupabaseConfigured || !supabase) {
+  const client = ensureMarketplaceDataSource();
+  if (!client) {
     const demo = demoMarketplaceRows()
       .map(mapMarketplaceProduct)
       .find((product) => product.id === id);
     return demo ? withDemoImage(demo) : null;
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from("marketplace_products")
     .select(marketplaceProductSelect)
     .eq("id", id)
@@ -363,9 +387,10 @@ export async function fetchMarketplaceProductImages(
   productId: string,
   cachedImages: MarketplaceProductImage[] = []
 ): Promise<MarketplaceProductImage[]> {
-  if (!isSupabaseConfigured || !supabase) return [];
+  const client = ensureMarketplaceDataSource();
+  if (!client) return [];
 
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from("published_product_media")
     .select("id,product_id,media_type,storage_bucket,storage_path,original_filename,mime_type,title,alt_text,sort_order,is_primary,visibility,created_at")
     .eq("product_id", productId)
@@ -404,12 +429,13 @@ export async function fetchMarketplaceProductImages(
 }
 
 export async function fetchMarketplaceFilterOptions(): Promise<MarketplaceFilterOptions> {
-  if (!isSupabaseConfigured || !supabase) {
+  const client = ensureMarketplaceDataSource();
+  if (!client) {
     const rows = demoMarketplaceRows();
     return optionsFromProducts(rows.map(mapMarketplaceProduct));
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from("marketplace_products")
     .select("category,target_markets,certifications");
 
@@ -519,9 +545,6 @@ function demoMarketplaceRows(): MarketplaceProductRow[] {
     manufacturer_id: `demo-${product.manufacturer.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
     manufacturer_display_name: product.manufacturer,
     manufacturer_country: "China",
-    manufacturer_province: null,
-    manufacturer_city: product.location.split(",")[0] ?? null,
-    manufacturer_website: null,
     name: product.name,
     model_name: product.name,
     slug: product.id,
@@ -637,9 +660,6 @@ const marketplaceProductSelect = [
   "manufacturer_id",
   "manufacturer_display_name",
   "manufacturer_country",
-  "manufacturer_province",
-  "manufacturer_city",
-  "manufacturer_website",
   "name",
   "model_name",
   "slug",

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchMarketplaceProductImages, marketplaceProductLocation } from "../../lib/marketplace";
+import { fetchMarketplaceProductImages, marketplaceManufacturerCountry } from "../../lib/marketplace";
 import type { MarketplaceProduct, MarketplaceProductImage } from "../../types";
 import { MarketplaceImageGallery } from "./MarketplaceImageGallery";
 import { MarketplaceProductSpecs } from "./MarketplaceProductSpecs";
@@ -40,7 +40,7 @@ export function MarketplaceProductDetail({ product, onBack }: MarketplaceProduct
   }, [product]);
 
   const title = product.model_name || product.name;
-  const location = marketplaceProductLocation(product);
+  const country = marketplaceManufacturerCountry(product);
 
   return (
     <section className="panel marketplace-detail">
@@ -69,12 +69,7 @@ export function MarketplaceProductDetail({ product, onBack }: MarketplaceProduct
           <div>
             <h3>Manufacturer</h3>
             <p>{product.manufacturer_display_name}</p>
-            {location && <p>{location}</p>}
-            {product.manufacturer_website && (
-              <a href={product.manufacturer_website} rel="noreferrer" target="_blank">
-                Manufacturer website
-              </a>
-            )}
+            {country && <p>{country}</p>}
           </div>
           <MarketplaceProductSpecs product={product} />
           <div className="tag-row">

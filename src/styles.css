@@ -336,6 +336,13 @@ main {
   align-content: center;
 }
 
+.marketplace-demo-banner {
+  gap: 6px;
+  padding: 14px 16px;
+  background: #fff7e6;
+  border-color: #f6c85f;
+}
+
 .marketplace-count {
   color: #536070;
 }
