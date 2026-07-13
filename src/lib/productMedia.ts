@@ -383,7 +383,8 @@ export async function deleteProductMedia(media: ProductMediaRecord): Promise<voi
 }
 
 export async function createSignedImageUrl(
-  media: Pick<ProductMediaRecord, "storage_bucket" | "storage_path">
+  media: Pick<ProductMediaRecord, "storage_bucket" | "storage_path">,
+  expiresInSeconds = 60 * 10
 ): Promise<string> {
   if (media.storage_bucket !== productImageBucket) {
     throw new Error("Signed image URLs are only available for product images.");
@@ -392,7 +393,7 @@ export async function createSignedImageUrl(
   const client = ensureSupabase();
   const { data, error } = await client.storage
     .from(media.storage_bucket)
-    .createSignedUrl(media.storage_path, 60 * 10);
+    .createSignedUrl(media.storage_path, expiresInSeconds);
 
   if (error || !data?.signedUrl) {
     throw toReadableProductMediaError(error ?? { message: "Signed image URL was not created." });
@@ -402,13 +403,14 @@ export async function createSignedImageUrl(
 }
 
 export async function createSignedPublicImageUrl(
-  media: PublicProductMediaRecord
+  media: PublicProductMediaRecord,
+  expiresInSeconds = 60 * 10
 ): Promise<string> {
   if (!canRequestPublicSignedImageUrl(media)) {
     throw new Error("Public signed image URLs require a public product image record.");
   }
 
-  return createSignedImageUrl(media);
+  return createSignedImageUrl(media, expiresInSeconds);
 }
 
 export async function createSignedDocumentUrl(media: ProductMediaRecord): Promise<string> {
