@@ -502,7 +502,6 @@ security definer
 set search_path = public
 as $$
 declare
-  opened_event text;
   rfq_record public.rfqs%rowtype;
 begin
   if not public.can_access_rfq(rfq_uuid) then
@@ -518,32 +517,22 @@ begin
     raise exception 'RFQ does not exist.';
   end if;
 
-  opened_event := case
-    when rfq_record.buyer_id = auth.uid() then 'buyer_opened'
-    when public.owns_manufacturer(rfq_record.manufacturer_id) then 'manufacturer_opened'
-    else null
-  end;
-
-  if opened_event is null then
-    raise exception 'Only RFQ buyers or assigned manufacturers can record opened events.';
+  if rfq_record.buyer_id = auth.uid() then
+    raise exception 'Buyer quote openings must use record_rfq_quote_opened(quote_uuid).';
   end if;
 
-  if opened_event = 'buyer_opened' and rfq_record.status = 'quoted' then
-    perform set_config('app.rfq_opened_trusted_write', 'on', true);
-    update public.rfqs
-    set status = 'buyer_review'
-    where id = rfq_uuid;
-    perform set_config('app.rfq_opened_trusted_write', '', true);
+  if not public.owns_manufacturer(rfq_record.manufacturer_id) then
+    raise exception 'Only the assigned manufacturer can record RFQ opened events.';
   end if;
 
   if not exists (
     select 1
     from public.rfq_events e
     where e.rfq_id = rfq_uuid
-      and e.event_type = opened_event
+      and e.event_type = 'manufacturer_opened'
       and e.actor_profile_id = auth.uid()
   ) then
-    perform public.insert_trusted_rfq_event(rfq_uuid, opened_event, auth.uid(), '{}'::jsonb);
+    perform public.insert_trusted_rfq_event(rfq_uuid, 'manufacturer_opened', auth.uid(), '{}'::jsonb);
   end if;
 end;
 $$;

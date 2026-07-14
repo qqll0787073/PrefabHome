@@ -14,7 +14,7 @@ Run rollback-only verification:
 npx.cmd supabase db query --linked --file supabase/tests/quote_decision_security.sql
 ```
 
-Expected result: every row returns `passed = true`. Current expected count: 49 checks.
+Expected result: every row returns `passed = true`. Current expected count: 53 checks.
 
 Required checks include:
 
@@ -53,6 +53,9 @@ Required checks include:
 - opened events contain the correct `quote_id` and `version`
 - each `quoted` -> `buyer_review` transition has a corresponding audit event
 - other Buyer, Manufacturer-as-Buyer, Admin impersonation, and Anonymous quote-opened calls are denied
+- Buyer legacy `record_rfq_opened` calls are denied
+- Manufacturer legacy `record_rfq_opened` succeeds and deduplicates `manufacturer_opened`
+- Admin and Anonymous legacy `record_rfq_opened` calls are denied
 
 ## Frontend Verification
 

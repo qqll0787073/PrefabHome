@@ -68,7 +68,15 @@ When a Buyer opens the current submitted Quote, `record_rfq_quote_opened(quote_u
 
 Buyer opened events are deduplicated per actor and Quote ID, not permanently per RFQ. A revision Quote therefore gets its own `buyer_opened` audit event after it is submitted and the RFQ returns to `quoted`.
 
-The older RFQ-level opened flow remains available for non-quote opened behavior such as Manufacturer opened events.
+The older RFQ-level opened flow is Manufacturer-only:
+
+- `record_rfq_opened(rfq_uuid)` creates and deduplicates `manufacturer_opened`
+- it does not move RFQ status
+- it rejects Buyer callers and tells them to use `record_rfq_quote_opened(quote_uuid)`
+- it rejects Admin impersonation
+- it never creates `buyer_opened`
+
+Buyer quote-opened auditing must use `record_rfq_quote_opened(quote_uuid)`.
 
 ## RLS
 

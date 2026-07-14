@@ -504,7 +504,6 @@ security definer
 set search_path = public
 as $$
 declare
-  opened_event text;
   rfq_record public.rfqs%rowtype;
 begin
   if not public.can_access_rfq(rfq_uuid) then
@@ -520,32 +519,22 @@ begin
     raise exception 'RFQ does not exist.';
   end if;
 
-  opened_event := case
-    when rfq_record.buyer_id = auth.uid() then 'buyer_opened'
-    when public.owns_manufacturer(rfq_record.manufacturer_id) then 'manufacturer_opened'
-    else null
-  end;
-
-  if opened_event is null then
-    raise exception 'Only RFQ buyers or assigned manufacturers can record opened events.';
+  if rfq_record.buyer_id = auth.uid() then
+    raise exception 'Buyer quote openings must use record_rfq_quote_opened(quote_uuid).';
   end if;
 
-  if opened_event = 'buyer_opened' and rfq_record.status = 'quoted' then
-    perform set_config('app.rfq_opened_trusted_write', 'on', true);
-    update public.rfqs
-    set status = 'buyer_review'
-    where id = rfq_uuid;
-    perform set_config('app.rfq_opened_trusted_write', '', true);
+  if not public.owns_manufacturer(rfq_record.manufacturer_id) then
+    raise exception 'Only the assigned manufacturer can record RFQ opened events.';
   end if;
 
   if not exists (
     select 1
     from public.rfq_events e
     where e.rfq_id = rfq_uuid
-      and e.event_type = opened_event
+      and e.event_type = 'manufacturer_opened'
       and e.actor_profile_id = auth.uid()
   ) then
-    perform public.insert_trusted_rfq_event(rfq_uuid, opened_event, auth.uid(), '{}'::jsonb);
+    perform public.insert_trusted_rfq_event(rfq_uuid, 'manufacturer_opened', auth.uid(), '{}'::jsonb);
   end if;
 end;
 $$;
@@ -1323,7 +1312,48 @@ begin
   update public.rfq_quotes set status = 'superseded' where id = noncurrent_quote_id returning id into superseded_quote_id;
   perform set_config('app.quote_trusted_write', '', true);
 
+  perform public.record_rfq_opened(reject_rfq_id);
+  perform public.record_rfq_opened(reject_rfq_id);
+  insert into quote_decision_security_results values (
+    'Manufacturer legacy open succeeds and deduplicates',
+    exists (
+      select 1
+      from public.rfq_events
+      where rfq_id = reject_rfq_id
+        and event_type = 'manufacturer_opened'
+        and actor_profile_id = manufacturer_owner_id
+    )
+    and (
+      select count(*)
+      from public.rfq_events
+      where rfq_id = reject_rfq_id
+        and event_type = 'manufacturer_opened'
+        and actor_profile_id = manufacturer_owner_id
+    ) = 1,
+    'manufacturer_opened checked'
+  );
+
   perform set_config('request.jwt.claim.sub', buyer_id::text, true);
+
+  blocked := false;
+  begin
+    perform public.record_rfq_opened(accept_rfq_id);
+  exception when others then
+    blocked := true;
+  end;
+  insert into quote_decision_security_results values (
+    'Buyer legacy record_rfq_opened call denied',
+    blocked
+      and exists (select 1 from public.rfqs where id = accept_rfq_id and status = 'quoted')
+      and not exists (
+        select 1
+        from public.rfq_events
+        where rfq_id = accept_rfq_id
+          and event_type = 'buyer_opened'
+          and actor_profile_id = buyer_id
+      ),
+    'blocked: ' || blocked
+  );
 
   perform public.record_rfq_quote_opened(accept_quote_id);
   perform public.record_rfq_quote_opened(accept_quote_id);
@@ -1560,6 +1590,25 @@ begin
 
   blocked := false;
   begin
+    perform public.record_rfq_opened(revision_rfq_id);
+  exception when others then
+    blocked := true;
+  end;
+  insert into quote_decision_security_results values (
+    'Admin impersonation legacy opened denied',
+    blocked
+      and not exists (
+        select 1
+        from public.rfq_events
+        where rfq_id = revision_rfq_id
+          and event_type = 'manufacturer_opened'
+          and actor_profile_id = admin_id
+      ),
+    'blocked: ' || blocked
+  );
+
+  blocked := false;
+  begin
     update public.rfq_quotes set origin_port = 'Changed' where id = accept_quote_id;
   exception when others then
     blocked := true;
@@ -1650,6 +1699,14 @@ begin
     blocked := true;
   end;
   insert into quote_decision_security_results values ('Anonymous quote opened denied', blocked, 'blocked: ' || blocked);
+
+  blocked := false;
+  begin
+    perform public.record_rfq_opened(gen_random_uuid());
+  exception when others then
+    blocked := true;
+  end;
+  insert into quote_decision_security_results values ('Anonymous legacy opened denied', blocked, 'blocked: ' || blocked);
 
   blocked := false;
   begin
