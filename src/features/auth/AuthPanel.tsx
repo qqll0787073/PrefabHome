@@ -95,6 +95,7 @@ export function AuthPanel({
               value={fullName}
               onChange={(event) => setFullName(event.target.value)}
               placeholder="Jane Smith"
+              autoComplete="name"
               required
             />
           </label>
@@ -107,6 +108,7 @@ export function AuthPanel({
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="name@example.com"
+            autoComplete="email"
             required
           />
         </label>
@@ -119,6 +121,7 @@ export function AuthPanel({
             onChange={(event) => setPassword(event.target.value)}
             placeholder="At least 6 characters"
             minLength={6}
+            autoComplete={formMode === "login" ? "current-password" : "new-password"}
             required
           />
         </label>
