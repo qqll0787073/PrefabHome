@@ -25,7 +25,7 @@ PH-006 status: not started.
 - `npm ci`: passed with 0 reported vulnerabilities.
 - `npm run build`: passed.
 - `npm run test`: passed, 43/43 tests.
-- Secret scan: no credential values found. Matches were code identifiers or documentation placeholders such as `signed_url` and `SUPABASE_SERVICE_ROLE_KEY`.
+- Secret scan: no credential values found. Matches were code identifiers, documentation placeholders, and safe environment variable names such as `signed_url`, `SUPABASE_SERVICE_ROLE_KEY`, and `PREFAB_BUYER_SMOKE_PASSWORD`.
 - Rollback-only marketplace SQL was not runnable against the linked remote before applying `0010` because the remote migration list showed `0010` pending and `public.marketplace_products` did not yet exist. The full rollback-only SQL verification was run immediately after applying the migration.
 
 ## Migration Application
@@ -140,11 +140,34 @@ Results:
 
 ## Buyer Marketplace Smoke
 
-Status: blocked by missing Buyer credentials.
+Status: passed on 2026-07-13.
 
-The only credential pair available in `.env.smoke.local` signs in successfully through normal Supabase Auth but has role `manufacturer`, not `buyer`. The authenticated marketplace query with that normal session could see the published product and did not expose private product or manufacturer fields, but it does not qualify as the requested Buyer smoke test.
+Credential source:
 
-To complete the Buyer-specific browser smoke, provide a normal Buyer account through local-only ignored environment variables. Do not use Admin or Manufacturer credentials for that check.
+- `PREFAB_BUYER_SMOKE_EMAIL`
+- `PREFAB_BUYER_SMOKE_PASSWORD`
+
+Results:
+
+- Buyer sign-in through normal Supabase Auth passed.
+- Signed-in profile role was confirmed as `buyer`.
+- Published `PH-004 Storage Smoke Test` product was visible.
+- Unpublished products were not visible through the Buyer public marketplace path.
+- Manufacturer display name and country were visible.
+- Manufacturer province, city, website, owner ID, email, and phone were absent.
+- Product notes and review fields were absent.
+- No private image was visible.
+- No document was visible.
+- Signed public image URL was created and image bytes loaded successfully.
+- Product detail opened from the marketplace UI.
+- Search found the published product.
+- Category filtering worked.
+- Numeric filtering worked using minimum floor area.
+- Sorting worked.
+- Buyer received the same public marketplace fields as anonymous browsing.
+- Browser console contained 0 errors after serving a temporary local favicon placeholder for the smoke run.
+- Browser console did not log credentials, tokens, or full signed URLs.
+- The temporary favicon placeholder and smoke scripts were removed before commit.
 
 ## Manufacturer and Admin Regression
 
