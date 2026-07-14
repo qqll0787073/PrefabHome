@@ -102,6 +102,18 @@ Result: blocked.
 
 Reason: `.env.smoke.local` does not include admin smoke credential variables. The available local smoke variables are buyer and manufacturer credentials only.
 
+Follow-up on 2026-07-14: local variable-name check still found only:
+
+- `PREFAB_SMOKE_EMAIL`
+- `PREFAB_SMOKE_PASSWORD`
+- `PREFAB_BUYER_SMOKE_EMAIL`
+- `PREFAB_BUYER_SMOKE_PASSWORD`
+
+The requested admin variables were not present:
+
+- `PREFAB_ADMIN_SMOKE_EMAIL`
+- `PREFAB_ADMIN_SMOKE_PASSWORD`
+
 Database-level admin behavior was still covered by the rollback SQL verification:
 
 - Admin can read RFQs in the SQL verification.
@@ -150,9 +162,17 @@ Verified:
 
 ## Browser Console Verification
 
-Not completed in this pass.
+Result: blocked.
 
-The authenticated smoke was API-level and did not exercise a browser session. No credentials, access tokens, refresh tokens, or signed URLs were printed.
+Follow-up on 2026-07-14: attempted to connect to the in-app browser for a real browser smoke. Browser control timed out during setup and again during reset, so Buyer, Manufacturer, and Admin browser interaction checks could not be completed in this pass.
+
+Browser results:
+
+- Buyer browser result: blocked by browser-control timeout.
+- Manufacturer browser result: blocked by browser-control timeout.
+- Admin browser result: blocked by browser-control timeout and missing admin smoke credentials.
+- Console error count: not measured because the browser session could not be controlled.
+- Unsafe logging result: not measured in browser; API smoke and command output did not print credentials, access tokens, refresh tokens, or signed URLs.
 
 ## Validation
 
