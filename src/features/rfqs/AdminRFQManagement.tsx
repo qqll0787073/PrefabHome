@@ -7,6 +7,7 @@ import { fetchQuoteDecisionsForRFQ } from "../../lib/quoteDecisions";
 import type { AuthUser } from "../../lib/auth";
 import type { RFQQuoteDecisionRecord, RFQQuoteWithItems, RFQWithDetails } from "../../types";
 import { QuoteSummaryList } from "../quotes/QuoteSummaryList";
+import { AdminPurchaseOrderManagement } from "../purchase-orders/AdminPurchaseOrderManagement";
 import { RFQConversation } from "./RFQConversation";
 
 interface AdminRFQManagementProps {
@@ -115,6 +116,7 @@ export function AdminRFQManagement({ user, authMode }: AdminRFQManagementProps) 
           decisions={decisions}
         />
       )}
+      <AdminPurchaseOrderManagement authMode={authMode} />
     </section>
   );
 }

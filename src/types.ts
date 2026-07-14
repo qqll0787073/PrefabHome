@@ -441,6 +441,71 @@ export interface RFQQuoteItemFormValues {
   unitPrice: string;
 }
 
+export type PurchaseOrderStatus = "draft" | "submitted" | "cancelled";
+
+export interface PurchaseOrderRecord {
+  id: string;
+  po_number: string;
+  rfq_id: string;
+  quote_id: string;
+  quote_decision_id: string;
+  buyer_id: string;
+  manufacturer_id: string;
+  status: PurchaseOrderStatus;
+  currency: string;
+  subtotal: number;
+  incoterm: RFQIncoterm | null;
+  origin_port: string | null;
+  destination_port: string | null;
+  production_lead_days: number | null;
+  shipping_lead_days: number | null;
+  requested_delivery_date: string | null;
+  buyer_reference: string | null;
+  buyer_note: string | null;
+  quote_snapshot: Record<string, unknown>;
+  buyer_snapshot: Record<string, unknown>;
+  manufacturer_snapshot: Record<string, unknown>;
+  product_snapshot: RFQProductSnapshot;
+  created_by: string;
+  submitted_at: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PurchaseOrderItemRecord {
+  id: string;
+  purchase_order_id: string;
+  source_quote_item_id: string | null;
+  line_order: number;
+  item_type: RFQQuoteItemType;
+  description: string;
+  quantity: number;
+  unit: string | null;
+  unit_price: number;
+  amount: number;
+  created_at: string;
+}
+
+export interface PurchaseOrderEventRecord {
+  id: string;
+  purchase_order_id: string;
+  event_type: "po_created" | "po_submitted" | "po_cancelled";
+  actor_profile_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface PurchaseOrderWithItems extends PurchaseOrderRecord {
+  items: PurchaseOrderItemRecord[];
+}
+
+export interface PurchaseOrderDraftValues {
+  buyerReference: string;
+  buyerNote: string;
+  requestedDeliveryDate: string;
+}
+
 export interface ProfileRecord {
   id: string;
   role: Role;
