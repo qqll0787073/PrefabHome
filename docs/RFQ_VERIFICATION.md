@@ -98,29 +98,22 @@ Verified:
 
 ## Admin Smoke
 
-Result: blocked.
+Credentials source: `.env.smoke.local`.
 
-Reason: `.env.smoke.local` does not include admin smoke credential variables. The available local smoke variables are buyer and manufacturer credentials only.
+Result: passed.
 
-Follow-up on 2026-07-14: local variable-name check still found only:
+Verified through normal Supabase Auth:
 
-- `PREFAB_SMOKE_EMAIL`
-- `PREFAB_SMOKE_PASSWORD`
-- `PREFAB_BUYER_SMOKE_EMAIL`
-- `PREFAB_BUYER_SMOKE_PASSWORD`
-
-The requested admin variables were not present:
-
-- `PREFAB_ADMIN_SMOKE_EMAIL`
-- `PREFAB_ADMIN_SMOKE_PASSWORD`
-
-Database-level admin behavior was still covered by the rollback SQL verification:
-
-- Admin can read RFQs in the SQL verification.
-- Admin illegal lifecycle transitions are blocked.
-- Event forgery paths are blocked.
-
-Admin UI smoke should be completed when local admin smoke credentials are provided, for example through ignored local-only variables such as `PREFAB_ADMIN_SMOKE_EMAIL` and `PREFAB_ADMIN_SMOKE_PASSWORD`.
+- Admin login passed.
+- Admin profile role is `admin`.
+- Admin RFQ Management data loads.
+- Admin can read RFQs.
+- Admin can read RFQ messages.
+- Admin can read RFQ timeline events.
+- Invalid role update is rejected.
+- Direct arbitrary RFQ event insert is rejected.
+- Invalid lifecycle transition is rejected.
+- Admin RFQ UI is read-only in PH-006A.
 
 ## Timeline Verification
 
@@ -162,17 +155,39 @@ Verified:
 
 ## Browser Console Verification
 
-Result: blocked.
+Result: passed.
 
-Follow-up on 2026-07-14: attempted to connect to the in-app browser for a real browser smoke. Browser control timed out during setup and again during reset, so Buyer, Manufacturer, and Admin browser interaction checks could not be completed in this pass.
+Follow-up on 2026-07-14: the in-app browser control timed out, so the real-browser smoke was completed with local Chrome against the local Vite server.
 
 Browser results:
 
-- Buyer browser result: blocked by browser-control timeout.
-- Manufacturer browser result: blocked by browser-control timeout.
-- Admin browser result: blocked by browser-control timeout and missing admin smoke credentials.
-- Console error count: not measured because the browser session could not be controlled.
-- Unsafe logging result: not measured in browser; API smoke and command output did not print credentials, access tokens, refresh tokens, or signed URLs.
+- Buyer browser result: passed.
+  - Signed in through the UI.
+  - Opened marketplace product detail.
+  - Opened Request Quote dialog.
+  - Created a draft RFQ.
+  - Deleted the draft RFQ.
+  - Created and submitted an RFQ.
+  - Opened `My RFQs`.
+  - Opened the RFQ conversation.
+- Manufacturer browser result: passed.
+  - Signed in through the UI.
+  - Opened RFQ Inbox.
+  - Opened submitted RFQ conversation.
+  - Posted a manufacturer reply.
+  - Confirmed the reply displayed in the conversation.
+  - The current PH-006A UI does not expose a manufacturer status-transition control; the `submitted -> manufacturer_review` transition remains verified through SQL and authenticated API smoke.
+- Admin browser result: passed.
+  - Signed in through the UI.
+  - Opened RFQ Management.
+  - Opened RFQ detail/conversation.
+  - Confirmed RFQ conversation is read-only for Admin.
+  - Timeline event rows are readable through the Admin API smoke and SQL verification; PH-006A UI does not render a separate timeline panel.
+- Console error count: `0`.
+- Unsafe logging result: `0` unsafe console matches.
+- No credentials, access tokens, refresh tokens, or full signed URLs were logged.
+
+Note: the first Chrome run surfaced `/favicon.ico` 404 console errors. `index.html` now declares an inline empty favicon to suppress the browser's implicit favicon request, and the final browser smoke completed with `0` console errors.
 
 ## Validation
 
@@ -189,6 +204,7 @@ Results:
 - `npm ci`: passed, `0` vulnerabilities.
 - `npm run build`: passed.
 - `npm run test`: passed, `52/52`.
+- Browser smoke: passed with `0` console errors and `0` unsafe console matches.
 
 Secret scan:
 
