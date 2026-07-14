@@ -4,22 +4,21 @@ import { AdminManufacturerReview } from "../manufacturers/AdminManufacturerRevie
 import { ManufacturerWorkspace } from "../manufacturers/ManufacturerWorkspace";
 import { AdminProductReview } from "../products/AdminProductReview";
 import { ManufacturerProductList } from "../products/ManufacturerProductList";
+import { AdminRFQManagement } from "../rfqs/AdminRFQManagement";
+import { BuyerRFQDashboard } from "../rfqs/BuyerRFQDashboard";
+import { ManufacturerRFQInbox } from "../rfqs/ManufacturerRFQInbox";
 import type { AuthState } from "../../lib/auth";
-import type { Message, QuoteRequest, Role } from "../../types";
+import type { Role } from "../../types";
 
 interface PortalDashboardProps {
   auth: AuthState;
   role: Role;
-  quoteRequests: QuoteRequest[];
-  messages: Message[];
   onRoleChange: (role: Role) => void;
 }
 
 export function PortalDashboard({
   auth,
   role,
-  quoteRequests,
-  messages,
   onRoleChange,
 }: PortalDashboardProps) {
   const hasPortalAccess = Boolean(auth.user && auth.user.role === role);
@@ -68,28 +67,15 @@ export function PortalDashboard({
                 production implementation moves data into Supabase.
               </p>
             </div>
-            <div className="panel">
-              <h3>Quote Requests</h3>
-              {quoteRequests.map((quote) => (
-                <div className="list-item" key={quote.id}>
-                  <strong>{quote.productName}</strong>
-                  <span>{quote.status}</span>
-                </div>
-              ))}
-            </div>
-            <div className="panel">
-              <h3>Messaging</h3>
-              {messages.map((message) => (
-                <div className="message" key={message.id}>
-                  <strong>{message.from}</strong>
-                  <p>{message.body}</p>
-                </div>
-              ))}
-            </div>
           </section>
+
+          {role === "buyer" && auth.user && (
+            <BuyerRFQDashboard user={auth.user} authMode={auth.mode} />
+          )}
 
           {role === "manufacturer" && auth.user && (
             <>
+              <ManufacturerRFQInbox user={auth.user} authMode={auth.mode} />
               <ManufacturerWorkspace user={auth.user} authMode={auth.mode} />
               <ManufacturerProductList user={auth.user} authMode={auth.mode} />
             </>
@@ -97,6 +83,7 @@ export function PortalDashboard({
 
           {role === "admin" && auth.user && (
             <>
+              <AdminRFQManagement user={auth.user} authMode={auth.mode} />
               <AdminManufacturerReview authMode={auth.mode} />
               <AdminProductReview authMode={auth.mode} />
             </>

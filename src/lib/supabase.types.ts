@@ -284,6 +284,121 @@ export interface Database {
         };
         Update: Partial<Database["public"]["Tables"]["product_media"]["Insert"]>;
       };
+      rfqs: {
+        Row: {
+          id: string;
+          buyer_id: string;
+          manufacturer_id: string;
+          product_id: string;
+          product_snapshot: Json;
+          status:
+            | "draft"
+            | "submitted"
+            | "manufacturer_review"
+            | "quoted"
+            | "buyer_review"
+            | "accepted"
+            | "declined"
+            | "expired"
+            | "cancelled";
+          requested_quantity: number;
+          requested_currency: string;
+          incoterm: "FOB" | "CIF" | "EXW" | "DDP" | "DAP" | null;
+          destination_country: string;
+          destination_port: string | null;
+          target_delivery_date: string | null;
+          buyer_message: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          buyer_id: string;
+          manufacturer_id: string;
+          product_id: string;
+          product_snapshot?: Json;
+          status?:
+            | "draft"
+            | "submitted"
+            | "manufacturer_review"
+            | "quoted"
+            | "buyer_review"
+            | "accepted"
+            | "declined"
+            | "expired"
+            | "cancelled";
+          requested_quantity: number;
+          requested_currency?: string;
+          incoterm?: "FOB" | "CIF" | "EXW" | "DDP" | "DAP" | null;
+          destination_country: string;
+          destination_port?: string | null;
+          target_delivery_date?: string | null;
+          buyer_message?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["rfqs"]["Insert"]>;
+      };
+      rfq_messages: {
+        Row: {
+          id: string;
+          rfq_id: string;
+          sender_profile_id: string;
+          sender_role: "buyer" | "manufacturer" | "admin";
+          message: string;
+          attachment_path: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          rfq_id: string;
+          sender_profile_id: string;
+          sender_role?: "buyer" | "manufacturer" | "admin";
+          message: string;
+          attachment_path?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["rfq_messages"]["Insert"]>;
+      };
+      rfq_events: {
+        Row: {
+          id: string;
+          rfq_id: string;
+          event_type:
+            | "draft_created"
+            | "submitted"
+            | "manufacturer_opened"
+            | "manufacturer_replied"
+            | "quote_created"
+            | "buyer_opened"
+            | "accepted"
+            | "declined"
+            | "cancelled"
+            | "expired";
+          actor_profile_id: string | null;
+          metadata: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          rfq_id: string;
+          event_type:
+            | "draft_created"
+            | "submitted"
+            | "manufacturer_opened"
+            | "manufacturer_replied"
+            | "quote_created"
+            | "buyer_opened"
+            | "accepted"
+            | "declined"
+            | "cancelled"
+            | "expired";
+          actor_profile_id?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["rfq_events"]["Insert"]>;
+      };
       quote_requests: {
         Row: {
           id: string;

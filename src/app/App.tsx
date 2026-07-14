@@ -6,7 +6,6 @@ import { PortalDashboard } from "../features/dashboard/PortalDashboard";
 import { ImportCenterView } from "../features/import-center/ImportCenterView";
 import { CompareView } from "../features/marketplace/CompareView";
 import { MarketplacePage } from "../features/marketplace/MarketplacePage";
-import { messages, quoteRequests } from "../data";
 import { useAuth } from "../lib/auth";
 import type { Role, View } from "../types";
 
@@ -21,7 +20,7 @@ function App() {
       <PortalNavigation view={view} onViewChange={setView} />
 
       <main>
-        {view === "browse" && <MarketplacePage onViewChange={setView} />}
+        {view === "browse" && <MarketplacePage user={auth.user} onViewChange={setView} />}
 
         {view === "compare" && <CompareView />}
 
@@ -33,8 +32,6 @@ function App() {
           <PortalDashboard
             auth={auth}
             role={role}
-            quoteRequests={quoteRequests}
-            messages={messages}
             onRoleChange={setRole}
           />
         )}

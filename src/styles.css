@@ -526,6 +526,79 @@ main {
   gap: 8px;
 }
 
+.rfq-status-filter {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.form-grid label,
+.rfq-dialog label,
+.rfq-conversation label {
+  display: grid;
+  gap: 7px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.rfq-dialog input,
+.rfq-dialog textarea,
+.rfq-conversation textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  font: inherit;
+}
+
+.rfq-dialog textarea,
+.rfq-conversation textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.helper-text {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rfq-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(16 24 40 / 0.46);
+}
+
+.rfq-dialog-panel {
+  display: grid;
+  gap: 16px;
+  width: min(720px, 100%);
+  max-height: min(760px, calc(100vh - 40px));
+  overflow: auto;
+  padding: 22px;
+  background: #ffffff;
+  border: 1px solid #e3e7ee;
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgb(16 24 40 / 0.22);
+}
+
+.dialog-header {
+  display: flex;
+  gap: 16px;
+  align-items: start;
+  justify-content: space-between;
+}
+
 .form-error {
   padding: 10px 12px;
   color: #9f1239;
@@ -648,6 +721,40 @@ main {
 .review-item > div:first-child {
   display: grid;
   gap: 10px;
+}
+
+.rfq-conversation {
+  align-self: start;
+}
+
+.conversation-thread {
+  display: grid;
+  gap: 10px;
+}
+
+.message-bubble {
+  display: grid;
+  gap: 6px;
+  max-width: 74ch;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e3e7ee;
+  border-radius: 8px;
+}
+
+.message-bubble.manufacturer {
+  margin-left: 24px;
+  background: #f0f9ff;
+}
+
+.message-bubble.admin {
+  background: #f5f3ff;
+}
+
+.message-bubble span {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .media-manager {
