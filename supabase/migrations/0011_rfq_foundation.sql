@@ -6,9 +6,11 @@ create table if not exists public.rfqs (
   buyer_id uuid not null references public.profiles(id) on delete cascade,
   manufacturer_id uuid not null references public.manufacturers(id) on delete cascade,
   product_id uuid not null references public.products(id) on delete restrict,
+  product_snapshot jsonb not null default '{}'::jsonb,
   status text not null default 'draft',
-  requested_quantity integer not null,
+  requested_quantity numeric(12,2) not null,
   requested_currency text not null default 'USD',
+  incoterm text,
   destination_country text not null,
   destination_port text,
   target_delivery_date date,
@@ -29,7 +31,10 @@ create table if not exists public.rfqs (
     )
   ),
   constraint rfqs_requested_quantity_check check (requested_quantity > 0),
-  constraint rfqs_requested_currency_check check (char_length(requested_currency) = 3),
+  constraint rfqs_requested_currency_check check (requested_currency ~ '^[A-Z]{3}$'),
+  constraint rfqs_incoterm_check check (
+    incoterm is null or incoterm in ('FOB', 'CIF', 'EXW', 'DDP', 'DAP')
+  ),
   constraint rfqs_buyer_message_length_check check (
     buyer_message is null or char_length(buyer_message) <= 2000
   )
@@ -57,7 +62,21 @@ create table if not exists public.rfq_events (
   event_type text not null,
   actor_profile_id uuid references public.profiles(id) on delete set null,
   metadata jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint rfq_events_type_check check (
+    event_type in (
+      'draft_created',
+      'submitted',
+      'manufacturer_opened',
+      'manufacturer_replied',
+      'quote_created',
+      'buyer_opened',
+      'accepted',
+      'declined',
+      'cancelled',
+      'expired'
+    )
+  )
 );
 
 create index if not exists rfqs_buyer_status_idx
@@ -117,6 +136,54 @@ begin
 end;
 $$;
 
+create or replace function public.is_valid_rfq_transition(
+  old_status text,
+  new_status text
+)
+returns boolean
+language sql
+immutable
+as $$
+  select
+    old_status = new_status
+    or (old_status = 'draft' and new_status in ('submitted', 'cancelled'))
+    or (old_status = 'submitted' and new_status in ('manufacturer_review', 'cancelled'))
+    or (old_status = 'manufacturer_review' and new_status = 'quoted')
+    or (old_status = 'quoted' and new_status = 'buyer_review')
+    or (old_status = 'buyer_review' and new_status in ('accepted', 'declined'))
+    or (old_status in ('submitted', 'manufacturer_review', 'quoted', 'buyer_review') and new_status = 'expired')
+$$;
+
+create or replace function public.build_rfq_product_snapshot(
+  product_uuid uuid,
+  manufacturer_uuid uuid
+)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select jsonb_strip_nulls(
+    jsonb_build_object(
+      'model_name', p.model_name,
+      'name', p.name,
+      'category', p.category,
+      'bedrooms', p.bedrooms,
+      'bathrooms', p.bathrooms,
+      'floor_area_sq_ft', p.floor_area_sq_ft,
+      'currency', p.currency,
+      'fob_price', p.fob_price,
+      'manufacturer_display_name', coalesce(m.company_display_name, m.company_name),
+      'manufacturer_country', m.country
+    )
+  )
+  from public.products p
+  join public.manufacturers m on m.id = manufacturer_uuid
+  where p.id = product_uuid
+    and p.manufacturer_id = manufacturer_uuid
+$$;
+
 create or replace function public.protect_rfq_write()
 returns trigger
 language plpgsql
@@ -124,7 +191,29 @@ security definer
 set search_path = public
 as $$
 begin
+  new.requested_currency := upper(new.requested_currency);
+  new.incoterm := nullif(upper(coalesce(new.incoterm, '')), '');
+
+  if tg_op = 'UPDATE' and not public.is_valid_rfq_transition(old.status, new.status) then
+    raise exception 'Invalid RFQ status transition from % to %.', old.status, new.status;
+  end if;
+
+  if tg_op = 'UPDATE' and (
+    new.buyer_id is distinct from old.buyer_id
+    or new.manufacturer_id is distinct from old.manufacturer_id
+    or new.product_id is distinct from old.product_id
+    or new.product_snapshot is distinct from old.product_snapshot
+  ) then
+    raise exception 'RFQ participant, product, and snapshot fields cannot be changed.';
+  end if;
+
   if public.is_admin() then
+    if tg_op = 'INSERT' and coalesce(new.product_snapshot, '{}'::jsonb) = '{}'::jsonb then
+      new.product_snapshot := public.build_rfq_product_snapshot(new.product_id, new.manufacturer_id);
+      if coalesce(new.product_snapshot, '{}'::jsonb) = '{}'::jsonb then
+        raise exception 'RFQ product snapshot could not be created.';
+      end if;
+    end if;
     return new;
   end if;
 
@@ -141,6 +230,30 @@ begin
       raise exception 'Buyers can create only draft or submitted RFQs.';
     end if;
 
+    new.product_snapshot := public.build_rfq_product_snapshot(new.product_id, new.manufacturer_id);
+    if coalesce(new.product_snapshot, '{}'::jsonb) = '{}'::jsonb then
+      raise exception 'RFQ product snapshot could not be created.';
+    end if;
+
+    return new;
+  end if;
+
+  if public.owns_manufacturer(old.manufacturer_id) then
+    if new.status is distinct from 'manufacturer_review'
+      or old.status is distinct from 'submitted' then
+      raise exception 'Manufacturers can only move submitted RFQs into manufacturer review.';
+    end if;
+
+    if new.requested_quantity is distinct from old.requested_quantity
+      or new.requested_currency is distinct from old.requested_currency
+      or new.incoterm is distinct from old.incoterm
+      or new.destination_country is distinct from old.destination_country
+      or new.destination_port is distinct from old.destination_port
+      or new.target_delivery_date is distinct from old.target_delivery_date
+      or new.buyer_message is distinct from old.buyer_message then
+      raise exception 'Manufacturers cannot change buyer RFQ data.';
+    end if;
+
     return new;
   end if;
 
@@ -149,13 +262,18 @@ begin
   end if;
 
   if old.status <> 'draft' then
-    raise exception 'Only draft RFQs can be updated by buyers.';
-  end if;
+    if old.status = 'submitted' and new.status = 'cancelled'
+      and new.requested_quantity is not distinct from old.requested_quantity
+      and new.requested_currency is not distinct from old.requested_currency
+      and new.incoterm is not distinct from old.incoterm
+      and new.destination_country is not distinct from old.destination_country
+      and new.destination_port is not distinct from old.destination_port
+      and new.target_delivery_date is not distinct from old.target_delivery_date
+      and new.buyer_message is not distinct from old.buyer_message then
+      return new;
+    end if;
 
-  if new.buyer_id is distinct from old.buyer_id
-    or new.manufacturer_id is distinct from old.manufacturer_id
-    or new.product_id is distinct from old.product_id then
-    raise exception 'RFQ participant and product fields cannot be changed.';
+    raise exception 'Only draft RFQs can be edited by buyers.';
   end if;
 
   if new.status not in ('draft', 'submitted', 'cancelled') then
@@ -220,6 +338,21 @@ security definer
 set search_path = public
 as $$
 begin
+  if event_name not in (
+    'draft_created',
+    'submitted',
+    'manufacturer_opened',
+    'manufacturer_replied',
+    'quote_created',
+    'buyer_opened',
+    'accepted',
+    'declined',
+    'cancelled',
+    'expired'
+  ) then
+    raise exception 'Invalid RFQ event type.';
+  end if;
+
   if not public.can_access_rfq(rfq_uuid) then
     raise exception 'Only RFQ participants can record events.';
   end if;
@@ -236,6 +369,21 @@ security definer
 set search_path = public
 as $$
 begin
+  if new.event_type not in (
+    'draft_created',
+    'submitted',
+    'manufacturer_opened',
+    'manufacturer_replied',
+    'quote_created',
+    'buyer_opened',
+    'accepted',
+    'declined',
+    'cancelled',
+    'expired'
+  ) then
+    raise exception 'Invalid RFQ event type.';
+  end if;
+
   if not public.can_access_rfq(new.rfq_id) then
     raise exception 'Only RFQ participants can record events.';
   end if;
@@ -270,6 +418,7 @@ drop policy if exists "rfqs_select_participant_or_admin" on public.rfqs;
 drop policy if exists "rfqs_insert_buyer" on public.rfqs;
 drop policy if exists "rfqs_update_draft_buyer_or_admin" on public.rfqs;
 drop policy if exists "rfqs_admin_delete" on public.rfqs;
+drop policy if exists "rfqs_delete_draft_buyer_or_admin" on public.rfqs;
 
 create policy "rfqs_select_participant_or_admin"
 on public.rfqs
@@ -296,7 +445,7 @@ for update
 to authenticated
 using (
   public.is_admin()
-  or (buyer_id = auth.uid() and status = 'draft')
+  or (buyer_id = auth.uid() and status in ('draft', 'submitted'))
 )
 with check (
   public.is_admin()
@@ -306,11 +455,14 @@ with check (
   )
 );
 
-create policy "rfqs_admin_delete"
+create policy "rfqs_delete_draft_buyer_or_admin"
 on public.rfqs
 for delete
 to authenticated
-using (public.is_admin());
+using (
+  public.is_admin()
+  or (buyer_id = auth.uid() and status = 'draft')
+);
 
 drop policy if exists "rfq_messages_select_participant_or_admin" on public.rfq_messages;
 drop policy if exists "rfq_messages_insert_participant" on public.rfq_messages;

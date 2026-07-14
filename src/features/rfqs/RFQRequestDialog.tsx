@@ -3,6 +3,7 @@ import { ErrorList } from "../../components/common/ErrorList";
 import {
   createDraftRFQ,
   emptyRFQForm,
+  rfqIncoterms,
   submitRFQ,
   validateRFQForm,
 } from "../../lib/rfq";
@@ -90,6 +91,21 @@ export function RFQRequestDialog({ product, user, onClose }: RFQRequestDialogPro
               onChange={(event) => updateField("requestedCurrency", event.target.value)}
               disabled={!canRequest || isSaving}
             />
+          </label>
+          <label>
+            Incoterm
+            <select
+              value={values.incoterm}
+              onChange={(event) => updateField("incoterm", event.target.value)}
+              disabled={!canRequest || isSaving}
+            >
+              <option value="">Decide later</option>
+              {rfqIncoterms.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             Destination Country

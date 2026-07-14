@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
-import { fetchRFQMessages, postRFQMessage, rfqStatusLabels } from "../../lib/rfq";
+import { fetchRFQMessages, postRFQMessage, rfqSnapshotTitle, rfqStatusLabels } from "../../lib/rfq";
 import type { AuthUser } from "../../lib/auth";
 import type { RFQMessageRecord, RFQWithDetails } from "../../types";
 
@@ -62,7 +62,7 @@ export function RFQConversation({ rfq, user, readOnly = false, onMessagePosted }
     );
   }
 
-  const productName = rfq.product?.model_name || rfq.product?.name || "Product";
+  const productName = rfqSnapshotTitle(rfq.product_snapshot);
 
   return (
     <section className="panel rfq-conversation">
@@ -71,6 +71,7 @@ export function RFQConversation({ rfq, user, readOnly = false, onMessagePosted }
       <p>
         {rfq.requested_quantity} units to {rfq.destination_country}
         {rfq.destination_port ? ` via ${rfq.destination_port}` : ""}
+        {rfq.incoterm ? ` (${rfq.incoterm})` : ""}
       </p>
       <ErrorList errors={errors} />
       {isLoading && <LoadingState message="Loading RFQ conversation..." />}

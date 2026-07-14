@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
-import { fetchAdminRFQs, rfqStatusLabels } from "../../lib/rfq";
+import { fetchAdminRFQs, rfqSnapshotTitle, rfqStatusLabels } from "../../lib/rfq";
 import type { AuthUser } from "../../lib/auth";
 import type { RFQWithDetails } from "../../types";
 import { RFQConversation } from "./RFQConversation";
@@ -60,7 +60,7 @@ export function AdminRFQManagement({ user, authMode }: AdminRFQManagementProps) 
             <article className="review-item" key={rfq.id}>
               <div>
                 <p className="eyebrow">{rfqStatusLabels[rfq.status]}</p>
-                <h3>{rfq.product?.model_name || rfq.product?.name || "Product RFQ"}</h3>
+                <h3>{rfqSnapshotTitle(rfq.product_snapshot)}</h3>
                 <p>
                   {rfq.buyer?.email || "Buyer"} to{" "}
                   {rfq.manufacturer?.company_display_name ||

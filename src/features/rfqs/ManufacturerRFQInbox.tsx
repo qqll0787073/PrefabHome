@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
-import { fetchManufacturerRFQs, rfqStatusLabels } from "../../lib/rfq";
+import {
+  fetchManufacturerRFQs,
+  manufacturerRFQDashboardGroup,
+  rfqSnapshotTitle,
+  rfqStatusLabels,
+} from "../../lib/rfq";
 import type { AuthUser } from "../../lib/auth";
 import type { RFQWithDetails } from "../../types";
 import { RFQConversation } from "./RFQConversation";
@@ -34,7 +39,7 @@ export function ManufacturerRFQInbox({ user, authMode }: ManufacturerRFQInboxPro
   }, [authMode, user.id]);
 
   const submittedRFQs = useMemo(
-    () => rfqs.filter((rfq) => rfq.status === "submitted"),
+    () => rfqs.filter((rfq) => manufacturerRFQDashboardGroup(rfq.status) === "new"),
     [rfqs]
   );
 
@@ -52,7 +57,7 @@ export function ManufacturerRFQInbox({ user, authMode }: ManufacturerRFQInboxPro
             <article className="review-item" key={rfq.id}>
               <div>
                 <p className="eyebrow">{rfqStatusLabels[rfq.status]}</p>
-                <h3>{rfq.product?.model_name || rfq.product?.name || "Product RFQ"}</h3>
+                <h3>{rfqSnapshotTitle(rfq.product_snapshot)}</h3>
                 <p>Buyer: {rfq.buyer?.full_name || rfq.buyer?.email || "Buyer"}</p>
               </div>
               <div className="meta-row">

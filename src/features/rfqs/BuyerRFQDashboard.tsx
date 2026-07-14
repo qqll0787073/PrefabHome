@@ -3,8 +3,9 @@ import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
 import {
   buyerRFQDashboardStatuses,
-  cancelDraftRFQ,
+  deleteDraftRFQ,
   fetchBuyerRFQs,
+  rfqSnapshotTitle,
   rfqStatusLabels,
 } from "../../lib/rfq";
 import type { AuthUser } from "../../lib/auth";
@@ -44,14 +45,14 @@ export function BuyerRFQDashboard({ user, authMode }: BuyerRFQDashboardProps) {
     [rfqs, statusFilter]
   );
 
-  async function cancelRFQ(rfq: RFQWithDetails) {
+  async function deleteDraft(rfq: RFQWithDetails) {
     setErrors([]);
     try {
-      await cancelDraftRFQ(rfq.id);
+      await deleteDraftRFQ(rfq.id);
       setSelectedRFQ(null);
       await loadRFQs();
     } catch (error) {
-      setErrors([error instanceof Error ? error.message : "Unable to cancel RFQ."]);
+      setErrors([error instanceof Error ? error.message : "Unable to delete RFQ draft."]);
     }
   }
 
@@ -87,7 +88,7 @@ export function BuyerRFQDashboard({ user, authMode }: BuyerRFQDashboardProps) {
             <article className="review-item" key={rfq.id}>
               <div>
                 <p className="eyebrow">{rfqStatusLabels[rfq.status]}</p>
-                <h3>{rfq.product?.model_name || rfq.product?.name || "Product RFQ"}</h3>
+                <h3>{rfqSnapshotTitle(rfq.product_snapshot)}</h3>
                 <p>
                   {rfq.requested_quantity} units to {rfq.destination_country}
                 </p>
@@ -101,8 +102,8 @@ export function BuyerRFQDashboard({ user, authMode }: BuyerRFQDashboardProps) {
                   Open RFQ
                 </button>
                 {rfq.status === "draft" && (
-                  <button type="button" onClick={() => void cancelRFQ(rfq)}>
-                    Cancel Draft
+                  <button type="button" onClick={() => void deleteDraft(rfq)}>
+                    Delete Draft
                   </button>
                 )}
               </div>

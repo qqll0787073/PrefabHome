@@ -290,6 +290,7 @@ export interface Database {
           buyer_id: string;
           manufacturer_id: string;
           product_id: string;
+          product_snapshot: Json;
           status:
             | "draft"
             | "submitted"
@@ -302,6 +303,7 @@ export interface Database {
             | "cancelled";
           requested_quantity: number;
           requested_currency: string;
+          incoterm: "FOB" | "CIF" | "EXW" | "DDP" | "DAP" | null;
           destination_country: string;
           destination_port: string | null;
           target_delivery_date: string | null;
@@ -314,6 +316,7 @@ export interface Database {
           buyer_id: string;
           manufacturer_id: string;
           product_id: string;
+          product_snapshot?: Json;
           status?:
             | "draft"
             | "submitted"
@@ -326,6 +329,7 @@ export interface Database {
             | "cancelled";
           requested_quantity: number;
           requested_currency?: string;
+          incoterm?: "FOB" | "CIF" | "EXW" | "DDP" | "DAP" | null;
           destination_country: string;
           destination_port?: string | null;
           target_delivery_date?: string | null;
@@ -360,7 +364,17 @@ export interface Database {
         Row: {
           id: string;
           rfq_id: string;
-          event_type: string;
+          event_type:
+            | "draft_created"
+            | "submitted"
+            | "manufacturer_opened"
+            | "manufacturer_replied"
+            | "quote_created"
+            | "buyer_opened"
+            | "accepted"
+            | "declined"
+            | "cancelled"
+            | "expired";
           actor_profile_id: string | null;
           metadata: Json;
           created_at: string;
@@ -368,7 +382,17 @@ export interface Database {
         Insert: {
           id?: string;
           rfq_id: string;
-          event_type: string;
+          event_type:
+            | "draft_created"
+            | "submitted"
+            | "manufacturer_opened"
+            | "manufacturer_replied"
+            | "quote_created"
+            | "buyer_opened"
+            | "accepted"
+            | "declined"
+            | "cancelled"
+            | "expired";
           actor_profile_id?: string | null;
           metadata?: Json;
           created_at?: string;

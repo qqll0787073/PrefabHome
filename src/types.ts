@@ -281,15 +281,32 @@ export interface RFQRecord {
   buyer_id: string;
   manufacturer_id: string;
   product_id: string;
+  product_snapshot: RFQProductSnapshot;
   status: RFQStatus;
   requested_quantity: number;
   requested_currency: string;
+  incoterm: RFQIncoterm | null;
   destination_country: string;
   destination_port: string | null;
   target_delivery_date: string | null;
   buyer_message: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export type RFQIncoterm = "FOB" | "CIF" | "EXW" | "DDP" | "DAP";
+
+export interface RFQProductSnapshot {
+  model_name?: string;
+  name?: string;
+  category?: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  floor_area_sq_ft?: number;
+  currency?: string;
+  fob_price?: number;
+  manufacturer_display_name?: string;
+  manufacturer_country?: string;
 }
 
 export interface RFQWithDetails extends RFQRecord {
@@ -323,6 +340,7 @@ export interface RFQEventRecord {
 export interface RFQFormValues {
   requestedQuantity: string;
   requestedCurrency: string;
+  incoterm: string;
   destinationCountry: string;
   destinationPort: string;
   targetDeliveryDate: string;
