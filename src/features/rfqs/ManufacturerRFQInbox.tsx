@@ -10,6 +10,7 @@ import {
 import type { AuthUser } from "../../lib/auth";
 import type { RFQWithDetails } from "../../types";
 import { QuoteBuilder } from "../quotes/QuoteBuilder";
+import { ManufacturerPurchaseOrders } from "../purchase-orders/ManufacturerPurchaseOrders";
 import { RFQConversation } from "./RFQConversation";
 
 interface ManufacturerRFQInboxProps {
@@ -82,6 +83,7 @@ export function ManufacturerRFQInbox({ user, authMode }: ManufacturerRFQInboxPro
       </section>
       <RFQConversation rfq={selectedRFQ} user={user} onMessagePosted={loadRFQs} />
       <QuoteBuilder rfq={selectedRFQ} onQuoteSubmitted={loadRFQs} />
+      <ManufacturerPurchaseOrders authMode={authMode} />
     </section>
   );
 }

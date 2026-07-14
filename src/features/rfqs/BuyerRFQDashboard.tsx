@@ -20,6 +20,7 @@ import type {
 } from "../../types";
 import { BuyerQuoteDecisionPanel } from "../quotes/BuyerQuoteDecisionPanel";
 import { QuoteSummaryList } from "../quotes/QuoteSummaryList";
+import { BuyerPurchaseOrders } from "../purchase-orders/BuyerPurchaseOrders";
 import { RFQConversation } from "./RFQConversation";
 
 interface BuyerRFQDashboardProps {
@@ -193,6 +194,7 @@ export function BuyerRFQDashboard({ user, authMode }: BuyerRFQDashboardProps) {
           />
         </>
       )}
+      <BuyerPurchaseOrders authMode={authMode} quotes={quotes} />
     </section>
   );
 }
