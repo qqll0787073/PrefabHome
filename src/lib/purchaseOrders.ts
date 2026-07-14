@@ -103,6 +103,20 @@ export function purchaseOrderSubtotalLabel(po: Pick<PurchaseOrderRecord, "subtot
   return formatMoney(po.subtotal, po.currency);
 }
 
+export function purchaseOrderSubmittedAtLabel(
+  po: Pick<PurchaseOrderRecord, "status" | "submitted_at">
+): string | null {
+  if (po.status !== "submitted" || !po.submitted_at) return null;
+  return `Submitted ${new Date(po.submitted_at).toLocaleString()}`;
+}
+
+export function purchaseOrderCancelledAtLabel(
+  po: Pick<PurchaseOrderRecord, "status" | "cancelled_at">
+): string | null {
+  if (po.status !== "cancelled" || !po.cancelled_at) return null;
+  return `Cancelled ${new Date(po.cancelled_at).toLocaleString()}`;
+}
+
 export function purchaseOrderConfirmationText(po: PurchaseOrderRecord): string {
   const version = po.quote_snapshot.version ? `quote version ${po.quote_snapshot.version}` : "accepted quote";
   return `Submit ${po.po_number} for ${version} at ${formatMoney(po.subtotal, po.currency)}?`;

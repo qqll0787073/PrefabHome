@@ -16,7 +16,7 @@ npx.cmd supabase db query --linked --file supabase/tests/purchase_order_security
 
 Expected: every returned row has `passed = true`.
 
-Current expected count: 37 checks.
+Current expected count: 47 checks.
 
 Coverage:
 
@@ -43,9 +43,17 @@ Coverage:
 - Manufacturer update denied
 - Admin mutation denied
 - submit own draft allowed
+- submitted PO has `submitted_at` non-null
+- submitted PO has `cancelled_at` null
+- submission timestamp is database-derived
 - submitted PO immutable
 - duplicate submit denied
 - cancel own draft allowed
+- cancelled draft has `submitted_at` null
+- cancelled draft has `cancelled_at` non-null
+- cancellation timestamp is database-derived
+- Buyer, Manufacturer, and Admin cannot forge `submitted_at` or `cancelled_at`
+- cancelled PO immutable
 - submitted cancel denied
 - trusted `po_created`, `po_submitted`, and `po_cancelled` events
 - direct event forgery denied
@@ -76,6 +84,10 @@ Expected helper coverage:
 - PO item ordering
 - subtotal rendering
 - submitted/cancelled read-only mapping
+- submitted timestamp rendering
+- cancelled timestamp rendering
+- cancelled PO never renders as submitted
+- draft renders neither lifecycle timestamp
 - Manufacturer read-only mapping
 - Admin read-only mapping
 - submission confirmation content

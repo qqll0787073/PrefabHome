@@ -468,6 +468,7 @@ export interface PurchaseOrderRecord {
   product_snapshot: RFQProductSnapshot;
   created_by: string;
   submitted_at: string | null;
+  cancelled_at: string | null;
   created_at: string;
   updated_at: string;
 }

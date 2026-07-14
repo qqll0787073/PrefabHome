@@ -10,6 +10,14 @@ Purchase Orders use a narrow lifecycle:
 
 Submitted and cancelled rows are immutable in PH-007A.
 
+Lifecycle timestamps are database-managed:
+
+- `draft`: `submitted_at` is null and `cancelled_at` is null.
+- `submitted`: `submitted_at` is set by `submit_purchase_order()` and `cancelled_at` remains null.
+- `cancelled`: `cancelled_at` is set by `cancel_purchase_order_draft()` and `submitted_at` remains null.
+
+A cancelled draft was never submitted, so cancellation never fabricates `submitted_at`.
+
 ## Accepted Quote Authority
 
 Purchase Orders can be created only through `create_purchase_order_from_quote(quote_uuid)`.
@@ -70,16 +78,19 @@ Buyer:
 
 - read own POs, items, and events
 - lifecycle writes only through trusted RPCs
+- cannot forge `submitted_at` or `cancelled_at`
 
 Manufacturer:
 
 - read assigned Manufacturer POs, items, and events
 - no mutations in PH-007A
+- cannot forge `submitted_at` or `cancelled_at`
 
 Admin:
 
 - read all POs, items, and events
 - ordinary table paths remain read-only
+- cannot forge `submitted_at` or `cancelled_at`
 
 Anonymous:
 

@@ -28,6 +28,7 @@ create table if not exists public.purchase_orders (
   product_snapshot jsonb not null,
   created_by uuid not null references public.profiles(id) on delete restrict,
   submitted_at timestamptz,
+  cancelled_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint purchase_orders_status_check check (status in ('draft', 'submitted', 'cancelled')),
@@ -43,9 +44,10 @@ create table if not exists public.purchase_orders (
   constraint purchase_orders_buyer_note_length_check check (
     buyer_note is null or char_length(buyer_note) <= 2000
   ),
-  constraint purchase_orders_submitted_at_check check (
-    (status = 'draft' and submitted_at is null)
-    or (status in ('submitted', 'cancelled') and submitted_at is not null)
+  constraint purchase_orders_lifecycle_timestamps_check check (
+    (status = 'draft' and submitted_at is null and cancelled_at is null)
+    or (status = 'submitted' and submitted_at is not null and cancelled_at is null)
+    or (status = 'cancelled' and submitted_at is null and cancelled_at is not null)
   ),
   constraint purchase_orders_quote_unique unique (quote_id)
 );
@@ -583,7 +585,8 @@ begin
 
   update public.purchase_orders
   set status = 'submitted',
-      submitted_at = now()
+      submitted_at = now(),
+      cancelled_at = null
   where id = po_uuid
     and status = 'draft'
   returning * into po_record;
@@ -644,7 +647,8 @@ begin
 
   update public.purchase_orders
   set status = 'cancelled',
-      submitted_at = now()
+      submitted_at = null,
+      cancelled_at = now()
   where id = po_uuid
     and status = 'draft'
   returning * into po_record;

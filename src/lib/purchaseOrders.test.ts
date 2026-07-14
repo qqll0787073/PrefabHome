@@ -4,8 +4,10 @@ import {
   canCreatePurchaseOrderForQuote,
   emptyPurchaseOrderDraftValues,
   isPurchaseOrderReadOnly,
+  purchaseOrderCancelledAtLabel,
   purchaseOrderConfirmationText,
   purchaseOrderStatusLabels,
+  purchaseOrderSubmittedAtLabel,
   purchaseOrderSubtotalLabel,
   sortPurchaseOrderItems,
   validatePurchaseOrderDraft,
@@ -61,6 +63,7 @@ const purchaseOrder = {
   product_snapshot: { name: "Snapshot Home" },
   created_by: "buyer-1",
   submitted_at: null,
+  cancelled_at: null,
   created_at: "2026-07-14T12:30:00Z",
   updated_at: "2026-07-14T12:30:00Z",
 } satisfies PurchaseOrderRecord;
@@ -136,5 +139,46 @@ describe("purchase order helpers", () => {
       purchaseOrderConfirmationText(purchaseOrder),
       "Submit PO-2026-000001 for quote version 2 at $125,000.00?"
     );
+  });
+
+  it("renders submitted timestamps only for submitted purchase orders", () => {
+    const submitted = {
+      ...purchaseOrder,
+      status: "submitted",
+      submitted_at: "2026-07-14T13:00:00Z",
+      cancelled_at: null,
+    } satisfies PurchaseOrderRecord;
+
+    assert.match(purchaseOrderSubmittedAtLabel(submitted) ?? "", /^Submitted /);
+    assert.equal(purchaseOrderCancelledAtLabel(submitted), null);
+  });
+
+  it("renders cancelled timestamps only for cancelled purchase orders", () => {
+    const cancelled = {
+      ...purchaseOrder,
+      status: "cancelled",
+      submitted_at: null,
+      cancelled_at: "2026-07-14T13:30:00Z",
+    } satisfies PurchaseOrderRecord;
+
+    assert.match(purchaseOrderCancelledAtLabel(cancelled) ?? "", /^Cancelled /);
+    assert.equal(purchaseOrderSubmittedAtLabel(cancelled), null);
+  });
+
+  it("never renders cancelled purchase orders as submitted", () => {
+    const cancelledWithLegacySubmittedAt = {
+      ...purchaseOrder,
+      status: "cancelled",
+      submitted_at: "2026-07-14T13:00:00Z",
+      cancelled_at: "2026-07-14T13:30:00Z",
+    } satisfies PurchaseOrderRecord;
+
+    assert.equal(purchaseOrderSubmittedAtLabel(cancelledWithLegacySubmittedAt), null);
+    assert.match(purchaseOrderCancelledAtLabel(cancelledWithLegacySubmittedAt) ?? "", /^Cancelled /);
+  });
+
+  it("renders neither lifecycle timestamp for draft purchase orders", () => {
+    assert.equal(purchaseOrderSubmittedAtLabel(purchaseOrder), null);
+    assert.equal(purchaseOrderCancelledAtLabel(purchaseOrder), null);
   });
 });

@@ -1,4 +1,6 @@
 import {
+  purchaseOrderCancelledAtLabel,
+  purchaseOrderSubmittedAtLabel,
   purchaseOrderStatusLabels,
   purchaseOrderSubtotalLabel,
 } from "../../lib/purchaseOrders";
@@ -28,6 +30,8 @@ export function PurchaseOrderSummary({
       : typeof purchaseOrder.buyer_snapshot.email === "string"
         ? purchaseOrder.buyer_snapshot.email
         : "Buyer";
+  const submittedAtLabel = purchaseOrderSubmittedAtLabel(purchaseOrder);
+  const cancelledAtLabel = purchaseOrderCancelledAtLabel(purchaseOrder);
 
   return (
     <article className="review-item">
@@ -47,9 +51,8 @@ export function PurchaseOrderSummary({
         {purchaseOrder.requested_delivery_date && (
           <span>Requested {new Date(purchaseOrder.requested_delivery_date).toLocaleDateString()}</span>
         )}
-        {purchaseOrder.submitted_at && (
-          <span>Submitted {new Date(purchaseOrder.submitted_at).toLocaleString()}</span>
-        )}
+        {submittedAtLabel && <span>{submittedAtLabel}</span>}
+        {cancelledAtLabel && <span>{cancelledAtLabel}</span>}
       </div>
       <div className="quote-line-items">
         {purchaseOrder.items.map((item) => (

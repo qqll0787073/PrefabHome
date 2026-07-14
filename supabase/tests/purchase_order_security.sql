@@ -30,6 +30,7 @@ create table if not exists public.purchase_orders (
   product_snapshot jsonb not null,
   created_by uuid not null references public.profiles(id) on delete restrict,
   submitted_at timestamptz,
+  cancelled_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint purchase_orders_status_check check (status in ('draft', 'submitted', 'cancelled')),
@@ -45,9 +46,10 @@ create table if not exists public.purchase_orders (
   constraint purchase_orders_buyer_note_length_check check (
     buyer_note is null or char_length(buyer_note) <= 2000
   ),
-  constraint purchase_orders_submitted_at_check check (
-    (status = 'draft' and submitted_at is null)
-    or (status in ('submitted', 'cancelled') and submitted_at is not null)
+  constraint purchase_orders_lifecycle_timestamps_check check (
+    (status = 'draft' and submitted_at is null and cancelled_at is null)
+    or (status = 'submitted' and submitted_at is not null and cancelled_at is null)
+    or (status = 'cancelled' and submitted_at is null and cancelled_at is not null)
   ),
   constraint purchase_orders_quote_unique unique (quote_id)
 );
@@ -585,7 +587,8 @@ begin
 
   update public.purchase_orders
   set status = 'submitted',
-      submitted_at = now()
+      submitted_at = now(),
+      cancelled_at = null
   where id = po_uuid
     and status = 'draft'
   returning * into po_record;
@@ -646,7 +649,8 @@ begin
 
   update public.purchase_orders
   set status = 'cancelled',
-      submitted_at = now()
+      submitted_at = null,
+      cancelled_at = now()
   where id = po_uuid
     and status = 'draft'
   returning * into po_record;
@@ -1153,8 +1157,27 @@ begin
   select id into submitted_po_id from public.submit_purchase_order(po_id);
   insert into purchase_order_security_results values (
     'submit own draft allowed',
-    exists (select 1 from public.purchase_orders where id = submitted_po_id and status = 'submitted' and submitted_at is not null),
+    exists (
+      select 1
+      from public.purchase_orders
+      where id = submitted_po_id
+        and status = 'submitted'
+        and submitted_at is not null
+        and cancelled_at is null
+    ),
     'submit checked'
+  );
+
+  insert into purchase_order_security_results values (
+    'submitted PO has submitted_at non-null',
+    exists (select 1 from public.purchase_orders where id = submitted_po_id and submitted_at is not null),
+    'submitted_at checked'
+  );
+
+  insert into purchase_order_security_results values (
+    'submitted PO has cancelled_at null',
+    exists (select 1 from public.purchase_orders where id = submitted_po_id and cancelled_at is null),
+    'cancelled_at checked'
   );
 
   insert into purchase_order_security_results values (
@@ -1201,8 +1224,27 @@ begin
 
   insert into purchase_order_security_results values (
     'cancel own draft allowed',
-    exists (select 1 from public.purchase_orders where id = cancel_po_id and status = 'cancelled' and submitted_at is not null),
+    exists (
+      select 1
+      from public.purchase_orders
+      where id = cancel_po_id
+        and status = 'cancelled'
+        and submitted_at is null
+        and cancelled_at is not null
+    ),
     'cancel checked'
+  );
+
+  insert into purchase_order_security_results values (
+    'cancelled draft has submitted_at null',
+    exists (select 1 from public.purchase_orders where id = cancel_po_id and submitted_at is null),
+    'submitted_at checked'
+  );
+
+  insert into purchase_order_security_results values (
+    'cancelled draft has cancelled_at non-null',
+    exists (select 1 from public.purchase_orders where id = cancel_po_id and cancelled_at is not null),
+    'cancelled_at checked'
   );
 
   insert into purchase_order_security_results values (
@@ -1223,6 +1265,112 @@ begin
     blocked := true;
   end;
   insert into purchase_order_security_results values ('submitted cancel denied', blocked, 'blocked: ' || blocked);
+
+  perform set_config('request.jwt.claim.sub', buyer_id::text, true);
+  blocked := false;
+  begin
+    update public.purchase_orders
+    set submitted_at = '2000-01-01 00:00:00+00'::timestamptz,
+        cancelled_at = '2000-01-02 00:00:00+00'::timestamptz
+    where id = cancel_po_id;
+  exception when others then
+    blocked := true;
+  end;
+  insert into purchase_order_security_results values (
+    'Buyer cannot forge either timestamp',
+    blocked and exists (
+      select 1
+      from public.purchase_orders
+      where id = cancel_po_id
+        and submitted_at is null
+        and cancelled_at is not null
+        and cancelled_at <> '2000-01-02 00:00:00+00'::timestamptz
+    ),
+    'blocked: ' || blocked
+  );
+
+  insert into purchase_order_security_results values (
+    'cancellation timestamp is database-derived',
+    exists (
+      select 1
+      from public.purchase_orders
+      where id = cancel_po_id
+        and status = 'cancelled'
+        and submitted_at is null
+        and cancelled_at is not null
+        and cancelled_at <> '2000-01-02 00:00:00+00'::timestamptz
+    ),
+    'cancelled_at checked'
+  );
+
+  insert into purchase_order_security_results values (
+    'submission timestamp is database-derived',
+    exists (
+      select 1
+      from public.purchase_orders
+      where id = submitted_po_id
+        and status = 'submitted'
+        and submitted_at is not null
+        and submitted_at <> '2000-01-01 00:00:00+00'::timestamptz
+        and cancelled_at is null
+    ),
+    'submitted_at checked'
+  );
+
+  perform set_config('request.jwt.claim.sub', manufacturer_owner_id::text, true);
+  blocked := false;
+  begin
+    update public.purchase_orders
+    set submitted_at = '2000-01-01 00:00:00+00'::timestamptz,
+        cancelled_at = '2000-01-02 00:00:00+00'::timestamptz
+    where id = submitted_po_id;
+  exception when others then
+    blocked := true;
+  end;
+  insert into purchase_order_security_results values (
+    'Manufacturer cannot forge either timestamp',
+    blocked and exists (
+      select 1
+      from public.purchase_orders
+      where id = submitted_po_id
+        and submitted_at is not null
+        and submitted_at <> '2000-01-01 00:00:00+00'::timestamptz
+        and cancelled_at is null
+    ),
+    'blocked: ' || blocked
+  );
+
+  perform set_config('request.jwt.claim.sub', admin_id::text, true);
+  blocked := false;
+  begin
+    update public.purchase_orders
+    set submitted_at = '2000-01-01 00:00:00+00'::timestamptz,
+        cancelled_at = '2000-01-02 00:00:00+00'::timestamptz
+    where id = submitted_po_id;
+  exception when others then
+    blocked := true;
+  end;
+  insert into purchase_order_security_results values (
+    'Admin cannot forge either timestamp',
+    blocked and exists (
+      select 1
+      from public.purchase_orders
+      where id = submitted_po_id
+        and submitted_at is not null
+        and submitted_at <> '2000-01-01 00:00:00+00'::timestamptz
+        and cancelled_at is null
+    ),
+    'blocked: ' || blocked
+  );
+
+  perform set_config('request.jwt.claim.sub', buyer_id::text, true);
+  blocked := false;
+  begin
+    perform public.update_purchase_order_draft(cancel_po_id, 'bad', null, null);
+  exception when others then
+    blocked := true;
+  end;
+  insert into purchase_order_security_results values ('cancelled PO immutable', blocked, 'blocked: ' || blocked);
 
   perform set_config('request.jwt.claim.sub', buyer_id::text, true);
   select count(*) into visible_count from public.purchase_orders where id in (submitted_po_id, cancel_po_id);
