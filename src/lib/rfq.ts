@@ -211,20 +211,6 @@ function toReadableRFQError(error: { code?: string; message?: string }): Error {
   return new Error(error.message ?? "Unable to manage RFQ.");
 }
 
-async function recordRFQEvent(
-  rfqId: string,
-  eventType: string,
-  metadata: Record<string, unknown> = {}
-) {
-  const client = ensureSupabase();
-  const { error } = await client.rpc("record_rfq_event", {
-    rfq_uuid: rfqId,
-    event_name: eventType,
-    event_metadata: metadata,
-  });
-  if (error) throw toReadableRFQError(error);
-}
-
 const rfqDetailSelect =
   "*, product:products(id,name,model_name,category), manufacturer:manufacturers(id,company_name,company_display_name,country), buyer:profiles(id,full_name,email)";
 
@@ -238,7 +224,6 @@ export async function createDraftRFQ(
   const { data, error } = await client.from("rfqs").insert(payload).select("*").single();
 
   if (error) throw toReadableRFQError(error);
-  await recordRFQEvent(data.id, "draft_created");
   return data as RFQRecord;
 }
 
@@ -265,7 +250,6 @@ export async function submitRFQ(rfqId: string, values?: RFQFormValues): Promise<
     .single();
 
   if (error) throw toReadableRFQError(error);
-  await recordRFQEvent(rfqId, "submitted");
   return data as RFQRecord;
 }
 
@@ -387,7 +371,6 @@ export async function cancelDraftRFQ(rfqId: string): Promise<RFQRecord> {
     .single();
 
   if (error) throw toReadableRFQError(error);
-  await recordRFQEvent(rfqId, "cancelled");
   return data as RFQRecord;
 }
 

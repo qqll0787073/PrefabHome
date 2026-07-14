@@ -45,7 +45,7 @@ The snapshot is intentionally immutable after insert so later product catalog ed
 
 `public.rfq_messages` stores participant conversation messages. The client does not decide `sender_role`; the database derives it from the authenticated caller as `buyer`, `manufacturer`, or `admin`.
 
-`public.rfq_events` stores audit/timeline events only. Event rows are ordered by `created_at ASC` in service queries and timeline helpers.
+`public.rfq_events` stores audit/timeline events only. Event rows are ordered by `created_at ASC` in service queries and timeline helpers. Ordinary clients do not have direct `INSERT` access to this table.
 
 ## Lifecycle Matrix
 
@@ -111,6 +111,37 @@ Event types:
 - `cancelled`
 - `expired`
 
+## Trusted Event Generation
+
+RFQ events are database-generated or narrowly RPC-generated so participants cannot forge cross-role audit history.
+
+Automatic lifecycle events:
+
+- `draft_created`: generated after RFQ insert with status `draft`.
+- `submitted`: generated after RFQ insert/update into status `submitted`.
+- `cancelled`: generated after RFQ insert/update into status `cancelled`.
+- `manufacturer_opened`: generated after `submitted -> manufacturer_review`.
+- `accepted`: generated after transition into status `accepted`.
+- `declined`: generated after transition into status `declined`.
+- `expired`: generated after transition into status `expired`; only admin/system paths may create it.
+
+Automatic message events:
+
+- `manufacturer_replied`: generated after an assigned manufacturer posts an RFQ message.
+
+Narrow opened-event RPC:
+
+- `record_rfq_opened(rfq_uuid)` derives `buyer_opened` or `manufacturer_opened` from the authenticated caller.
+- `record_rfq_event()` is retained only for role-checked opened events and rejects lifecycle, reply, quote, and invalid event names.
+
+Event ownership rules:
+
+- Buyers cannot create `manufacturer_opened`, `manufacturer_replied`, or `quote_created`.
+- Manufacturers cannot create `buyer_opened`, `accepted`, or `declined`.
+- `quote_created` is present in the enum for forward compatibility but remains unavailable until the PH-006B trusted Quote Builder flow.
+- `actor_profile_id` is always database-derived.
+- Impersonation-style metadata keys such as `actor_profile_id`, `actor_id`, `sender_profile_id`, and `sender_role` are stripped before trusted event insert.
+
 ## Dashboard Grouping
 
 Buyer grouping:
@@ -145,8 +176,9 @@ Buyer:
 Manufacturer:
 
 - Can read only RFQs assigned to manufacturers they own.
-- Can move assigned `submitted` RFQs to `manufacturer_review`.
+- Can move assigned `submitted` RFQs to `manufacturer_review` through the narrow `rfqs_update_submitted_owned_manufacturer` RLS policy.
 - Cannot modify buyer RFQ fields.
+- Cannot move assigned RFQs to `quoted`, `accepted`, `declined`, `cancelled`, or `expired` in PH-006A.
 - Can read/post messages only on assigned RFQs.
 - Cannot create quotes in PH-006A.
 

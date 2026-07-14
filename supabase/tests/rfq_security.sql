@@ -142,6 +142,12 @@ declare
   draft_delete_rfq_id uuid;
   invalid_transition_rfq_id uuid;
   fractional_rfq_id uuid;
+  manufacturer_transition_rfq_id uuid;
+  other_manufacturer_update_rfq_id uuid;
+  manufacturer_invalid_status_rfq_id uuid;
+  manufacturer_quantity_rfq_id uuid;
+  manufacturer_destination_rfq_id uuid;
+  manufacturer_message_rfq_id uuid;
   blocked boolean;
 begin
   select subject_id into buyer_id from rfq_security_subjects where subject_name = 'buyer';
@@ -182,8 +188,6 @@ begin
 
   insert into public.rfq_messages(rfq_id, sender_profile_id, sender_role, message)
   values (rfq_id, buyer_id, 'admin', 'Initial buyer message.');
-
-  perform public.record_rfq_event(rfq_id, 'draft_created', '{"source":"security_test"}'::jsonb);
 
   insert into public.rfqs (
     buyer_id,
@@ -250,6 +254,30 @@ begin
     'Invalid transition test.'
   )
   returning id into invalid_transition_rfq_id;
+
+  insert into public.rfqs (buyer_id, manufacturer_id, product_id, status, requested_quantity, requested_currency, destination_country, destination_port, buyer_message)
+  values (buyer_id, manufacturer_id, product_id, 'submitted', 1, 'USD', 'United States', 'Oakland', 'Manufacturer transition test.')
+  returning id into manufacturer_transition_rfq_id;
+
+  insert into public.rfqs (buyer_id, manufacturer_id, product_id, status, requested_quantity, requested_currency, destination_country, destination_port, buyer_message)
+  values (buyer_id, manufacturer_id, product_id, 'submitted', 1, 'USD', 'United States', 'Tacoma', 'Other manufacturer update test.')
+  returning id into other_manufacturer_update_rfq_id;
+
+  insert into public.rfqs (buyer_id, manufacturer_id, product_id, status, requested_quantity, requested_currency, destination_country, destination_port, buyer_message)
+  values (buyer_id, manufacturer_id, product_id, 'submitted', 1, 'USD', 'United States', 'Houston', 'Manufacturer invalid status test.')
+  returning id into manufacturer_invalid_status_rfq_id;
+
+  insert into public.rfqs (buyer_id, manufacturer_id, product_id, status, requested_quantity, requested_currency, destination_country, destination_port, buyer_message)
+  values (buyer_id, manufacturer_id, product_id, 'submitted', 1, 'USD', 'United States', 'Newark', 'Manufacturer quantity edit test.')
+  returning id into manufacturer_quantity_rfq_id;
+
+  insert into public.rfqs (buyer_id, manufacturer_id, product_id, status, requested_quantity, requested_currency, destination_country, destination_port, buyer_message)
+  values (buyer_id, manufacturer_id, product_id, 'submitted', 1, 'USD', 'United States', 'Savannah', 'Manufacturer destination edit test.')
+  returning id into manufacturer_destination_rfq_id;
+
+  insert into public.rfqs (buyer_id, manufacturer_id, product_id, status, requested_quantity, requested_currency, destination_country, destination_port, buyer_message)
+  values (buyer_id, manufacturer_id, product_id, 'submitted', 1, 'USD', 'United States', 'Charleston', 'Manufacturer message edit test.')
+  returning id into manufacturer_message_rfq_id;
 
   blocked := false;
   begin
@@ -331,7 +359,13 @@ begin
     ('other_rfq', other_rfq_id),
     ('draft_delete_rfq', draft_delete_rfq_id),
     ('invalid_transition_rfq', invalid_transition_rfq_id),
-    ('fractional_rfq', fractional_rfq_id);
+    ('fractional_rfq', fractional_rfq_id),
+    ('manufacturer_transition_rfq', manufacturer_transition_rfq_id),
+    ('other_manufacturer_update_rfq', other_manufacturer_update_rfq_id),
+    ('manufacturer_invalid_status_rfq', manufacturer_invalid_status_rfq_id),
+    ('manufacturer_quantity_rfq', manufacturer_quantity_rfq_id),
+    ('manufacturer_destination_rfq', manufacturer_destination_rfq_id),
+    ('manufacturer_message_rfq', manufacturer_message_rfq_id);
 end;
 $$;
 
@@ -348,6 +382,12 @@ declare
   draft_delete_rfq_id uuid;
   invalid_transition_rfq_id uuid;
   fractional_rfq_id uuid;
+  manufacturer_transition_rfq_id uuid;
+  other_manufacturer_update_rfq_id uuid;
+  manufacturer_invalid_status_rfq_id uuid;
+  manufacturer_quantity_rfq_id uuid;
+  manufacturer_destination_rfq_id uuid;
+  manufacturer_message_rfq_id uuid;
   visible_count integer;
   blocked boolean;
   stored_text text;
@@ -367,6 +407,12 @@ begin
   select subject_id into draft_delete_rfq_id from rfq_security_subjects where subject_name = 'draft_delete_rfq';
   select subject_id into invalid_transition_rfq_id from rfq_security_subjects where subject_name = 'invalid_transition_rfq';
   select subject_id into fractional_rfq_id from rfq_security_subjects where subject_name = 'fractional_rfq';
+  select subject_id into manufacturer_transition_rfq_id from rfq_security_subjects where subject_name = 'manufacturer_transition_rfq';
+  select subject_id into other_manufacturer_update_rfq_id from rfq_security_subjects where subject_name = 'other_manufacturer_update_rfq';
+  select subject_id into manufacturer_invalid_status_rfq_id from rfq_security_subjects where subject_name = 'manufacturer_invalid_status_rfq';
+  select subject_id into manufacturer_quantity_rfq_id from rfq_security_subjects where subject_name = 'manufacturer_quantity_rfq';
+  select subject_id into manufacturer_destination_rfq_id from rfq_security_subjects where subject_name = 'manufacturer_destination_rfq';
+  select subject_id into manufacturer_message_rfq_id from rfq_security_subjects where subject_name = 'manufacturer_message_rfq';
 
   perform set_config('request.jwt.claim.sub', buyer_id::text, true);
   perform set_config('request.jwt.claim.role', 'authenticated', true);
@@ -466,26 +512,63 @@ begin
   limit 1;
   insert into rfq_security_results values ('buyer message role derived by database', stored_text = 'buyer', 'sender_role: ' || coalesce(stored_text, '<null>'));
 
-  perform public.record_rfq_event(target_rfq_id, 'buyer_opened', '{"order":2}'::jsonb);
-  insert into public.rfq_events(rfq_id, event_type, actor_profile_id, metadata, created_at)
-  values
-    (target_rfq_id, 'submitted', admin_id, '{"order":1}'::jsonb, '2026-01-01 00:00:01+00'),
-    (target_rfq_id, 'cancelled', admin_id, '{"order":3}'::jsonb, '2026-01-01 00:00:03+00');
+  perform public.record_rfq_event(target_rfq_id, 'buyer_opened', jsonb_build_object('actor_profile_id', admin_id::text, 'source', 'security_test'));
+
+  select count(*) into visible_count
+  from public.rfq_events
+  where rfq_id = target_rfq_id
+    and event_type = 'buyer_opened'
+    and actor_profile_id = buyer_id
+    and not (metadata ? 'actor_profile_id');
+  insert into rfq_security_results values ('buyer opened event derives actor and strips impersonation metadata', visible_count = 1, 'events: ' || visible_count);
+
+  blocked := false;
+  begin
+    perform public.record_rfq_event(target_rfq_id, 'manufacturer_opened', '{}'::jsonb);
+  exception when others then
+    blocked := true;
+  end;
+  insert into rfq_security_results values ('buyer cannot forge manufacturer opened event', blocked, 'blocked: ' || blocked);
+
+  blocked := false;
+  begin
+    perform public.record_rfq_event(target_rfq_id, 'manufacturer_replied', '{}'::jsonb);
+  exception when others then
+    blocked := true;
+  end;
+  insert into rfq_security_results values ('buyer cannot forge manufacturer replied event', blocked, 'blocked: ' || blocked);
+
+  blocked := false;
+  begin
+    perform public.record_rfq_event(target_rfq_id, 'quote_created', '{}'::jsonb);
+  exception when others then
+    blocked := true;
+  end;
+  insert into rfq_security_results values ('quote created event deferred until PH-006B', blocked, 'blocked: ' || blocked);
+
+  blocked := false;
+  begin
+    insert into public.rfq_events(rfq_id, event_type, actor_profile_id, metadata)
+    values (target_rfq_id, 'submitted', admin_id, '{}'::jsonb);
+  exception when others then
+    blocked := true;
+  end;
+  insert into rfq_security_results values ('direct event insert denied', blocked, 'blocked: ' || blocked);
+
   select array_agg(event_type order by created_at asc)
   into event_names
   from public.rfq_events
   where rfq_id = target_rfq_id
-    and event_type in ('submitted', 'cancelled');
+    and event_type in ('draft_created', 'submitted', 'cancelled');
   insert into rfq_security_results values (
     'events order ascending by created_at',
-    event_names = array['submitted','cancelled'],
+    event_names = array['draft_created','submitted','cancelled'],
     'events: ' || coalesce(array_to_string(event_names, ','), '<none>')
   );
 
   blocked := false;
   begin
-    insert into public.rfq_events(rfq_id, event_type, actor_profile_id, metadata)
-    values (target_rfq_id, 'rfq_message_posted', buyer_id, '{}'::jsonb);
+    perform public.record_rfq_event(target_rfq_id, 'rfq_message_posted', '{}'::jsonb);
   exception when others then
     blocked := true;
   end;
@@ -497,6 +580,94 @@ begin
 
   select count(*) into visible_count from public.rfqs where id = other_rfq_id;
   insert into rfq_security_results values ('manufacturer other read blocked', visible_count = 0, 'visible: ' || visible_count);
+
+  update public.rfqs
+  set status = 'manufacturer_review'
+  where id = manufacturer_transition_rfq_id;
+  select status into stored_text from public.rfqs where id = manufacturer_transition_rfq_id;
+  insert into rfq_security_results values ('owning manufacturer can move submitted to manufacturer_review', stored_text = 'manufacturer_review', 'status: ' || coalesce(stored_text, '<null>'));
+
+  select count(*) into visible_count
+  from public.rfq_events
+  where rfq_id = manufacturer_transition_rfq_id
+    and event_type = 'manufacturer_opened'
+    and actor_profile_id = manufacturer_owner_id;
+  insert into rfq_security_results values ('manufacturer review transition creates trusted event', visible_count = 1, 'events: ' || visible_count);
+
+  perform public.record_rfq_opened(manufacturer_transition_rfq_id);
+  select count(*) into visible_count
+  from public.rfq_events
+  where rfq_id = manufacturer_transition_rfq_id
+    and event_type = 'manufacturer_opened'
+    and actor_profile_id = manufacturer_owner_id;
+  insert into rfq_security_results values ('manufacturer opened RPC derives actor', visible_count >= 2, 'events: ' || visible_count);
+
+  blocked := false;
+  begin
+    update public.rfqs
+    set status = 'quoted'
+    where id = manufacturer_invalid_status_rfq_id;
+  exception when others then
+    blocked := true;
+  end;
+  insert into rfq_security_results values ('manufacturer cannot move submitted to quoted', blocked, 'blocked: ' || blocked);
+
+  blocked := false;
+  begin
+    update public.rfqs
+    set requested_quantity = 99,
+        status = 'manufacturer_review'
+    where id = manufacturer_quantity_rfq_id;
+  exception when others then
+    blocked := true;
+  end;
+  insert into rfq_security_results values ('manufacturer cannot edit quantity', blocked, 'blocked: ' || blocked);
+
+  blocked := false;
+  begin
+    update public.rfqs
+    set destination_country = 'Mexico',
+        status = 'manufacturer_review'
+    where id = manufacturer_destination_rfq_id;
+  exception when others then
+    blocked := true;
+  end;
+  insert into rfq_security_results values ('manufacturer cannot edit destination', blocked, 'blocked: ' || blocked);
+
+  blocked := false;
+  begin
+    update public.rfqs
+    set buyer_message = 'Tampered by manufacturer.',
+        status = 'manufacturer_review'
+    where id = manufacturer_message_rfq_id;
+  exception when others then
+    blocked := true;
+  end;
+  insert into rfq_security_results values ('manufacturer cannot edit buyer message', blocked, 'blocked: ' || blocked);
+
+  blocked := false;
+  begin
+    perform public.record_rfq_event(target_rfq_id, 'accepted', '{}'::jsonb);
+  exception when others then
+    blocked := true;
+  end;
+  insert into rfq_security_results values ('manufacturer cannot forge accepted event', blocked, 'blocked: ' || blocked);
+
+  blocked := false;
+  begin
+    perform public.record_rfq_event(target_rfq_id, 'declined', '{}'::jsonb);
+  exception when others then
+    blocked := true;
+  end;
+  insert into rfq_security_results values ('manufacturer cannot forge declined event', blocked, 'blocked: ' || blocked);
+
+  blocked := false;
+  begin
+    perform public.record_rfq_event(target_rfq_id, 'buyer_opened', '{}'::jsonb);
+  exception when others then
+    blocked := true;
+  end;
+  insert into rfq_security_results values ('manufacturer cannot forge buyer opened event', blocked, 'blocked: ' || blocked);
 
   insert into public.rfq_messages(rfq_id, sender_profile_id, sender_role, message)
   values (target_rfq_id, manufacturer_owner_id, 'buyer', 'Manufacturer reply.');
@@ -521,6 +692,13 @@ begin
 
   select count(*) into visible_count from public.rfq_events where rfq_id = target_rfq_id;
   insert into rfq_security_results values ('event visibility blocks unrelated manufacturer', visible_count = 0, 'events: ' || visible_count);
+
+  update public.rfqs
+  set status = 'manufacturer_review'
+  where id = other_manufacturer_update_rfq_id;
+  perform set_config('request.jwt.claim.sub', admin_id::text, true);
+  select status into stored_text from public.rfqs where id = other_manufacturer_update_rfq_id;
+  insert into rfq_security_results values ('other manufacturer cannot update assigned RFQ', stored_text = 'submitted', 'status: ' || coalesce(stored_text, '<null>'));
 
   perform set_config('request.jwt.claim.sub', admin_id::text, true);
   select count(*) into visible_count from public.rfqs where id in (target_rfq_id, other_rfq_id);
