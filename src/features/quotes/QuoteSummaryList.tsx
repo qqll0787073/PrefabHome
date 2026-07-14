@@ -1,16 +1,19 @@
+import { getDecisionForQuote, quoteDecisionLabels } from "../../lib/quoteDecisions";
 import { formatMoney, quoteStatusLabels } from "../../lib/quotes";
-import type { RFQQuoteWithItems } from "../../types";
+import type { RFQQuoteDecisionRecord, RFQQuoteWithItems } from "../../types";
 
 interface QuoteSummaryListProps {
   quotes: RFQQuoteWithItems[];
   title?: string;
   readOnlyNote?: string;
+  decisions?: RFQQuoteDecisionRecord[];
 }
 
 export function QuoteSummaryList({
   quotes,
   title = "Quotes",
   readOnlyNote,
+  decisions = [],
 }: QuoteSummaryListProps) {
   if (quotes.length === 0) {
     return (
@@ -55,6 +58,17 @@ export function QuoteSummaryList({
             {quote.submitted_at && (
               <span>Submitted {new Date(quote.submitted_at).toLocaleString()}</span>
             )}
+            {(() => {
+              const decision = getDecisionForQuote(quote.id, decisions);
+              if (!decision) return null;
+              return (
+                <div className="form-notice">
+                  <strong>{quoteDecisionLabels[decision.decision]}</strong>
+                  {decision.reason ? <p>{decision.reason}</p> : null}
+                  <span>{new Date(decision.created_at).toLocaleString()}</span>
+                </div>
+              );
+            })()}
           </article>
         ))}
       </div>

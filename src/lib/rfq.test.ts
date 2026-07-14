@@ -68,6 +68,7 @@ describe("rfq helpers", () => {
       "manufacturer_review",
       "quoted",
       "buyer_review",
+      "revision_requested",
       "accepted",
       "declined",
       "expired",
@@ -84,8 +85,10 @@ describe("rfq helpers", () => {
     assert.equal(canTransitionRFQ("submitted", "manufacturer_review"), true);
     assert.equal(canTransitionRFQ("manufacturer_review", "quoted"), true);
     assert.equal(canTransitionRFQ("quoted", "buyer_review"), true);
+    assert.equal(canTransitionRFQ("quoted", "revision_requested"), true);
     assert.equal(canTransitionRFQ("buyer_review", "accepted"), true);
     assert.equal(canTransitionRFQ("buyer_review", "declined"), true);
+    assert.equal(canTransitionRFQ("revision_requested", "quoted"), true);
     assert.equal(canTransitionRFQ("submitted", "cancelled"), true);
 
     assert.equal(canTransitionRFQ("draft", "accepted"), false);
@@ -137,6 +140,7 @@ describe("rfq helpers", () => {
       "draft",
       "submitted",
       "quoted",
+      "revision_requested",
       "accepted",
       "declined",
       "cancelled",
@@ -144,6 +148,7 @@ describe("rfq helpers", () => {
     assert.equal(buyerRFQDashboardGroup("draft"), "draft");
     assert.equal(buyerRFQDashboardGroup("manufacturer_review"), "waiting_manufacturer");
     assert.equal(buyerRFQDashboardGroup("buyer_review"), "waiting_buyer");
+    assert.equal(buyerRFQDashboardGroup("revision_requested"), "waiting_manufacturer");
     assert.equal(buyerRFQDashboardGroup("declined"), "closed");
   });
 
@@ -151,6 +156,7 @@ describe("rfq helpers", () => {
     assert.equal(manufacturerRFQDashboardGroup("submitted"), "new");
     assert.equal(manufacturerRFQDashboardGroup("manufacturer_review"), "waiting_reply");
     assert.equal(manufacturerRFQDashboardGroup("quoted"), "quoted");
+    assert.equal(manufacturerRFQDashboardGroup("revision_requested"), "quoted");
     assert.equal(manufacturerRFQDashboardGroup("accepted"), "closed");
   });
 

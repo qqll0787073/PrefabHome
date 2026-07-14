@@ -3,8 +3,9 @@ import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
 import { fetchAdminRFQs, rfqSnapshotTitle, rfqStatusLabels } from "../../lib/rfq";
 import { fetchAdminQuotes } from "../../lib/quotes";
+import { fetchQuoteDecisionsForRFQ } from "../../lib/quoteDecisions";
 import type { AuthUser } from "../../lib/auth";
-import type { RFQQuoteWithItems, RFQWithDetails } from "../../types";
+import type { RFQQuoteDecisionRecord, RFQQuoteWithItems, RFQWithDetails } from "../../types";
 import { QuoteSummaryList } from "../quotes/QuoteSummaryList";
 import { RFQConversation } from "./RFQConversation";
 
@@ -16,6 +17,7 @@ interface AdminRFQManagementProps {
 export function AdminRFQManagement({ user, authMode }: AdminRFQManagementProps) {
   const [rfqs, setRFQs] = useState<RFQWithDetails[]>([]);
   const [quotes, setQuotes] = useState<RFQQuoteWithItems[]>([]);
+  const [decisions, setDecisions] = useState<RFQQuoteDecisionRecord[]>([]);
   const [selectedRFQ, setSelectedRFQ] = useState<RFQWithDetails | null>(null);
   const [isLoading, setIsLoading] = useState(authMode === "supabase");
   const [errors, setErrors] = useState<string[]>([]);
@@ -28,6 +30,7 @@ export function AdminRFQManagement({ user, authMode }: AdminRFQManagementProps) 
     if (authMode === "demo") {
       setRFQs([]);
       setQuotes([]);
+      setDecisions([]);
       setIsLoading(false);
       return;
     }
@@ -52,6 +55,17 @@ export function AdminRFQManagement({ user, authMode }: AdminRFQManagementProps) 
       isMounted = false;
     };
   }, [authMode]);
+
+  async function openRFQ(rfq: RFQWithDetails) {
+    setSelectedRFQ(rfq);
+    setDecisions([]);
+    if (authMode === "demo") return;
+    try {
+      setDecisions(await fetchQuoteDecisionsForRFQ(rfq.id));
+    } catch (error) {
+      setErrors([error instanceof Error ? error.message : "Unable to load quote decisions."]);
+    }
+  }
 
   return (
     <section className="workspace-section">
@@ -84,7 +98,7 @@ export function AdminRFQManagement({ user, authMode }: AdminRFQManagementProps) 
                 <span>{new Date(rfq.updated_at).toLocaleDateString()}</span>
               </div>
               <div className="actions">
-                <button type="button" onClick={() => setSelectedRFQ(rfq)}>
+                <button type="button" onClick={() => void openRFQ(rfq)}>
                   View
                 </button>
               </div>
@@ -97,7 +111,8 @@ export function AdminRFQManagement({ user, authMode }: AdminRFQManagementProps) 
         <QuoteSummaryList
           quotes={quotes.filter((quote) => quote.rfq_id === selectedRFQ.id)}
           title="Quote Detail"
-          readOnlyNote="Admin quote management is read-only in PH-006B."
+          readOnlyNote="Admin quote management is read-only."
+          decisions={decisions}
         />
       )}
     </section>
