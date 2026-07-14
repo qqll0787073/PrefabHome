@@ -54,23 +54,31 @@ Manufacturers use `submit_rfq_quote(quote_uuid)` to submit a quote. The RPC runs
 - the caller is authenticated
 - the caller owns the RFQ manufacturer profile
 - the quote is a draft
-- the RFQ is in `manufacturer_review`
+- the RFQ is in `manufacturer_review` for an initial quote or already `quoted` for a revision
 - at least one line item exists
 
-Submission then:
+Initial submission then:
 
 - recalculates subtotal
-- marks previous submitted quotes for the RFQ as `superseded`
 - sets the draft quote to `submitted`
 - sets `submitted_at`
 - moves the RFQ from `manufacturer_review` to `quoted`
 - creates a trusted `quote_created` RFQ event
 
+Revision submission then:
+
+- recalculates subtotal
+- marks the previous submitted/current quote for the RFQ as `superseded`
+- sets the revision draft to `submitted`
+- sets `submitted_at`
+- leaves the RFQ as `quoted`
+- creates a trusted `quote_created` RFQ event for the new version
+
 The UI must not insert `quote_created` events directly.
 
 ## RFQ Integration
 
-PH-006B uses the PH-006A RFQ state machine. Quote submission is the only new trusted path for `manufacturer_review -> quoted`.
+PH-006B uses the PH-006A RFQ state machine. Initial quote submission is the only new trusted path for `manufacturer_review -> quoted`. Revision submission is allowed only while the RFQ is already `quoted` and does not change the RFQ status.
 
 If a manufacturer creates a draft from a newly submitted RFQ, `create_rfq_quote_draft(rfq_uuid)` moves the RFQ to `manufacturer_review` using the existing manufacturer review transition. Submitting the quote then moves it to `quoted`.
 
@@ -109,6 +117,8 @@ Lifecycle operations use RPCs:
 - `deleteQuoteDraft()`
 
 Draft field and line item edits use RLS-protected table writes.
+
+Only the four quote lifecycle RPCs are executable by authenticated clients. Internal trigger helpers, trusted write helpers, subtotal recalculation helpers, and trusted event helpers explicitly revoke `EXECUTE` from `PUBLIC`, `anon`, and `authenticated`.
 
 ## UI Surfaces
 

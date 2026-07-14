@@ -47,6 +47,17 @@ Expected checks:
 - Invalid quantity denied
 - Revision creates version + 1
 - Revision copies line items
+- Revision submission succeeds while RFQ is quoted
+- Previous quote is superseded on revision submission
+- RFQ remains quoted after revision submission
+- New trusted `quote_created` event is created for the revision
+- Only one submitted/current quote remains per RFQ
+- Duplicate revision submit is denied
+- Other Manufacturer quote submission is denied
+- Empty revision submission is denied
+- Direct subtotal helper invocation is denied
+- Direct trusted/internal helper invocation is denied
+- Normal item trigger recalculation still works
 - Duplicate submit blocked
 
 ## Manufacturer Smoke

@@ -74,6 +74,7 @@ declare
   quote_id uuid;
   draft_quote_id uuid;
   revision_quote_id uuid;
+  empty_revision_quote_id uuid;
   item_id uuid;
   visible_count integer := 0;
   stored_text text;
@@ -208,6 +209,12 @@ begin
     'subtotal database-derived',
     exists (select 1 from public.rfq_quotes where id = quote_id and subtotal = 250000),
     'quote subtotal checked'
+  );
+
+  insert into quote_security_results values (
+    'normal item trigger recalculation works',
+    exists (select 1 from public.rfq_quotes where id = quote_id and subtotal = 250000),
+    'subtotal recalculated by trigger'
   );
 
   update public.rfq_quotes
@@ -370,9 +377,109 @@ begin
     'revision item checked'
   );
 
+  select id into revision_quote_id from public.submit_rfq_quote(revision_quote_id);
+
+  insert into quote_security_results values (
+    'revision submission succeeds while rfq quoted',
+    exists (select 1 from public.rfq_quotes where id = revision_quote_id and status = 'submitted'),
+    'revision submitted'
+  );
+
+  insert into quote_security_results values (
+    'previous quote superseded on revision submission',
+    exists (select 1 from public.rfq_quotes where id = quote_id and status = 'superseded'),
+    'previous quote status checked'
+  );
+
+  insert into quote_security_results values (
+    'rfq remains quoted after revision submission',
+    exists (select 1 from public.rfqs where id = rfq_id and status = 'quoted'),
+    'rfq status checked'
+  );
+
+  insert into quote_security_results values (
+    'revision quote_created event created',
+    exists (
+      select 1 from public.rfq_events e
+      where e.rfq_id = (select subject_id from quote_security_subjects where subject_name = 'rfq')
+        and e.event_type = 'quote_created'
+        and e.actor_profile_id = manufacturer_owner_id
+        and e.metadata->>'quote_id' = revision_quote_id::text
+        and e.metadata->>'version' = '2'
+    ),
+    'revision quote_created event checked'
+  );
+
+  insert into quote_security_results values (
+    'only one submitted quote remains per rfq',
+    (
+      select count(*)
+      from public.rfq_quotes q
+      where q.rfq_id = (select subject_id from quote_security_subjects where subject_name = 'rfq')
+        and q.status = 'submitted'
+    ) = 1,
+    'current submitted quote count checked'
+  );
+
+  blocked := false;
+  begin
+    select id into revision_quote_id from public.submit_rfq_quote(revision_quote_id);
+  exception when others then
+    blocked := true;
+  end;
+  insert into quote_security_results values ('duplicate revision submit denied', blocked, 'blocked: ' || blocked);
+
+  select id into empty_revision_quote_id from public.create_rfq_quote_revision(revision_quote_id);
+
+  delete from public.rfq_quote_items item where item.quote_id = empty_revision_quote_id;
+
+  blocked := false;
+  begin
+    select id into empty_revision_quote_id from public.submit_rfq_quote(empty_revision_quote_id);
+  exception when others then
+    blocked := true;
+  end;
+  insert into quote_security_results values ('empty revision submission denied', blocked, 'blocked: ' || blocked);
+
+  perform set_config('request.jwt.claim.sub', other_manufacturer_owner_id::text, true);
+
+  blocked := false;
+  begin
+    select id into empty_revision_quote_id from public.submit_rfq_quote(empty_revision_quote_id);
+  exception when others then
+    blocked := true;
+  end;
+  insert into quote_security_results values ('other manufacturer submit denied', blocked, 'blocked: ' || blocked);
+
+  perform set_config('request.jwt.claim.sub', manufacturer_owner_id::text, true);
+
+  blocked := false;
+  begin
+    perform public.recalculate_rfq_quote_subtotal(revision_quote_id);
+  exception when others then
+    blocked := true;
+  end;
+  insert into quote_security_results values ('direct subtotal helper invocation denied', blocked, 'blocked: ' || blocked);
+
+  blocked := false;
+  begin
+    perform public.insert_trusted_rfq_event(rfq_id, 'quote_created', manufacturer_owner_id, '{}'::jsonb);
+  exception when others then
+    blocked := true;
+  end;
+  insert into quote_security_results values ('direct trusted event helper invocation denied', blocked, 'blocked: ' || blocked);
+
+  blocked := false;
+  begin
+    perform public.is_trusted_quote_write();
+  exception when others then
+    blocked := true;
+  end;
+  insert into quote_security_results values ('direct trusted write helper invocation denied', blocked, 'blocked: ' || blocked);
+
   perform set_config('request.jwt.claim.sub', admin_id::text, true);
-  select count(*) into visible_count from public.rfq_quotes where id in (quote_id, draft_quote_id, revision_quote_id);
-  insert into quote_security_results values ('admin read all quotes', visible_count = 3, 'visible: ' || visible_count);
+  select count(*) into visible_count from public.rfq_quotes where id in (quote_id, draft_quote_id, revision_quote_id, empty_revision_quote_id);
+  insert into quote_security_results values ('admin read all quotes', visible_count = 4, 'visible: ' || visible_count);
 end;
 $$;
 

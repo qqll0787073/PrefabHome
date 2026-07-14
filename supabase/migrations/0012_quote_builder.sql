@@ -75,6 +75,10 @@ create unique index if not exists rfq_quotes_one_draft_per_rfq_idx
   on public.rfq_quotes (rfq_id)
   where status = 'draft';
 
+create unique index if not exists rfq_quotes_one_current_submitted_per_rfq_idx
+  on public.rfq_quotes (rfq_id)
+  where status = 'submitted';
+
 alter table public.rfq_quotes enable row level security;
 alter table public.rfq_quote_items enable row level security;
 
@@ -176,6 +180,8 @@ $$;
 create or replace function public.protect_rfq_quote_write()
 returns trigger
 language plpgsql
+security definer
+set search_path = public
 as $$
 begin
   new.currency := upper(new.currency);
@@ -212,6 +218,8 @@ $$;
 create or replace function public.protect_rfq_quote_item_write()
 returns trigger
 language plpgsql
+security definer
+set search_path = public
 as $$
 declare
   quote_record public.rfq_quotes%rowtype;
@@ -259,6 +267,8 @@ $$;
 create or replace function public.after_rfq_quote_item_change()
 returns trigger
 language plpgsql
+security definer
+set search_path = public
 as $$
 begin
   if tg_op = 'DELETE' then
@@ -610,8 +620,8 @@ begin
     raise exception 'Only draft quotes can be submitted.';
   end if;
 
-  if rfq_record.status <> 'manufacturer_review' then
-    raise exception 'RFQ must be in manufacturer review before quote submission.';
+  if rfq_record.status not in ('manufacturer_review', 'quoted') then
+    raise exception 'RFQ must be in manufacturer review or quoted before quote submission.';
   end if;
 
   select count(*) into item_count
@@ -637,9 +647,11 @@ begin
   where id = quote_uuid
   returning * into quote_record;
 
-  update public.rfqs
-  set status = 'quoted'
-  where id = quote_record.rfq_id;
+  if rfq_record.status = 'manufacturer_review' then
+    update public.rfqs
+    set status = 'quoted'
+    where id = quote_record.rfq_id;
+  end if;
 
   perform public.insert_trusted_rfq_event(
     quote_record.rfq_id,
@@ -830,20 +842,39 @@ create policy "rfq_quotes_select_authorized"
 on public.rfq_quotes
 for select
 to authenticated
-using (public.can_access_rfq_quote(id));
+using (
+  public.is_admin()
+  or public.owns_manufacturer(manufacturer_id)
+  or exists (
+    select 1
+    from public.rfqs r
+    where r.id = rfq_quotes.rfq_id
+      and r.buyer_id = auth.uid()
+      and rfq_quotes.status <> 'draft'
+  )
+);
 
 create policy "rfq_quotes_update_own_draft"
 on public.rfq_quotes
 for update
 to authenticated
-using (public.can_manage_rfq_quote_draft(id))
-with check (public.can_manage_rfq_quote_draft(id));
+using (
+  status = 'draft'
+  and public.owns_manufacturer(manufacturer_id)
+)
+with check (
+  status = 'draft'
+  and public.owns_manufacturer(manufacturer_id)
+);
 
 create policy "rfq_quotes_delete_own_draft"
 on public.rfq_quotes
 for delete
 to authenticated
-using (public.can_manage_rfq_quote_draft(id));
+using (
+  status = 'draft'
+  and public.owns_manufacturer(manufacturer_id)
+);
 
 drop policy if exists "rfq_quote_items_select_authorized" on public.rfq_quote_items;
 drop policy if exists "rfq_quote_items_insert_own_draft" on public.rfq_quote_items;
@@ -854,31 +885,88 @@ create policy "rfq_quote_items_select_authorized"
 on public.rfq_quote_items
 for select
 to authenticated
-using (public.can_access_rfq_quote(quote_id));
+using (
+  exists (
+    select 1
+    from public.rfq_quotes q
+    join public.rfqs r on r.id = q.rfq_id
+    where q.id = rfq_quote_items.quote_id
+      and (
+        public.is_admin()
+        or public.owns_manufacturer(q.manufacturer_id)
+        or (r.buyer_id = auth.uid() and q.status <> 'draft')
+      )
+  )
+);
 
 create policy "rfq_quote_items_insert_own_draft"
 on public.rfq_quote_items
 for insert
 to authenticated
-with check (public.can_manage_rfq_quote_draft(quote_id));
+with check (
+  exists (
+    select 1
+    from public.rfq_quotes q
+    where q.id = rfq_quote_items.quote_id
+      and q.status = 'draft'
+      and public.owns_manufacturer(q.manufacturer_id)
+  )
+);
 
 create policy "rfq_quote_items_update_own_draft"
 on public.rfq_quote_items
 for update
 to authenticated
-using (public.can_manage_rfq_quote_draft(quote_id))
-with check (public.can_manage_rfq_quote_draft(quote_id));
+using (
+  exists (
+    select 1
+    from public.rfq_quotes q
+    where q.id = rfq_quote_items.quote_id
+      and q.status = 'draft'
+      and public.owns_manufacturer(q.manufacturer_id)
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.rfq_quotes q
+    where q.id = rfq_quote_items.quote_id
+      and q.status = 'draft'
+      and public.owns_manufacturer(q.manufacturer_id)
+  )
+);
 
 create policy "rfq_quote_items_delete_own_draft"
 on public.rfq_quote_items
 for delete
 to authenticated
-using (public.can_manage_rfq_quote_draft(quote_id));
+using (
+  exists (
+    select 1
+    from public.rfq_quotes q
+    where q.id = rfq_quote_items.quote_id
+      and q.status = 'draft'
+      and public.owns_manufacturer(q.manufacturer_id)
+  )
+);
 
-revoke all on function public.create_rfq_quote_draft(uuid) from public, anon;
-revoke all on function public.submit_rfq_quote(uuid) from public, anon;
-revoke all on function public.create_rfq_quote_revision(uuid) from public, anon;
-revoke all on function public.delete_rfq_quote_draft(uuid) from public, anon;
+revoke all on function public.is_trusted_quote_write() from public, anon, authenticated;
+revoke all on function public.can_access_rfq_quote(uuid) from public, anon, authenticated;
+revoke all on function public.can_manage_rfq_quote_draft(uuid) from public, anon, authenticated;
+revoke all on function public.set_rfq_quote_updated_at() from public, anon, authenticated;
+revoke all on function public.set_rfq_quote_item_updated_at() from public, anon, authenticated;
+revoke all on function public.recalculate_rfq_quote_subtotal(uuid) from public, anon, authenticated;
+revoke all on function public.protect_rfq_quote_write() from public, anon, authenticated;
+revoke all on function public.protect_rfq_quote_item_write() from public, anon, authenticated;
+revoke all on function public.after_rfq_quote_item_change() from public, anon, authenticated;
+revoke all on function public.protect_rfq_write() from public, anon, authenticated;
+revoke all on function public.insert_trusted_rfq_event(uuid, text, uuid, jsonb) from public, anon, authenticated;
+revoke all on function public.protect_rfq_event_insert() from public, anon, authenticated;
+
+revoke all on function public.create_rfq_quote_draft(uuid) from public, anon, authenticated;
+revoke all on function public.submit_rfq_quote(uuid) from public, anon, authenticated;
+revoke all on function public.create_rfq_quote_revision(uuid) from public, anon, authenticated;
+revoke all on function public.delete_rfq_quote_draft(uuid) from public, anon, authenticated;
 grant execute on function public.create_rfq_quote_draft(uuid) to authenticated;
 grant execute on function public.submit_rfq_quote(uuid) to authenticated;
 grant execute on function public.create_rfq_quote_revision(uuid) to authenticated;
