@@ -9,6 +9,7 @@ import {
   marketplacePageSize,
   marketplaceProductSlug,
 } from "../../lib/marketplace";
+import type { AuthUser } from "../../lib/auth";
 import type {
   MarketplaceFilterOptions,
   MarketplaceFilters,
@@ -27,6 +28,7 @@ import { MarketplaceSearch } from "./MarketplaceSearch";
 import { MarketplaceSort as MarketplaceSortControl } from "./MarketplaceSort";
 
 interface MarketplacePageProps {
+  user: AuthUser | null;
   onViewChange: (view: View) => void;
 }
 
@@ -36,7 +38,7 @@ const emptyOptions: MarketplaceFilterOptions = {
   certifications: [],
 };
 
-export function MarketplacePage({ onViewChange }: MarketplacePageProps) {
+export function MarketplacePage({ user, onViewChange }: MarketplacePageProps) {
   const isDemo = isMarketplaceDemoActive();
   const [filters, setFilters] = useState<MarketplaceFilters>(defaultMarketplaceFilters);
   const [sort, setSort] = useState<MarketplaceSort>("newest");
@@ -122,7 +124,7 @@ export function MarketplacePage({ onViewChange }: MarketplacePageProps) {
   }
 
   if (selectedProduct) {
-    return <MarketplaceProductDetail product={selectedProduct} onBack={closeProduct} />;
+    return <MarketplaceProductDetail product={selectedProduct} user={user} onBack={closeProduct} />;
   }
 
   return (

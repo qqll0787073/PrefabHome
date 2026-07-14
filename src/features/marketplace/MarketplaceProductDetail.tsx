@@ -1,20 +1,24 @@
 import { useEffect, useState } from "react";
 import { fetchMarketplaceProductImages, marketplaceManufacturerCountry } from "../../lib/marketplace";
+import type { AuthUser } from "../../lib/auth";
 import type { MarketplaceProduct, MarketplaceProductImage } from "../../types";
 import { MarketplaceImageGallery } from "./MarketplaceImageGallery";
 import { MarketplaceProductSpecs } from "./MarketplaceProductSpecs";
+import { RFQRequestDialog } from "../rfqs/RFQRequestDialog";
 
 interface MarketplaceProductDetailProps {
   product: MarketplaceProduct;
+  user: AuthUser | null;
   onBack: () => void;
 }
 
-export function MarketplaceProductDetail({ product, onBack }: MarketplaceProductDetailProps) {
+export function MarketplaceProductDetail({ product, user, onBack }: MarketplaceProductDetailProps) {
   const [images, setImages] = useState<MarketplaceProductImage[]>(
     product.primary_image ? [product.primary_image] : []
   );
   const [isLoadingImages, setIsLoadingImages] = useState(false);
   const [imageError, setImageError] = useState("");
+  const [isRFQOpen, setIsRFQOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -71,6 +75,11 @@ export function MarketplaceProductDetail({ product, onBack }: MarketplaceProduct
             <p>{product.manufacturer_display_name}</p>
             {country && <p>{country}</p>}
           </div>
+          <div className="actions">
+            <button type="button" onClick={() => setIsRFQOpen(true)}>
+              Request Quote
+            </button>
+          </div>
           <MarketplaceProductSpecs product={product} />
           <div className="tag-row">
             {[...product.tags, ...product.certifications, ...product.target_markets].map((item) => (
@@ -79,6 +88,9 @@ export function MarketplaceProductDetail({ product, onBack }: MarketplaceProduct
           </div>
         </div>
       </div>
+      {isRFQOpen && (
+        <RFQRequestDialog product={product} user={user} onClose={() => setIsRFQOpen(false)} />
+      )}
     </section>
   );
 }

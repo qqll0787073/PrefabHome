@@ -265,6 +265,80 @@ export interface MarketplaceFilterOptions {
   certifications: string[];
 }
 
+export type RFQStatus =
+  | "draft"
+  | "submitted"
+  | "manufacturer_review"
+  | "quoted"
+  | "buyer_review"
+  | "accepted"
+  | "declined"
+  | "expired"
+  | "cancelled";
+
+export interface RFQRecord {
+  id: string;
+  buyer_id: string;
+  manufacturer_id: string;
+  product_id: string;
+  status: RFQStatus;
+  requested_quantity: number;
+  requested_currency: string;
+  destination_country: string;
+  destination_port: string | null;
+  target_delivery_date: string | null;
+  buyer_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RFQWithDetails extends RFQRecord {
+  product?: Pick<ProductRecord, "id" | "name" | "model_name" | "category"> | null;
+  manufacturer?: Pick<
+    ManufacturerApplication,
+    "id" | "company_name" | "company_display_name" | "country"
+  > | null;
+  buyer?: Pick<ProfileRecord, "id" | "full_name" | "email"> | null;
+}
+
+export interface RFQMessageRecord {
+  id: string;
+  rfq_id: string;
+  sender_profile_id: string;
+  sender_role: Role;
+  message: string;
+  attachment_path: string | null;
+  created_at: string;
+}
+
+export interface RFQEventRecord {
+  id: string;
+  rfq_id: string;
+  event_type: string;
+  actor_profile_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface RFQFormValues {
+  requestedQuantity: string;
+  requestedCurrency: string;
+  destinationCountry: string;
+  destinationPort: string;
+  targetDeliveryDate: string;
+  buyerMessage: string;
+}
+
+export interface ProfileRecord {
+  id: string;
+  role: Role;
+  full_name: string | null;
+  email: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ProductMediaUploadInput {
   productId: string;
   manufacturerId: string;
