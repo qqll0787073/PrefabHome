@@ -129,7 +129,10 @@ describe("quote helpers", () => {
     assert.equal(isQuoteEditableByManufacturer({ status: "submitted" }), false);
     assert.equal(isQuoteVisibleToBuyer({ status: "draft" }), false);
     assert.equal(isQuoteVisibleToBuyer({ status: "submitted" }), true);
+    assert.equal(isQuoteVisibleToBuyer({ status: "revision_requested" }), true);
     assert.equal(quoteStatusLabels.superseded, "Superseded");
+    assert.equal(quoteStatusLabels.accepted, "Accepted");
+    assert.equal(quoteStatusLabels.revision_requested, "Revision requested");
   });
 
   it("requires line items only at submission time", () => {

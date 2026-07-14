@@ -17,6 +17,7 @@ export const rfqStatuses: RFQStatus[] = [
   "manufacturer_review",
   "quoted",
   "buyer_review",
+  "revision_requested",
   "accepted",
   "declined",
   "expired",
@@ -29,6 +30,7 @@ export const rfqStatusLabels: Record<RFQStatus, string> = {
   manufacturer_review: "Manufacturer review",
   quoted: "Quoted",
   buyer_review: "Buyer review",
+  revision_requested: "Revision requested",
   accepted: "Accepted",
   declined: "Declined",
   expired: "Expired",
@@ -39,6 +41,7 @@ export const buyerRFQDashboardStatuses: RFQStatus[] = [
   "draft",
   "submitted",
   "quoted",
+  "revision_requested",
   "accepted",
   "declined",
   "cancelled",
@@ -65,8 +68,9 @@ export const rfqTransitionMatrix: Record<RFQStatus, RFQStatus[]> = {
   draft: ["submitted", "cancelled"],
   submitted: ["manufacturer_review", "cancelled", "expired"],
   manufacturer_review: ["quoted", "expired"],
-  quoted: ["buyer_review", "expired"],
-  buyer_review: ["accepted", "declined", "expired"],
+  quoted: ["buyer_review", "accepted", "declined", "revision_requested", "expired"],
+  buyer_review: ["accepted", "declined", "revision_requested", "expired"],
+  revision_requested: ["quoted", "expired"],
   accepted: [],
   declined: [],
   expired: [],
@@ -165,13 +169,14 @@ export function buyerRFQDashboardGroup(status: RFQStatus): BuyerRFQDashboardGrou
   if (status === "submitted") return "submitted";
   if (status === "manufacturer_review") return "waiting_manufacturer";
   if (status === "quoted" || status === "buyer_review") return "waiting_buyer";
+  if (status === "revision_requested") return "waiting_manufacturer";
   return "closed";
 }
 
 export function manufacturerRFQDashboardGroup(status: RFQStatus): ManufacturerRFQDashboardGroup {
   if (status === "submitted") return "new";
   if (status === "manufacturer_review") return "waiting_reply";
-  if (status === "quoted" || status === "buyer_review") return "quoted";
+  if (status === "quoted" || status === "buyer_review" || status === "revision_requested") return "quoted";
   return "closed";
 }
 

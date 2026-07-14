@@ -14,6 +14,9 @@ export const quoteStatuses: RFQQuoteStatus[] = [
   "draft",
   "submitted",
   "superseded",
+  "accepted",
+  "rejected",
+  "revision_requested",
   "expired",
   "withdrawn",
 ];
@@ -22,6 +25,9 @@ export const quoteStatusLabels: Record<RFQQuoteStatus, string> = {
   draft: "Draft",
   submitted: "Submitted",
   superseded: "Superseded",
+  accepted: "Accepted",
+  rejected: "Rejected",
+  revision_requested: "Revision requested",
   expired: "Expired",
   withdrawn: "Withdrawn",
 };

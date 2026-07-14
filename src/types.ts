@@ -271,6 +271,7 @@ export type RFQStatus =
   | "manufacturer_review"
   | "quoted"
   | "buyer_review"
+  | "revision_requested"
   | "accepted"
   | "declined"
   | "expired"
@@ -347,7 +348,17 @@ export interface RFQFormValues {
   buyerMessage: string;
 }
 
-export type RFQQuoteStatus = "draft" | "submitted" | "superseded" | "expired" | "withdrawn";
+export type RFQQuoteStatus =
+  | "draft"
+  | "submitted"
+  | "superseded"
+  | "accepted"
+  | "rejected"
+  | "revision_requested"
+  | "expired"
+  | "withdrawn";
+
+export type RFQQuoteDecisionValue = "accepted" | "rejected" | "revision_requested";
 
 export type RFQQuoteItemType =
   | "product"
@@ -398,6 +409,16 @@ export interface RFQQuoteItemRecord {
 
 export interface RFQQuoteWithItems extends RFQQuoteRecord {
   items: RFQQuoteItemRecord[];
+}
+
+export interface RFQQuoteDecisionRecord {
+  id: string;
+  rfq_id: string;
+  quote_id: string;
+  buyer_id: string;
+  decision: RFQQuoteDecisionValue;
+  reason: string | null;
+  created_at: string;
 }
 
 export interface RFQQuoteFormValues {

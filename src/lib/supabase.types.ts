@@ -297,6 +297,7 @@ export interface Database {
             | "manufacturer_review"
             | "quoted"
             | "buyer_review"
+            | "revision_requested"
             | "accepted"
             | "declined"
             | "expired"
@@ -323,6 +324,7 @@ export interface Database {
             | "manufacturer_review"
             | "quoted"
             | "buyer_review"
+            | "revision_requested"
             | "accepted"
             | "declined"
             | "expired"
@@ -371,6 +373,9 @@ export interface Database {
             | "manufacturer_replied"
             | "quote_created"
             | "buyer_opened"
+            | "quote_accepted"
+            | "quote_rejected"
+            | "quote_revision_requested"
             | "accepted"
             | "declined"
             | "cancelled"
@@ -389,6 +394,9 @@ export interface Database {
             | "manufacturer_replied"
             | "quote_created"
             | "buyer_opened"
+            | "quote_accepted"
+            | "quote_rejected"
+            | "quote_revision_requested"
             | "accepted"
             | "declined"
             | "cancelled"
@@ -405,7 +413,15 @@ export interface Database {
           rfq_id: string;
           manufacturer_id: string;
           version: number;
-          status: "draft" | "submitted" | "superseded" | "expired" | "withdrawn";
+          status:
+            | "draft"
+            | "submitted"
+            | "superseded"
+            | "accepted"
+            | "rejected"
+            | "revision_requested"
+            | "expired"
+            | "withdrawn";
           currency: string;
           unit_price: number | null;
           quantity: number | null;
@@ -427,7 +443,15 @@ export interface Database {
           rfq_id: string;
           manufacturer_id: string;
           version: number;
-          status?: "draft" | "submitted" | "superseded" | "expired" | "withdrawn";
+          status?:
+            | "draft"
+            | "submitted"
+            | "superseded"
+            | "accepted"
+            | "rejected"
+            | "revision_requested"
+            | "expired"
+            | "withdrawn";
           currency?: string;
           unit_price?: number | null;
           quantity?: number | null;
@@ -445,6 +469,27 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["rfq_quotes"]["Insert"]>;
+      };
+      rfq_quote_decisions: {
+        Row: {
+          id: string;
+          rfq_id: string;
+          quote_id: string;
+          buyer_id: string;
+          decision: "accepted" | "rejected" | "revision_requested";
+          reason: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          rfq_id: string;
+          quote_id: string;
+          buyer_id: string;
+          decision: "accepted" | "rejected" | "revision_requested";
+          reason?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["rfq_quote_decisions"]["Insert"]>;
       };
       rfq_quote_items: {
         Row: {
@@ -727,6 +772,33 @@ export interface Database {
       delete_rfq_quote_draft: {
         Args: {
           quote_uuid: string;
+        };
+        Returns: void;
+      };
+      accept_rfq_quote: {
+        Args: {
+          quote_uuid: string;
+          reason_text?: string | null;
+        };
+        Returns: Database["public"]["Tables"]["rfq_quote_decisions"]["Row"];
+      };
+      reject_rfq_quote: {
+        Args: {
+          quote_uuid: string;
+          reason_text?: string | null;
+        };
+        Returns: Database["public"]["Tables"]["rfq_quote_decisions"]["Row"];
+      };
+      request_rfq_quote_revision: {
+        Args: {
+          quote_uuid: string;
+          reason_text: string;
+        };
+        Returns: Database["public"]["Tables"]["rfq_quote_decisions"]["Row"];
+      };
+      record_rfq_opened: {
+        Args: {
+          rfq_uuid: string;
         };
         Returns: void;
       };

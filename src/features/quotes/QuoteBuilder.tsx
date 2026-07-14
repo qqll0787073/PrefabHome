@@ -2,6 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
 import {
+  canManufacturerCreateRevision,
+  fetchQuoteDecisionsForRFQ,
+  getDecisionForQuote,
+  quoteDecisionLabels,
+} from "../../lib/quoteDecisions";
+import {
   addQuoteItem,
   createQuoteDraft,
   createQuoteRevision,
@@ -27,6 +33,7 @@ import {
 } from "../../lib/quotes";
 import type {
   RFQQuoteFormValues,
+  RFQQuoteDecisionRecord,
   RFQQuoteItemFormValues,
   RFQQuoteItemRecord,
   RFQQuoteWithItems,
@@ -41,6 +48,7 @@ interface QuoteBuilderProps {
 
 export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
   const [quotes, setQuotes] = useState<RFQQuoteWithItems[]>([]);
+  const [decisions, setDecisions] = useState<RFQQuoteDecisionRecord[]>([]);
   const [activeQuote, setActiveQuote] = useState<RFQQuoteWithItems | null>(null);
   const [quoteValues, setQuoteValues] = useState<RFQQuoteFormValues>(() => emptyQuoteForm());
   const [itemValues, setItemValues] = useState<RFQQuoteItemFormValues>(() => emptyQuoteItemForm());
@@ -66,7 +74,9 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
     setErrors([]);
     try {
       const items = await fetchQuotesForRFQ(rfq.id);
+      const decisionItems = await fetchQuoteDecisionsForRFQ(rfq.id);
       setQuotes(items);
+      setDecisions(decisionItems);
       const selected =
         items.find((quote) => quote.id === nextActiveId) ??
         items.find((quote) => quote.status === "draft") ??
@@ -85,6 +95,7 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
 
   useEffect(() => {
     setQuotes([]);
+    setDecisions([]);
     setActiveQuote(null);
     setMessage("");
     if (rfq) void loadQuotes();
@@ -231,8 +242,11 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
     );
   }
 
-  const canCreateDraft = ["submitted", "manufacturer_review", "quoted"].includes(rfq.status);
+  const canCreateDraft = ["submitted", "manufacturer_review"].includes(rfq.status);
   const isDraftEditable = activeQuote ? isQuoteEditableByManufacturer(activeQuote) : false;
+  const activeDecision = activeQuote ? getDecisionForQuote(activeQuote.id, decisions) : null;
+  const canCreateRevision =
+    activeQuote ? canManufacturerCreateRevision(activeQuote, rfq.status, decisions) : false;
 
   return (
     <section className="panel quote-builder">
@@ -256,6 +270,13 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
           <p className="eyebrow">
             Version {activeQuote.version} - {quoteStatusLabels[activeQuote.status]}
           </p>
+          {activeDecision && (
+            <div className="form-notice">
+              <strong>{quoteDecisionLabels[activeDecision.decision]}</strong>
+              {activeDecision.reason && <p>{activeDecision.reason}</p>}
+              <span>{new Date(activeDecision.created_at).toLocaleString()}</span>
+            </div>
+          )}
           <div className="form-grid">
             <label>
               Currency
@@ -464,10 +485,12 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
                   Delete Draft
                 </button>
               </>
-            ) : (
+            ) : canCreateRevision ? (
               <button type="button" disabled={isSaving} onClick={() => void reviseQuote(activeQuote)}>
                 Create Revision
               </button>
+            ) : (
+              <p className="form-notice">Quote versions are read-only unless the buyer requests a revision.</p>
             )}
           </div>
         </section>
@@ -475,7 +498,8 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
       <QuoteSummaryList
         quotes={submittedQuotes}
         title="Submitted Quote Versions"
-        readOnlyNote="Submitted quote versions are read-only in PH-006B."
+        readOnlyNote="Submitted quote versions preserve the negotiation history."
+        decisions={decisions}
       />
     </section>
   );

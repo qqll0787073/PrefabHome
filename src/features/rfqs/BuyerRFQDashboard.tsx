@@ -4,13 +4,21 @@ import { LoadingState } from "../../components/common/LoadingState";
 import {
   buyerRFQDashboardStatuses,
   deleteDraftRFQ,
+  fetchRFQ,
   fetchBuyerRFQs,
   rfqSnapshotTitle,
   rfqStatusLabels,
 } from "../../lib/rfq";
 import { fetchBuyerQuotes } from "../../lib/quotes";
+import { fetchQuoteDecisionsForRFQ, markQuoteOpened } from "../../lib/quoteDecisions";
 import type { AuthUser } from "../../lib/auth";
-import type { RFQQuoteWithItems, RFQStatus, RFQWithDetails } from "../../types";
+import type {
+  RFQQuoteDecisionRecord,
+  RFQQuoteWithItems,
+  RFQStatus,
+  RFQWithDetails,
+} from "../../types";
+import { BuyerQuoteDecisionPanel } from "../quotes/BuyerQuoteDecisionPanel";
 import { QuoteSummaryList } from "../quotes/QuoteSummaryList";
 import { RFQConversation } from "./RFQConversation";
 
@@ -22,6 +30,7 @@ interface BuyerRFQDashboardProps {
 export function BuyerRFQDashboard({ user, authMode }: BuyerRFQDashboardProps) {
   const [rfqs, setRFQs] = useState<RFQWithDetails[]>([]);
   const [quotes, setQuotes] = useState<RFQQuoteWithItems[]>([]);
+  const [decisions, setDecisions] = useState<RFQQuoteDecisionRecord[]>([]);
   const [selectedRFQ, setSelectedRFQ] = useState<RFQWithDetails | null>(null);
   const [statusFilter, setStatusFilter] = useState<RFQStatus | "all">("all");
   const [isLoading, setIsLoading] = useState(authMode === "supabase");
@@ -34,6 +43,7 @@ export function BuyerRFQDashboard({ user, authMode }: BuyerRFQDashboardProps) {
       if (authMode === "demo") {
         setRFQs([]);
         setQuotes([]);
+        setDecisions([]);
       } else {
         const [nextRFQs, nextQuotes] = await Promise.all([fetchBuyerRFQs(user.id), fetchBuyerQuotes()]);
         setRFQs(nextRFQs);
@@ -59,6 +69,43 @@ export function BuyerRFQDashboard({ user, authMode }: BuyerRFQDashboardProps) {
     () => (selectedRFQ ? quotes.filter((quote) => quote.rfq_id === selectedRFQ.id) : []),
     [quotes, selectedRFQ]
   );
+
+  async function openRFQ(rfq: RFQWithDetails) {
+    setErrors([]);
+    setSelectedRFQ(rfq);
+    setDecisions([]);
+    try {
+      const rfqQuotes = quotes.filter((quote) => quote.rfq_id === rfq.id);
+      if (authMode !== "demo" && rfq.status === "quoted" && rfqQuotes.some((quote) => quote.status === "submitted")) {
+        await markQuoteOpened(rfq.id);
+        const refreshed = await fetchRFQ(rfq.id);
+        if (refreshed) {
+          setSelectedRFQ(refreshed);
+          setRFQs((items) => items.map((item) => (item.id === refreshed.id ? refreshed : item)));
+        }
+      }
+      if (authMode !== "demo") {
+        setDecisions(await fetchQuoteDecisionsForRFQ(rfq.id));
+      }
+    } catch (error) {
+      setErrors([error instanceof Error ? error.message : "Unable to open RFQ."]);
+    }
+  }
+
+  async function refreshSelectedRFQ() {
+    if (!selectedRFQ) return;
+    const [nextRFQ, nextQuotes, nextDecisions] = await Promise.all([
+      fetchRFQ(selectedRFQ.id),
+      fetchBuyerQuotes(),
+      fetchQuoteDecisionsForRFQ(selectedRFQ.id),
+    ]);
+    if (nextRFQ) {
+      setSelectedRFQ(nextRFQ);
+      setRFQs((items) => items.map((item) => (item.id === nextRFQ.id ? nextRFQ : item)));
+    }
+    setQuotes(nextQuotes);
+    setDecisions(nextDecisions);
+  }
 
   async function deleteDraft(rfq: RFQWithDetails) {
     setErrors([]);
@@ -116,7 +163,7 @@ export function BuyerRFQDashboard({ user, authMode }: BuyerRFQDashboardProps) {
                 <span>{new Date(rfq.created_at).toLocaleDateString()}</span>
               </div>
               <div className="actions">
-                <button type="button" onClick={() => setSelectedRFQ(rfq)}>
+                <button type="button" onClick={() => void openRFQ(rfq)}>
                   Open RFQ
                 </button>
                 {rfq.status === "draft" && (
@@ -131,11 +178,19 @@ export function BuyerRFQDashboard({ user, authMode }: BuyerRFQDashboardProps) {
       </section>
       <RFQConversation rfq={selectedRFQ} user={user} onMessagePosted={loadRFQs} />
       {selectedRFQ && (
-        <QuoteSummaryList
-          quotes={selectedQuotes}
-          title="Quote Versions"
-          readOnlyNote="Buyer quote review actions are deferred to PH-006C."
-        />
+        <>
+          <BuyerQuoteDecisionPanel
+            quotes={selectedQuotes}
+            decisions={decisions}
+            onDecisionSaved={() => void refreshSelectedRFQ()}
+          />
+          <QuoteSummaryList
+            quotes={selectedQuotes}
+            title="Quote Versions"
+            readOnlyNote="Draft quote versions are hidden from buyers."
+            decisions={decisions}
+          />
+        </>
       )}
     </section>
   );
