@@ -347,6 +347,79 @@ export interface RFQFormValues {
   buyerMessage: string;
 }
 
+export type RFQQuoteStatus = "draft" | "submitted" | "superseded" | "expired" | "withdrawn";
+
+export type RFQQuoteItemType =
+  | "product"
+  | "customization"
+  | "packaging"
+  | "freight"
+  | "insurance"
+  | "tax"
+  | "discount"
+  | "other";
+
+export interface RFQQuoteRecord {
+  id: string;
+  rfq_id: string;
+  manufacturer_id: string;
+  version: number;
+  status: RFQQuoteStatus;
+  currency: string;
+  unit_price: number | null;
+  quantity: number | null;
+  subtotal: number;
+  incoterm: RFQIncoterm | null;
+  origin_port: string | null;
+  destination_port: string | null;
+  production_lead_days: number | null;
+  shipping_lead_days: number | null;
+  valid_until: string | null;
+  manufacturer_note: string | null;
+  created_by: string;
+  submitted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RFQQuoteItemRecord {
+  id: string;
+  quote_id: string;
+  line_order: number;
+  item_type: RFQQuoteItemType;
+  description: string;
+  quantity: number;
+  unit: string | null;
+  unit_price: number;
+  amount: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RFQQuoteWithItems extends RFQQuoteRecord {
+  items: RFQQuoteItemRecord[];
+}
+
+export interface RFQQuoteFormValues {
+  currency: string;
+  incoterm: string;
+  originPort: string;
+  destinationPort: string;
+  productionLeadDays: string;
+  shippingLeadDays: string;
+  validUntil: string;
+  manufacturerNote: string;
+}
+
+export interface RFQQuoteItemFormValues {
+  lineOrder: string;
+  itemType: RFQQuoteItemType;
+  description: string;
+  quantity: string;
+  unit: string;
+  unitPrice: string;
+}
+
 export interface ProfileRecord {
   id: string;
   role: Role;

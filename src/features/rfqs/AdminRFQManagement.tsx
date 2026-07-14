@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
 import { fetchAdminRFQs, rfqSnapshotTitle, rfqStatusLabels } from "../../lib/rfq";
+import { fetchAdminQuotes } from "../../lib/quotes";
 import type { AuthUser } from "../../lib/auth";
-import type { RFQWithDetails } from "../../types";
+import type { RFQQuoteWithItems, RFQWithDetails } from "../../types";
+import { QuoteSummaryList } from "../quotes/QuoteSummaryList";
 import { RFQConversation } from "./RFQConversation";
 
 interface AdminRFQManagementProps {
@@ -13,6 +15,7 @@ interface AdminRFQManagementProps {
 
 export function AdminRFQManagement({ user, authMode }: AdminRFQManagementProps) {
   const [rfqs, setRFQs] = useState<RFQWithDetails[]>([]);
+  const [quotes, setQuotes] = useState<RFQQuoteWithItems[]>([]);
   const [selectedRFQ, setSelectedRFQ] = useState<RFQWithDetails | null>(null);
   const [isLoading, setIsLoading] = useState(authMode === "supabase");
   const [errors, setErrors] = useState<string[]>([]);
@@ -24,13 +27,17 @@ export function AdminRFQManagement({ user, authMode }: AdminRFQManagementProps) 
 
     if (authMode === "demo") {
       setRFQs([]);
+      setQuotes([]);
       setIsLoading(false);
       return;
     }
 
-    fetchAdminRFQs()
-      .then((items) => {
-        if (isMounted) setRFQs(items);
+    Promise.all([fetchAdminRFQs(), fetchAdminQuotes()])
+      .then(([items, quoteItems]) => {
+        if (isMounted) {
+          setRFQs(items);
+          setQuotes(quoteItems);
+        }
       })
       .catch((error) => {
         if (isMounted) {
@@ -67,6 +74,9 @@ export function AdminRFQManagement({ user, authMode }: AdminRFQManagementProps) 
                     rfq.manufacturer?.company_name ||
                     "Manufacturer"}
                 </p>
+                {quotes.some((quote) => quote.rfq_id === rfq.id) && (
+                  <p className="form-notice">Quote activity</p>
+                )}
               </div>
               <div className="meta-row">
                 <span>{rfq.requested_quantity} units</span>
@@ -83,6 +93,13 @@ export function AdminRFQManagement({ user, authMode }: AdminRFQManagementProps) 
         </div>
       </section>
       <RFQConversation rfq={selectedRFQ} user={user} readOnly />
+      {selectedRFQ && (
+        <QuoteSummaryList
+          quotes={quotes.filter((quote) => quote.rfq_id === selectedRFQ.id)}
+          title="Quote Detail"
+          readOnlyNote="Admin quote management is read-only in PH-006B."
+        />
+      )}
     </section>
   );
 }

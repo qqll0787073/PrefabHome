@@ -399,6 +399,97 @@ export interface Database {
         };
         Update: Partial<Database["public"]["Tables"]["rfq_events"]["Insert"]>;
       };
+      rfq_quotes: {
+        Row: {
+          id: string;
+          rfq_id: string;
+          manufacturer_id: string;
+          version: number;
+          status: "draft" | "submitted" | "superseded" | "expired" | "withdrawn";
+          currency: string;
+          unit_price: number | null;
+          quantity: number | null;
+          subtotal: number;
+          incoterm: "FOB" | "CIF" | "EXW" | "DDP" | "DAP" | null;
+          origin_port: string | null;
+          destination_port: string | null;
+          production_lead_days: number | null;
+          shipping_lead_days: number | null;
+          valid_until: string | null;
+          manufacturer_note: string | null;
+          created_by: string;
+          submitted_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          rfq_id: string;
+          manufacturer_id: string;
+          version: number;
+          status?: "draft" | "submitted" | "superseded" | "expired" | "withdrawn";
+          currency?: string;
+          unit_price?: number | null;
+          quantity?: number | null;
+          subtotal?: number;
+          incoterm?: "FOB" | "CIF" | "EXW" | "DDP" | "DAP" | null;
+          origin_port?: string | null;
+          destination_port?: string | null;
+          production_lead_days?: number | null;
+          shipping_lead_days?: number | null;
+          valid_until?: string | null;
+          manufacturer_note?: string | null;
+          created_by: string;
+          submitted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["rfq_quotes"]["Insert"]>;
+      };
+      rfq_quote_items: {
+        Row: {
+          id: string;
+          quote_id: string;
+          line_order: number;
+          item_type:
+            | "product"
+            | "customization"
+            | "packaging"
+            | "freight"
+            | "insurance"
+            | "tax"
+            | "discount"
+            | "other";
+          description: string;
+          quantity: number;
+          unit: string | null;
+          unit_price: number;
+          amount: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          quote_id: string;
+          line_order: number;
+          item_type:
+            | "product"
+            | "customization"
+            | "packaging"
+            | "freight"
+            | "insurance"
+            | "tax"
+            | "discount"
+            | "other";
+          description: string;
+          quantity: number;
+          unit?: string | null;
+          unit_price: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["rfq_quote_items"]["Insert"]>;
+      };
       quote_requests: {
         Row: {
           id: string;
@@ -614,6 +705,30 @@ export interface Database {
           media_uuid: string;
         };
         Returns: Database["public"]["Tables"]["product_media"]["Row"];
+      };
+      create_rfq_quote_draft: {
+        Args: {
+          rfq_uuid: string;
+        };
+        Returns: Database["public"]["Tables"]["rfq_quotes"]["Row"];
+      };
+      submit_rfq_quote: {
+        Args: {
+          quote_uuid: string;
+        };
+        Returns: Database["public"]["Tables"]["rfq_quotes"]["Row"];
+      };
+      create_rfq_quote_revision: {
+        Args: {
+          quote_uuid: string;
+        };
+        Returns: Database["public"]["Tables"]["rfq_quotes"]["Row"];
+      };
+      delete_rfq_quote_draft: {
+        Args: {
+          quote_uuid: string;
+        };
+        Returns: void;
       };
     };
     Enums: Record<string, never>;
