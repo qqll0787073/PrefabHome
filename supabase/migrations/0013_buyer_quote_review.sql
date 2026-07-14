@@ -548,6 +548,86 @@ begin
 end;
 $$;
 
+create or replace function public.record_rfq_quote_opened(quote_uuid uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  quote_record public.rfq_quotes%rowtype;
+  rfq_record public.rfqs%rowtype;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication is required.';
+  end if;
+
+  select * into quote_record
+  from public.rfq_quotes
+  where id = quote_uuid
+  for update;
+
+  if not found then
+    raise exception 'Quote does not exist.';
+  end if;
+
+  select * into rfq_record
+  from public.rfqs
+  where id = quote_record.rfq_id
+  for update;
+
+  if not found then
+    raise exception 'RFQ does not exist.';
+  end if;
+
+  if rfq_record.buyer_id is distinct from auth.uid() then
+    raise exception 'Only the RFQ buyer can open this quote.';
+  end if;
+
+  if quote_record.status <> 'submitted' then
+    raise exception 'Only the current submitted quote can be opened for buyer review.';
+  end if;
+
+  if exists (
+    select 1
+    from public.rfq_quotes q
+    where q.rfq_id = quote_record.rfq_id
+      and q.id <> quote_record.id
+      and q.status = 'submitted'
+  ) then
+    raise exception 'Only the current submitted quote can be opened for buyer review.';
+  end if;
+
+  if rfq_record.status not in ('quoted', 'buyer_review') then
+    raise exception 'RFQ must be quoted or in buyer review before quote opening.';
+  end if;
+
+  if rfq_record.status = 'quoted' then
+    perform set_config('app.rfq_opened_trusted_write', 'on', true);
+    update public.rfqs
+    set status = 'buyer_review'
+    where id = quote_record.rfq_id;
+    perform set_config('app.rfq_opened_trusted_write', '', true);
+  end if;
+
+  if not exists (
+    select 1
+    from public.rfq_events e
+    where e.rfq_id = quote_record.rfq_id
+      and e.event_type = 'buyer_opened'
+      and e.actor_profile_id = auth.uid()
+      and e.metadata->>'quote_id' = quote_record.id::text
+  ) then
+    perform public.insert_trusted_rfq_event(
+      quote_record.rfq_id,
+      'buyer_opened',
+      auth.uid(),
+      jsonb_build_object('quote_id', quote_record.id, 'version', quote_record.version)
+    );
+  end if;
+end;
+$$;
+
 create or replace function public.decide_rfq_quote(
   quote_uuid uuid,
   decision_name text,
@@ -1052,6 +1132,8 @@ revoke all on function public.insert_trusted_rfq_event(uuid, text, uuid, jsonb) 
 revoke all on function public.protect_rfq_event_insert() from public, anon, authenticated;
 revoke all on function public.record_rfq_opened(uuid) from public, anon;
 grant execute on function public.record_rfq_opened(uuid) to authenticated;
+revoke all on function public.record_rfq_quote_opened(uuid) from public, anon, authenticated;
+grant execute on function public.record_rfq_quote_opened(uuid) to authenticated;
 
 revoke all on function public.create_rfq_quote_draft(uuid) from public, anon, authenticated;
 revoke all on function public.submit_rfq_quote(uuid) from public, anon, authenticated;

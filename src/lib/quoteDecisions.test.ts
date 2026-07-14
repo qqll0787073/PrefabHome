@@ -6,6 +6,7 @@ import {
   getCurrentQuoteDecision,
   getCurrentSubmittedQuote,
   getDecisionForQuote,
+  getLatestQuoteDecision,
   quoteDecisionLabels,
   sortQuoteDecisions,
   validateDecisionReason,
@@ -60,6 +61,23 @@ const revisionDecision = {
   created_at: "2026-07-14T11:00:00Z",
 } satisfies RFQQuoteDecisionRecord;
 
+function decisionFor(
+  quoteId: string,
+  decision: RFQQuoteDecisionRecord["decision"],
+  createdAt: string,
+  reason: string | null = null
+): RFQQuoteDecisionRecord {
+  return {
+    id: `decision-${quoteId}-${decision}`,
+    rfq_id: "rfq-1",
+    quote_id: quoteId,
+    buyer_id: "buyer-1",
+    decision,
+    reason,
+    created_at: createdAt,
+  };
+}
+
 describe("quote decision helpers", () => {
   it("shows buyer decision buttons only for the current submitted quote", () => {
     const quotes = [
@@ -80,6 +98,59 @@ describe("quote decision helpers", () => {
     assert.deepEqual(getBuyerDecisionActions(baseQuote, [baseQuote], [revisionDecision]), []);
     assert.equal(getCurrentQuoteDecision([baseQuote], [revisionDecision])?.decision, "revision_requested");
     assert.equal(getDecisionForQuote("quote-1", [revisionDecision])?.reason, revisionDecision.reason);
+  });
+
+  it("keeps accepted visible after the submitted quote disappears", () => {
+    const acceptedQuote = { ...baseQuote, status: "accepted" } satisfies RFQQuoteWithItems;
+    const acceptedDecision = decisionFor("quote-1", "accepted", "2026-07-14T11:00:00Z");
+    const latest = getLatestQuoteDecision([acceptedQuote], [acceptedDecision]);
+
+    assert.equal(latest?.quote.version, 1);
+    assert.equal(latest?.decision.decision, "accepted");
+    assert.deepEqual(getBuyerDecisionActions(acceptedQuote, [acceptedQuote], [acceptedDecision]), []);
+  });
+
+  it("keeps rejected visible after the submitted quote disappears", () => {
+    const rejectedQuote = { ...baseQuote, status: "rejected" } satisfies RFQQuoteWithItems;
+    const rejectedDecision = decisionFor("quote-1", "rejected", "2026-07-14T11:00:00Z", "Too high.");
+    const latest = getLatestQuoteDecision([rejectedQuote], [rejectedDecision]);
+
+    assert.equal(latest?.decision.decision, "rejected");
+    assert.equal(latest?.decision.reason, "Too high.");
+    assert.deepEqual(getBuyerDecisionActions(rejectedQuote, [rejectedQuote], [rejectedDecision]), []);
+  });
+
+  it("keeps revision requested and reason visible after submitted disappears", () => {
+    const requestedQuote = { ...baseQuote, status: "revision_requested" } satisfies RFQQuoteWithItems;
+    const latest = getLatestQuoteDecision([requestedQuote], [revisionDecision]);
+
+    assert.equal(latest?.decision.decision, "revision_requested");
+    assert.equal(latest?.decision.reason, "Please adjust the shipping lead time.");
+    assert.deepEqual(getBuyerDecisionActions(requestedQuote, [requestedQuote], [revisionDecision]), []);
+  });
+
+  it("uses the newest quote decision over older history", () => {
+    const oldQuote = { ...baseQuote, id: "quote-1", version: 1, status: "revision_requested" } satisfies RFQQuoteWithItems;
+    const newQuote = { ...baseQuote, id: "quote-2", version: 2, status: "accepted" } satisfies RFQQuoteWithItems;
+    const oldDecision = decisionFor("quote-1", "revision_requested", "2026-07-14T11:00:00Z", "Revise.");
+    const newDecision = decisionFor("quote-2", "accepted", "2026-07-14T12:00:00Z");
+
+    const latest = getLatestQuoteDecision([oldQuote, newQuote], [newDecision, oldDecision]);
+
+    assert.equal(latest?.quote.id, "quote-2");
+    assert.equal(latest?.decision.decision, "accepted");
+  });
+
+  it("does not let old decisions hide actions for a newer current submitted quote", () => {
+    const oldQuote = { ...baseQuote, id: "quote-1", version: 1, status: "revision_requested" } satisfies RFQQuoteWithItems;
+    const newQuote = { ...baseQuote, id: "quote-2", version: 2, status: "submitted" } satisfies RFQQuoteWithItems;
+    const oldDecision = decisionFor("quote-1", "revision_requested", "2026-07-14T11:00:00Z", "Revise.");
+
+    assert.deepEqual(getBuyerDecisionActions(newQuote, [oldQuote, newQuote], [oldDecision]), [
+      "accepted",
+      "rejected",
+      "revision_requested",
+    ]);
   });
 
   it("validates decision form reasons and labels decisions", () => {

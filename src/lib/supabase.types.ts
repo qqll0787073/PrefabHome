@@ -802,6 +802,12 @@ export interface Database {
         };
         Returns: void;
       };
+      record_rfq_quote_opened: {
+        Args: {
+          quote_uuid: string;
+        };
+        Returns: void;
+      };
     };
     Enums: Record<string, never>;
   };

@@ -550,6 +550,86 @@ begin
 end;
 $$;
 
+create or replace function public.record_rfq_quote_opened(quote_uuid uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  quote_record public.rfq_quotes%rowtype;
+  rfq_record public.rfqs%rowtype;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication is required.';
+  end if;
+
+  select * into quote_record
+  from public.rfq_quotes
+  where id = quote_uuid
+  for update;
+
+  if not found then
+    raise exception 'Quote does not exist.';
+  end if;
+
+  select * into rfq_record
+  from public.rfqs
+  where id = quote_record.rfq_id
+  for update;
+
+  if not found then
+    raise exception 'RFQ does not exist.';
+  end if;
+
+  if rfq_record.buyer_id is distinct from auth.uid() then
+    raise exception 'Only the RFQ buyer can open this quote.';
+  end if;
+
+  if quote_record.status <> 'submitted' then
+    raise exception 'Only the current submitted quote can be opened for buyer review.';
+  end if;
+
+  if exists (
+    select 1
+    from public.rfq_quotes q
+    where q.rfq_id = quote_record.rfq_id
+      and q.id <> quote_record.id
+      and q.status = 'submitted'
+  ) then
+    raise exception 'Only the current submitted quote can be opened for buyer review.';
+  end if;
+
+  if rfq_record.status not in ('quoted', 'buyer_review') then
+    raise exception 'RFQ must be quoted or in buyer review before quote opening.';
+  end if;
+
+  if rfq_record.status = 'quoted' then
+    perform set_config('app.rfq_opened_trusted_write', 'on', true);
+    update public.rfqs
+    set status = 'buyer_review'
+    where id = quote_record.rfq_id;
+    perform set_config('app.rfq_opened_trusted_write', '', true);
+  end if;
+
+  if not exists (
+    select 1
+    from public.rfq_events e
+    where e.rfq_id = quote_record.rfq_id
+      and e.event_type = 'buyer_opened'
+      and e.actor_profile_id = auth.uid()
+      and e.metadata->>'quote_id' = quote_record.id::text
+  ) then
+    perform public.insert_trusted_rfq_event(
+      quote_record.rfq_id,
+      'buyer_opened',
+      auth.uid(),
+      jsonb_build_object('quote_id', quote_record.id, 'version', quote_record.version)
+    );
+  end if;
+end;
+$$;
+
 create or replace function public.decide_rfq_quote(
   quote_uuid uuid,
   decision_name text,
@@ -1054,6 +1134,8 @@ revoke all on function public.insert_trusted_rfq_event(uuid, text, uuid, jsonb) 
 revoke all on function public.protect_rfq_event_insert() from public, anon, authenticated;
 revoke all on function public.record_rfq_opened(uuid) from public, anon;
 grant execute on function public.record_rfq_opened(uuid) to authenticated;
+revoke all on function public.record_rfq_quote_opened(uuid) from public, anon, authenticated;
+grant execute on function public.record_rfq_quote_opened(uuid) to authenticated;
 
 revoke all on function public.create_rfq_quote_draft(uuid) from public, anon, authenticated;
 revoke all on function public.submit_rfq_quote(uuid) from public, anon, authenticated;
@@ -1243,16 +1325,33 @@ begin
 
   perform set_config('request.jwt.claim.sub', buyer_id::text, true);
 
-  perform public.record_rfq_opened(accept_rfq_id);
-  perform public.record_rfq_opened(accept_rfq_id);
+  perform public.record_rfq_quote_opened(accept_quote_id);
+  perform public.record_rfq_quote_opened(accept_quote_id);
   insert into quote_decision_security_results values (
-    'buyer opened moves quoted to buyer_review and deduplicates event',
+    'first open of Quote v1 creates buyer_opened and repeated open deduplicates',
     exists (select 1 from public.rfqs where id = accept_rfq_id and status = 'buyer_review')
       and (
         select count(*) from public.rfq_events
-        where rfq_id = accept_rfq_id and event_type = 'buyer_opened' and actor_profile_id = buyer_id
+        where rfq_id = accept_rfq_id
+          and event_type = 'buyer_opened'
+          and actor_profile_id = buyer_id
+          and metadata->>'quote_id' = accept_quote_id::text
+          and metadata->>'version' = '1'
       ) = 1,
     'opened flow checked'
+  );
+
+  insert into quote_decision_security_results values (
+    'Quote v1 opened event contains quote id and version',
+    exists (
+      select 1
+      from public.rfq_events
+      where rfq_id = accept_rfq_id
+        and event_type = 'buyer_opened'
+        and metadata->>'quote_id' = accept_quote_id::text
+        and metadata->>'version' = '1'
+    ),
+    'metadata checked'
   );
 
   select id into decision_id from public.accept_rfq_quote(accept_quote_id, ' approved ');
@@ -1278,6 +1377,22 @@ begin
   insert into quote_decision_security_results values ('rejected Quote immutable status', exists (select 1 from public.rfq_quotes where id = reject_quote_id and status = 'rejected'), 'quote status checked');
   insert into quote_decision_security_results values ('RFQ declined transition', exists (select 1 from public.rfqs where id = reject_rfq_id and status = 'declined'), 'rfq status checked');
   insert into quote_decision_security_results values ('trusted quote_rejected event', exists (select 1 from public.rfq_events where rfq_id = reject_rfq_id and event_type = 'quote_rejected' and actor_profile_id = buyer_id), 'event checked');
+
+  perform public.record_rfq_quote_opened(revision_quote_id);
+  perform public.record_rfq_quote_opened(revision_quote_id);
+  insert into quote_decision_security_results values (
+    'first open of revision Quote v1 creates buyer_opened and repeated open deduplicates',
+    exists (select 1 from public.rfqs where id = revision_rfq_id and status = 'buyer_review')
+      and (
+        select count(*) from public.rfq_events
+        where rfq_id = revision_rfq_id
+          and event_type = 'buyer_opened'
+          and actor_profile_id = buyer_id
+          and metadata->>'quote_id' = revision_quote_id::text
+          and metadata->>'version' = '1'
+      ) = 1,
+    'revision quote v1 opened checked'
+  );
 
   select id into decision_id from public.request_rfq_quote_revision(revision_quote_id, 'Need faster delivery');
   insert into quote_decision_security_results values ('buyer requests revision on own current submitted quote', exists (select 1 from public.rfq_quote_decisions where id = decision_id and decision = 'revision_requested'), 'decision checked');
@@ -1369,6 +1484,80 @@ begin
   insert into quote_decision_security_results values ('previous decision history preserved', exists (select 1 from public.rfq_quote_decisions where quote_id = revision_quote_id and decision = 'revision_requested'), 'decision history checked');
   insert into quote_decision_security_results values ('only one current submitted Quote', (select count(*) from public.rfq_quotes where rfq_id = revision_rfq_id and status = 'submitted') = 1 and exists (select 1 from public.rfq_quotes where id = revision_submitted_id and status = 'submitted'), 'submitted count checked');
 
+  perform set_config('request.jwt.claim.sub', buyer_id::text, true);
+  perform public.record_rfq_quote_opened(revision_submitted_id);
+  perform public.record_rfq_quote_opened(revision_submitted_id);
+  insert into quote_decision_security_results values (
+    'first open of Quote v2 creates another buyer_opened and repeated open deduplicates',
+    exists (select 1 from public.rfqs where id = revision_rfq_id and status = 'buyer_review')
+      and (
+        select count(*) from public.rfq_events
+        where rfq_id = revision_rfq_id
+          and event_type = 'buyer_opened'
+          and actor_profile_id = buyer_id
+          and metadata->>'quote_id' = revision_submitted_id::text
+          and metadata->>'version' = '2'
+      ) = 1,
+    'revision quote v2 opened checked'
+  );
+  insert into quote_decision_security_results values (
+    'Quote v1 and v2 opened events both preserved',
+    (
+      select count(*)
+      from public.rfq_events
+      where rfq_id = revision_rfq_id
+        and event_type = 'buyer_opened'
+        and actor_profile_id = buyer_id
+        and metadata->>'quote_id' in (revision_quote_id::text, revision_submitted_id::text)
+    ) = 2,
+    'opened event count checked'
+  );
+  insert into quote_decision_security_results values (
+    'each quoted to buyer_review transition has corresponding audit event',
+    exists (
+      select 1 from public.rfq_events
+      where rfq_id = revision_rfq_id
+        and event_type = 'buyer_opened'
+        and metadata->>'quote_id' = revision_quote_id::text
+        and metadata->>'version' = '1'
+    )
+    and exists (
+      select 1 from public.rfq_events
+      where rfq_id = revision_rfq_id
+        and event_type = 'buyer_opened'
+        and metadata->>'quote_id' = revision_submitted_id::text
+        and metadata->>'version' = '2'
+    ),
+    'transition audit events checked'
+  );
+
+  perform set_config('request.jwt.claim.sub', other_buyer_id::text, true);
+  blocked := false;
+  begin
+    perform public.record_rfq_quote_opened(revision_submitted_id);
+  exception when others then
+    blocked := true;
+  end;
+  insert into quote_decision_security_results values ('other Buyer quote opened denied', blocked, 'blocked: ' || blocked);
+
+  perform set_config('request.jwt.claim.sub', manufacturer_owner_id::text, true);
+  blocked := false;
+  begin
+    perform public.record_rfq_quote_opened(revision_submitted_id);
+  exception when others then
+    blocked := true;
+  end;
+  insert into quote_decision_security_results values ('Manufacturer acting as Buyer quote opened denied', blocked, 'blocked: ' || blocked);
+
+  perform set_config('request.jwt.claim.sub', admin_id::text, true);
+  blocked := false;
+  begin
+    perform public.record_rfq_quote_opened(revision_submitted_id);
+  exception when others then
+    blocked := true;
+  end;
+  insert into quote_decision_security_results values ('Admin impersonation quote opened denied', blocked, 'blocked: ' || blocked);
+
   blocked := false;
   begin
     update public.rfq_quotes set origin_port = 'Changed' where id = accept_quote_id;
@@ -1453,6 +1642,14 @@ begin
     blocked := true;
   end;
   insert into quote_decision_security_results values ('Anonymous denied', blocked, 'blocked: ' || blocked);
+
+  blocked := false;
+  begin
+    perform public.record_rfq_quote_opened(gen_random_uuid());
+  exception when others then
+    blocked := true;
+  end;
+  insert into quote_decision_security_results values ('Anonymous quote opened denied', blocked, 'blocked: ' || blocked);
 
   blocked := false;
   begin

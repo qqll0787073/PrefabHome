@@ -20,6 +20,11 @@ export const quoteDecisionLabels: Record<RFQQuoteDecisionValue, string> = {
 
 export const decisionReasonMaxLength = 4000;
 
+export interface QuoteDecisionPresentation {
+  quote: RFQQuoteWithItems;
+  decision: RFQQuoteDecisionRecord;
+}
+
 function ensureSupabase() {
   if (!supabase) {
     throw new Error("Supabase is not configured.");
@@ -68,6 +73,21 @@ export function getCurrentQuoteDecision(
 ): RFQQuoteDecisionRecord | null {
   const currentSubmitted = getCurrentSubmittedQuote(quotes);
   return currentSubmitted ? getDecisionForQuote(currentSubmitted.id, decisions) : null;
+}
+
+export function getLatestQuoteDecision(
+  quotes: RFQQuoteWithItems[],
+  decisions: RFQQuoteDecisionRecord[]
+): QuoteDecisionPresentation | null {
+  const decidedQuotes = quotes
+    .map((quote) => ({ quote, decision: getDecisionForQuote(quote.id, decisions) }))
+    .filter((item): item is QuoteDecisionPresentation => item.decision !== null)
+    .sort((a, b) => {
+      if (b.quote.version !== a.quote.version) return b.quote.version - a.quote.version;
+      return b.decision.created_at.localeCompare(a.decision.created_at);
+    });
+
+  return decidedQuotes[0] ?? null;
 }
 
 export function getCurrentSubmittedQuote(
@@ -183,8 +203,8 @@ export async function fetchCurrentQuoteDecision(
   return decisions[decisions.length - 1] ?? null;
 }
 
-export async function markQuoteOpened(rfqId: string): Promise<void> {
+export async function markQuoteOpened(quoteId: string): Promise<void> {
   const client = ensureSupabase();
-  const { error } = await client.rpc("record_rfq_opened", { rfq_uuid: rfqId });
+  const { error } = await client.rpc("record_rfq_quote_opened", { quote_uuid: quoteId });
   if (error) throw toReadableDecisionError(error);
 }

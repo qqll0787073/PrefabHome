@@ -4,6 +4,7 @@ import {
   acceptQuote,
   getBuyerDecisionActions,
   getCurrentSubmittedQuote,
+  getLatestQuoteDecision,
   quoteDecisionLabels,
   rejectQuote,
   requestQuoteRevision,
@@ -33,9 +34,9 @@ export function BuyerQuoteDecisionPanel({
   const [isSaving, setIsSaving] = useState(false);
 
   const currentQuote = useMemo(() => getCurrentSubmittedQuote(quotes), [quotes]);
-  const existingDecision = useMemo(
-    () => (currentQuote ? decisions.find((decision) => decision.quote_id === currentQuote.id) ?? null : null),
-    [currentQuote, decisions]
+  const latestDecision = useMemo(
+    () => (currentQuote ? null : getLatestQuoteDecision(quotes, decisions)),
+    [currentQuote, quotes, decisions]
   );
   const actions = useMemo(
     () => (currentQuote ? getBuyerDecisionActions(currentQuote, quotes, decisions) : []),
@@ -87,11 +88,12 @@ export function BuyerQuoteDecisionPanel({
     <section className="quote-panel">
       <h4>Buyer Decision</h4>
       <ErrorList errors={errors} />
-      {existingDecision ? (
+      {latestDecision ? (
         <article className="review-item">
-          <p className="eyebrow">{quoteDecisionLabels[existingDecision.decision]}</p>
-          {existingDecision.reason && <p>{existingDecision.reason}</p>}
-          <span>{new Date(existingDecision.created_at).toLocaleString()}</span>
+          <p className="eyebrow">{quoteDecisionLabels[latestDecision.decision.decision]}</p>
+          <h3>Quote version {latestDecision.quote.version}</h3>
+          {latestDecision.decision.reason && <p>{latestDecision.decision.reason}</p>}
+          <span>{new Date(latestDecision.decision.created_at).toLocaleString()}</span>
         </article>
       ) : actions.length > 0 && currentQuote ? (
         <>

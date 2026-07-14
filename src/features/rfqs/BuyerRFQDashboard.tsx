@@ -76,8 +76,9 @@ export function BuyerRFQDashboard({ user, authMode }: BuyerRFQDashboardProps) {
     setDecisions([]);
     try {
       const rfqQuotes = quotes.filter((quote) => quote.rfq_id === rfq.id);
-      if (authMode !== "demo" && rfq.status === "quoted" && rfqQuotes.some((quote) => quote.status === "submitted")) {
-        await markQuoteOpened(rfq.id);
+      const currentSubmittedQuote = rfqQuotes.find((quote) => quote.status === "submitted");
+      if (authMode !== "demo" && rfq.status === "quoted" && currentSubmittedQuote) {
+        await markQuoteOpened(currentSubmittedQuote.id);
         const refreshed = await fetchRFQ(rfq.id);
         if (refreshed) {
           setSelectedRFQ(refreshed);

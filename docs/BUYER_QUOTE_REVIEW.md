@@ -61,7 +61,14 @@ Only the buyer decision RPCs may generate these events. Actor identity is databa
 
 ## Buyer Opened Flow
 
-When a Buyer opens a quoted RFQ, the trusted opened flow may move RFQ `quoted` -> `buyer_review` and records `buyer_opened`. Duplicate opened events for the same actor/RFQ are skipped.
+When a Buyer opens the current submitted Quote, `record_rfq_quote_opened(quote_uuid)` derives the RFQ, Buyer, Quote ID, and version in the database. It may move RFQ `quoted` -> `buyer_review` and records `buyer_opened` with safe metadata:
+
+- `quote_id`
+- `version`
+
+Buyer opened events are deduplicated per actor and Quote ID, not permanently per RFQ. A revision Quote therefore gets its own `buyer_opened` audit event after it is submitted and the RFQ returns to `quoted`.
+
+The older RFQ-level opened flow remains available for non-quote opened behavior such as Manufacturer opened events.
 
 ## RLS
 
@@ -77,6 +84,13 @@ Buyer RFQ detail shows actions only for the current submitted Quote:
 - Reject Quote
 - Request Revision
 
-After a decision, the result, reason, and timestamp are rendered read-only. Old Quote versions, draft Quotes, superseded Quotes, and already-decided Quotes expose no decision actions.
+After a decision, the latest decided Quote result is rendered read-only with:
+
+- decision label
+- Quote version
+- reason, when present
+- decision timestamp
+
+If a newer current submitted Quote exists, old decisions do not hide the new decision actions. Old Quote versions, draft Quotes, superseded Quotes, and already-decided Quotes expose no decision actions.
 
 Manufacturer and Admin views show decision history read-only. Manufacturers see `Create Revision` only when the Buyer requested a revision.

@@ -14,7 +14,7 @@ Run rollback-only verification:
 npx.cmd supabase db query --linked --file supabase/tests/quote_decision_security.sql
 ```
 
-Expected result: every row returns `passed = true`.
+Expected result: every row returns `passed = true`. Current expected count: 49 checks.
 
 Required checks include:
 
@@ -45,7 +45,14 @@ Required checks include:
 - revision submission moves RFQ `revision_requested` -> `quoted`
 - previous decision history preserved
 - only one current submitted Quote
-- duplicate Buyer opened event handling
+- first open of Quote v1 creates `buyer_opened`
+- repeated open of Quote v1 does not duplicate
+- revision Quote v2 submission returns RFQ to `quoted`
+- first open of Quote v2 creates another `buyer_opened`
+- repeated open of Quote v2 does not duplicate
+- opened events contain the correct `quote_id` and `version`
+- each `quoted` -> `buyer_review` transition has a corresponding audit event
+- other Buyer, Manufacturer-as-Buyer, Admin impersonation, and Anonymous quote-opened calls are denied
 
 ## Frontend Verification
 
@@ -60,6 +67,11 @@ Expected:
 
 - Buyer decision button visibility is covered by helper tests
 - accepted/rejected/revision-requested labels render from shared helpers
+- accepted remains visible after the submitted Quote disappears
+- rejected remains visible after the submitted Quote disappears
+- revision requested and reason remain visible after the submitted Quote disappears
+- latest Quote decision wins over older decision history
+- old decisions do not hide actions for a newer current submitted Quote
 - revision reason is required
 - reason length is enforced
 - confirmation content includes Quote version, currency, and subtotal
