@@ -9,6 +9,7 @@ import {
 } from "../../lib/rfq";
 import type { AuthUser } from "../../lib/auth";
 import type { RFQWithDetails } from "../../types";
+import { QuoteBuilder } from "../quotes/QuoteBuilder";
 import { RFQConversation } from "./RFQConversation";
 
 interface ManufacturerRFQInboxProps {
@@ -38,8 +39,11 @@ export function ManufacturerRFQInbox({ user, authMode }: ManufacturerRFQInboxPro
     void loadRFQs();
   }, [authMode, user.id]);
 
-  const submittedRFQs = useMemo(
-    () => rfqs.filter((rfq) => manufacturerRFQDashboardGroup(rfq.status) === "new"),
+  const actionableRFQs = useMemo(
+    () =>
+      rfqs.filter((rfq) =>
+        ["new", "waiting_reply", "quoted"].includes(manufacturerRFQDashboardGroup(rfq.status))
+      ),
     [rfqs]
   );
 
@@ -48,12 +52,11 @@ export function ManufacturerRFQInbox({ user, authMode }: ManufacturerRFQInboxPro
       <section className="panel">
         <p className="eyebrow">RFQ Inbox</p>
         <h2>Submitted RFQs</h2>
-        <p className="form-notice">Quote creation is deferred to PH-006B.</p>
         {isLoading && <LoadingState message="Loading RFQ inbox..." />}
         <ErrorList errors={errors} />
-        {!isLoading && submittedRFQs.length === 0 && <p>No submitted RFQs yet.</p>}
+        {!isLoading && actionableRFQs.length === 0 && <p>No submitted RFQs yet.</p>}
         <div className="review-list">
-          {submittedRFQs.map((rfq) => (
+          {actionableRFQs.map((rfq) => (
             <article className="review-item" key={rfq.id}>
               <div>
                 <p className="eyebrow">{rfqStatusLabels[rfq.status]}</p>
@@ -69,12 +72,16 @@ export function ManufacturerRFQInbox({ user, authMode }: ManufacturerRFQInboxPro
                 <button type="button" onClick={() => setSelectedRFQ(rfq)}>
                   Open RFQ
                 </button>
+                <button type="button" onClick={() => setSelectedRFQ(rfq)}>
+                  Quote
+                </button>
               </div>
             </article>
           ))}
         </div>
       </section>
       <RFQConversation rfq={selectedRFQ} user={user} onMessagePosted={loadRFQs} />
+      <QuoteBuilder rfq={selectedRFQ} onQuoteSubmitted={loadRFQs} />
     </section>
   );
 }

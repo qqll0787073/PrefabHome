@@ -839,6 +839,57 @@ main {
   align-items: center;
 }
 
+.quote-builder,
+.quote-panel,
+.quote-line-items,
+.quote-line-editor {
+  display: grid;
+  gap: 14px;
+}
+
+.quote-panel {
+  padding: 14px;
+  background: #ffffff;
+  border: 1px solid #e3e7ee;
+  border-radius: 8px;
+}
+
+.quote-builder label,
+.quote-line-editor label {
+  display: grid;
+  gap: 6px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.quote-builder input,
+.quote-builder select,
+.quote-builder textarea,
+.quote-line-editor input,
+.quote-line-editor select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  color: #263246;
+  font: inherit;
+}
+
+.quote-builder textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.quote-line-items .meta-row {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.quote-line-items .actions {
+  justify-content: flex-end;
+}
+
 .comparison-table article,
 .list-item,
 .message {
@@ -910,6 +961,8 @@ main {
   .media-upload-grid,
   .media-gallery,
   .media-row,
+  .quote-builder .form-grid,
+  .quote-line-editor .form-grid,
   .review-item,
   .marketplace-detail-layout,
   .marketplace-specs {

@@ -8,8 +8,10 @@ import {
   rfqSnapshotTitle,
   rfqStatusLabels,
 } from "../../lib/rfq";
+import { fetchBuyerQuotes } from "../../lib/quotes";
 import type { AuthUser } from "../../lib/auth";
-import type { RFQStatus, RFQWithDetails } from "../../types";
+import type { RFQQuoteWithItems, RFQStatus, RFQWithDetails } from "../../types";
+import { QuoteSummaryList } from "../quotes/QuoteSummaryList";
 import { RFQConversation } from "./RFQConversation";
 
 interface BuyerRFQDashboardProps {
@@ -19,6 +21,7 @@ interface BuyerRFQDashboardProps {
 
 export function BuyerRFQDashboard({ user, authMode }: BuyerRFQDashboardProps) {
   const [rfqs, setRFQs] = useState<RFQWithDetails[]>([]);
+  const [quotes, setQuotes] = useState<RFQQuoteWithItems[]>([]);
   const [selectedRFQ, setSelectedRFQ] = useState<RFQWithDetails | null>(null);
   const [statusFilter, setStatusFilter] = useState<RFQStatus | "all">("all");
   const [isLoading, setIsLoading] = useState(authMode === "supabase");
@@ -28,7 +31,14 @@ export function BuyerRFQDashboard({ user, authMode }: BuyerRFQDashboardProps) {
     setIsLoading(true);
     setErrors([]);
     try {
-      setRFQs(authMode === "demo" ? [] : await fetchBuyerRFQs(user.id));
+      if (authMode === "demo") {
+        setRFQs([]);
+        setQuotes([]);
+      } else {
+        const [nextRFQs, nextQuotes] = await Promise.all([fetchBuyerRFQs(user.id), fetchBuyerQuotes()]);
+        setRFQs(nextRFQs);
+        setQuotes(nextQuotes);
+      }
     } catch (error) {
       setErrors([error instanceof Error ? error.message : "Unable to load RFQs."]);
     } finally {
@@ -43,6 +53,11 @@ export function BuyerRFQDashboard({ user, authMode }: BuyerRFQDashboardProps) {
   const filteredRFQs = useMemo(
     () => (statusFilter === "all" ? rfqs : rfqs.filter((rfq) => rfq.status === statusFilter)),
     [rfqs, statusFilter]
+  );
+
+  const selectedQuotes = useMemo(
+    () => (selectedRFQ ? quotes.filter((quote) => quote.rfq_id === selectedRFQ.id) : []),
+    [quotes, selectedRFQ]
   );
 
   async function deleteDraft(rfq: RFQWithDetails) {
@@ -92,6 +107,9 @@ export function BuyerRFQDashboard({ user, authMode }: BuyerRFQDashboardProps) {
                 <p>
                   {rfq.requested_quantity} units to {rfq.destination_country}
                 </p>
+                {quotes.some((quote) => quote.rfq_id === rfq.id) && (
+                  <p className="form-notice">Quote received</p>
+                )}
               </div>
               <div className="meta-row">
                 <span>{rfq.requested_currency}</span>
@@ -112,6 +130,13 @@ export function BuyerRFQDashboard({ user, authMode }: BuyerRFQDashboardProps) {
         </div>
       </section>
       <RFQConversation rfq={selectedRFQ} user={user} onMessagePosted={loadRFQs} />
+      {selectedRFQ && (
+        <QuoteSummaryList
+          quotes={selectedQuotes}
+          title="Quote Versions"
+          readOnlyNote="Buyer quote review actions are deferred to PH-006C."
+        />
+      )}
     </section>
   );
 }
