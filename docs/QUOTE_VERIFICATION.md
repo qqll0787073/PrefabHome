@@ -165,12 +165,15 @@ Verified:
 
 ## Browser Smoke
 
-Result: blocked by local browser tooling.
+Result: blocked by local browser automation tooling.
 
-The local Vite app started successfully at `http://127.0.0.1:3000/`, but the in-app browser control runtime timed out during connection/documentation loading. The repository does not include Playwright or Puppeteer as a local fallback dependency, and no new browser automation dependency was added for this verification-only task.
+The local Vite app started successfully. A second verification attempt used local Chrome through Chrome DevTools Protocol without adding Playwright or Puppeteer. Chrome launched and the Manufacturer account signed in successfully, but the automation could not activate the RFQ list action (`Open RFQ` / `Quote`) to select an RFQ and load the Quote Builder panel. The same action was attempted with Chrome mouse events, keyboard activation, and a narrow rendered-button handler fallback; none produced the selected RFQ UI state in the automated session.
 
-Console verification was therefore not completed in a real browser session.
+Because the RFQ could not be selected in the automated local Chrome session, the full Manufacturer, Buyer, Admin, and console browser smoke remains unresolved.
 
+- Manufacturer browser result: blocked after successful sign-in; RFQ list action could not be activated by automation
+- Buyer browser result: not run after Manufacturer browser blocker
+- Admin browser result: not run after Manufacturer browser blocker
 - Browser console error count: blocked
 - Unsafe log count: blocked
 - Access token logging: blocked
@@ -206,5 +209,5 @@ PH-006C status: not started.
 
 ## Unresolved Items
 
-- Complete the real browser smoke once browser control is available or a project-approved browser automation dependency is added.
+- Complete the real browser smoke once browser control can activate RFQ list actions reliably in local Chrome.
 - Complete browser console safety checks for Manufacturer, Buyer, and Admin after the browser smoke can run.
