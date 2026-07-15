@@ -59,6 +59,7 @@ revoke insert, update, delete on table public.contract_review_decisions from aut
 
 alter table public.contracts
   drop constraint if exists contracts_status_check,
+  drop constraint if exists contracts_review_lifecycle_check,
   drop constraint if exists contracts_ready_timestamp_check;
 
 alter table public.contracts
