@@ -27,6 +27,7 @@ $$;
 
 alter table public.purchase_orders
   drop constraint if exists purchase_orders_status_check,
+  drop constraint if exists purchase_orders_review_round_check,
   drop constraint if exists purchase_orders_lifecycle_timestamps_check;
 
 alter table public.purchase_orders
