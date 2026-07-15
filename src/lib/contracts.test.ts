@@ -2,18 +2,32 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   canCreateContractForPurchaseOrder,
+  canBuyerEditContractRevision,
+  canBuyerResubmitContract,
+  canManufacturerOpenContract,
+  contractAcceptedAtLabel,
   contractCreatedAtLabel,
+  contractDecisionLabels,
   contractEventLabel,
+  contractFirstReadyAtLabel,
+  contractLastReadyAtLabel,
   contractReadyAtLabel,
   contractReadyConfirmationText,
+  contractRejectedAtLabel,
+  contractResubmitConfirmationText,
+  contractReviewRoundLabel,
   contractStatusLabels,
   contractSubtotalLabel,
+  getManufacturerContractActions,
   emptyContractDraftValues,
   isContractReadOnly,
+  manufacturerContractDecisionConfirmationText,
+  sortContractReviewDecisions,
   validateContractDraft,
   validateContractReady,
+  validateContractReviewReason,
 } from "./contracts";
-import type { ContractRecord, PurchaseOrderRecord } from "../types";
+import type { ContractRecord, ContractReviewDecisionRecord, PurchaseOrderRecord } from "../types";
 
 const confirmedPurchaseOrder = {
   id: "po-1",
@@ -75,6 +89,11 @@ const contract = {
   line_items_snapshot: [{ description: "Home package", amount: 125000 }],
   created_by: "buyer-1",
   ready_at: null,
+  review_round: 0,
+  first_ready_at: null,
+  last_ready_at: null,
+  accepted_at: null,
+  rejected_at: null,
   created_at: "2026-07-14T15:00:00Z",
   updated_at: "2026-07-14T15:00:00Z",
 } satisfies ContractRecord;
@@ -92,8 +111,16 @@ describe("contract helpers", () => {
   it("keeps the contract lifecycle conservative", () => {
     assert.equal(contractStatusLabels.draft, "Draft");
     assert.equal(contractStatusLabels.ready, "Ready");
+    assert.equal(contractStatusLabels.participant_review, "Participant review");
+    assert.equal(contractStatusLabels.revision_requested, "Revision requested");
+    assert.equal(contractStatusLabels.accepted, "Accepted by Manufacturer");
+    assert.equal(contractStatusLabels.rejected, "Rejected");
     assert.equal(isContractReadOnly({ status: "draft" }), false);
     assert.equal(isContractReadOnly({ status: "ready" }), true);
+    assert.equal(isContractReadOnly({ status: "participant_review" }), true);
+    assert.equal(isContractReadOnly({ status: "revision_requested" }), false);
+    assert.equal(isContractReadOnly({ status: "accepted" }), true);
+    assert.equal(isContractReadOnly({ status: "rejected" }), true);
   });
 
   it("validates draft and ready values without adding signature requirements", () => {
@@ -133,5 +160,112 @@ describe("contract helpers", () => {
       metadata: {},
       created_at: "2026-07-14T16:00:00Z",
     }), "Contract ready");
+  });
+
+  it("maps participant review actions conservatively by status", () => {
+    assert.equal(canManufacturerOpenContract({ status: "ready" }), true);
+    assert.equal(canManufacturerOpenContract({ status: "participant_review" }), false);
+    assert.deepEqual(getManufacturerContractActions({ status: "participant_review" }), [
+      "accepted",
+      "rejected",
+      "revision_requested",
+    ]);
+    assert.deepEqual(getManufacturerContractActions({ status: "ready" }), []);
+    assert.equal(canBuyerEditContractRevision({ status: "revision_requested" }), true);
+    assert.equal(canBuyerResubmitContract({ status: "revision_requested" }), true);
+    assert.equal(canBuyerEditContractRevision({ status: "accepted" }), false);
+  });
+
+  it("validates manufacturer decision reasons", () => {
+    assert.deepEqual(validateContractReviewReason("accepted", ""), []);
+    assert.deepEqual(validateContractReviewReason("rejected", ""), ["A reason is required."]);
+    assert.deepEqual(validateContractReviewReason("revision_requested", " "), ["A reason is required."]);
+    assert.deepEqual(validateContractReviewReason("rejected", "x".repeat(4001)), [
+      "Reason must be 4000 characters or fewer.",
+    ]);
+  });
+
+  it("renders review-round and timestamp labels without duplicate round-one last-ready", () => {
+    const readyContract = {
+      ...contract,
+      status: "ready",
+      review_round: 1,
+      ready_at: "2026-07-14T16:00:00Z",
+      first_ready_at: "2026-07-14T16:00:00Z",
+      last_ready_at: "2026-07-14T16:00:00Z",
+    } satisfies ContractRecord;
+    assert.equal(contractReviewRoundLabel(readyContract), "Review round 1");
+    assert.equal(contractFirstReadyAtLabel(readyContract).startsWith("First ready "), true);
+    assert.equal(contractLastReadyAtLabel(readyContract), null);
+
+    const roundTwo = {
+      ...readyContract,
+      review_round: 2,
+      last_ready_at: "2026-07-15T16:00:00Z",
+      ready_at: "2026-07-15T16:00:00Z",
+    } satisfies ContractRecord;
+    assert.equal(contractLastReadyAtLabel(roundTwo).startsWith("Last ready "), true);
+    assert.equal(contractAcceptedAtLabel({ ...roundTwo, status: "accepted", accepted_at: "2026-07-15T17:00:00Z" }).startsWith("Accepted "), true);
+    assert.equal(contractRejectedAtLabel({ ...roundTwo, status: "rejected", rejected_at: "2026-07-15T17:00:00Z" }).startsWith("Rejected "), true);
+  });
+
+  it("builds review confirmations without signature or legal-effectiveness claims", () => {
+    const acceptText = manufacturerContractDecisionConfirmationText(contract, "accepted");
+    assert.equal(acceptText.includes("does not sign"), true);
+    assert.equal(acceptText.includes("does not make it executed or legally effective"), true);
+    assert.equal(manufacturerContractDecisionConfirmationText(contract, "revision_requested").includes("Commercial snapshots remain immutable"), true);
+    assert.equal(contractResubmitConfirmationText({ ...contract, review_round: 1 }).includes("PO pricing, line items, ownership, and snapshots remain unchanged"), true);
+  });
+
+  it("orders immutable decision history by review round and timestamp", () => {
+    const decisions = [
+      {
+        id: "decision-2",
+        contract_id: "contract-1",
+        review_round: 2,
+        manufacturer_id: "manufacturer-1",
+        actor_profile_id: "manufacturer-owner",
+        decision: "accepted",
+        reason: null,
+        created_at: "2026-07-15T12:00:00Z",
+      },
+      {
+        id: "decision-1",
+        contract_id: "contract-1",
+        review_round: 1,
+        manufacturer_id: "manufacturer-1",
+        actor_profile_id: "manufacturer-owner",
+        decision: "revision_requested",
+        reason: "Clarify",
+        created_at: "2026-07-14T12:00:00Z",
+      },
+    ] satisfies ContractReviewDecisionRecord[];
+    assert.deepEqual(sortContractReviewDecisions(decisions).map((decision) => decision.id), [
+      "decision-1",
+      "decision-2",
+    ]);
+    assert.equal(contractDecisionLabels.accepted, "Accepted by Manufacturer");
+    assert.equal(contractEventLabel({
+      id: "event-2",
+      contract_id: "contract-1",
+      event_type: "contract_resubmitted",
+      actor_profile_id: "buyer-1",
+      metadata: {},
+      created_at: "2026-07-15T12:00:00Z",
+    }), "Contract resubmitted");
+  });
+
+  it("keeps signature PDF payment invoice and shipping controls out of helper copy", () => {
+    const helperText = [
+      Object.values(contractStatusLabels).join(" "),
+      Object.values(contractDecisionLabels).join(" "),
+      Object.values({
+        ready: contractReadyConfirmationText(contract),
+        resubmit: contractResubmitConfirmationText({ ...contract, review_round: 1 }),
+        accept: manufacturerContractDecisionConfirmationText(contract, "accepted"),
+        revision: manufacturerContractDecisionConfirmationText(contract, "revision_requested"),
+      }).join(" "),
+    ].join(" ");
+    assert.equal(/DocuSign|Adobe Sign|PDF|Payment|Invoice|Shipping|Legally binding|Executed|Effective/.test(helperText), false);
   });
 });
