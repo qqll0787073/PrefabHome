@@ -3,19 +3,26 @@ import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
 import {
   canCreateContractForPurchaseOrder,
+  canBuyerEditContractRevision,
+  canBuyerResubmitContract,
   contractReadyConfirmationText,
+  contractResubmitConfirmationText,
   createContractFromPurchaseOrder,
   emptyContractDraftValues,
   fetchBuyerContracts,
+  fetchContractReviewDecisions,
   isContractReadOnly,
   markContractReady,
+  resubmitContract,
   updateContractDraft,
+  updateContractRevision,
   validateContractDraft,
   validateContractReady,
 } from "../../lib/contracts";
 import { fetchBuyerPurchaseOrders } from "../../lib/purchaseOrders";
 import type {
   ContractDraftValues,
+  ContractReviewDecisionRecord,
   ContractRecord,
   PurchaseOrderWithItems,
 } from "../../types";
@@ -27,6 +34,7 @@ interface BuyerContractsProps {
 
 export function BuyerContracts({ authMode }: BuyerContractsProps) {
   const [contracts, setContracts] = useState<ContractRecord[]>([]);
+  const [decisionsByContract, setDecisionsByContract] = useState<Record<string, ContractReviewDecisionRecord[]>>({});
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderWithItems[]>([]);
   const [selectedContract, setSelectedContract] = useState<ContractRecord | null>(null);
   const [values, setValues] = useState<ContractDraftValues>(() => emptyContractDraftValues());
@@ -47,7 +55,11 @@ export function BuyerContracts({ authMode }: BuyerContractsProps) {
           fetchBuyerContracts(),
           fetchBuyerPurchaseOrders(),
         ]);
+        const decisionEntries = await Promise.all(
+          contractRows.map(async (contract) => [contract.id, await fetchContractReviewDecisions(contract.id)] as const)
+        );
         setContracts(contractRows);
+        setDecisionsByContract(Object.fromEntries(decisionEntries));
         setPurchaseOrders(purchaseOrderRows);
       }
     } catch (error) {
@@ -110,6 +122,26 @@ export function BuyerContracts({ authMode }: BuyerContractsProps) {
     }
   }
 
+  async function saveRevision() {
+    if (!selectedContract) return;
+    const validationErrors = validateContractDraft(values);
+    setErrors(validationErrors);
+    if (validationErrors.length > 0) return;
+
+    setIsSaving(true);
+    try {
+      const updated = await updateContractRevision(selectedContract.id, values);
+      await loadContracts();
+      setSelectedContract(updated);
+      setValues(emptyContractDraftValues(updated));
+      setMessage("Contract revision saved.");
+    } catch (error) {
+      setErrors([error instanceof Error ? error.message : "Unable to save contract revision."]);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   async function markReady() {
     if (!selectedContract) return;
     const validationErrors = validateContractReady(values);
@@ -127,6 +159,28 @@ export function BuyerContracts({ authMode }: BuyerContractsProps) {
       setMessage("Contract marked ready.");
     } catch (error) {
       setErrors([error instanceof Error ? error.message : "Unable to mark contract ready."]);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function resubmitRevision() {
+    if (!selectedContract) return;
+    const validationErrors = validateContractReady(values);
+    setErrors(validationErrors);
+    if (validationErrors.length > 0) return;
+    if (!window.confirm(contractResubmitConfirmationText(selectedContract))) return;
+
+    setIsSaving(true);
+    try {
+      await updateContractRevision(selectedContract.id, values);
+      const updated = await resubmitContract(selectedContract.id);
+      await loadContracts();
+      setSelectedContract(updated);
+      setValues(emptyContractDraftValues(updated));
+      setMessage("Contract resubmitted for participant review.");
+    } catch (error) {
+      setErrors([error instanceof Error ? error.message : "Unable to resubmit contract."]);
     } finally {
       setIsSaving(false);
     }
@@ -151,7 +205,7 @@ export function BuyerContracts({ authMode }: BuyerContractsProps) {
       <div className="review-list">
         {contracts.map((contract) => (
           <div key={contract.id}>
-            <ContractSummary contract={contract} />
+            <ContractSummary contract={contract} decisions={decisionsByContract[contract.id] ?? []} />
             <div className="actions">
               <button type="button" onClick={() => selectContract(contract)}>
                 Open Contract
@@ -163,6 +217,11 @@ export function BuyerContracts({ authMode }: BuyerContractsProps) {
       {selectedContract && (
         <section className="quote-line-editor">
           <h4>{selectedContract.contract_number}</h4>
+          {canBuyerEditContractRevision(selectedContract) && (
+            <p className="form-notice">
+              Manufacturer requested revision. Only title, governing law, and terms can be changed.
+            </p>
+          )}
           <label>
             Contract title
             <input
@@ -198,12 +257,24 @@ export function BuyerContracts({ authMode }: BuyerContractsProps) {
                 </button>
               </>
             )}
+            {canBuyerEditContractRevision(selectedContract) && (
+              <>
+                <button type="button" disabled={isSaving} onClick={() => void saveRevision()}>
+                  Save Revision
+                </button>
+                {canBuyerResubmitContract(selectedContract) && (
+                  <button type="button" disabled={isSaving} onClick={() => void resubmitRevision()}>
+                    Resubmit Contract
+                  </button>
+                )}
+              </>
+            )}
             <button type="button" onClick={() => setSelectedContract(null)}>
               Close
             </button>
           </div>
-          {selectedContract.status === "ready" && (
-            <p className="form-notice">Ready contracts are read-only in PH-008A.</p>
+          {isContractReadOnly(selectedContract) && (
+            <p className="form-notice">This Contract is read-only for the Buyer in its current status.</p>
           )}
         </section>
       )}

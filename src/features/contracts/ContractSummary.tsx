@@ -1,21 +1,29 @@
 import {
+  contractAcceptedAtLabel,
   contractCreatedAtLabel,
+  contractDecisionLabels,
   contractEventLabel,
+  contractFirstReadyAtLabel,
+  contractLastReadyAtLabel,
   contractParticipantName,
   contractReadyAtLabel,
+  contractRejectedAtLabel,
+  contractReviewRoundLabel,
   contractStatusLabels,
   contractSubtotalLabel,
 } from "../../lib/contracts";
-import type { ContractEventRecord, ContractRecord } from "../../types";
+import type { ContractEventRecord, ContractRecord, ContractReviewDecisionRecord } from "../../types";
 
 interface ContractSummaryProps {
   contract: ContractRecord;
+  decisions?: ContractReviewDecisionRecord[];
   events?: ContractEventRecord[];
   showSnapshots?: boolean;
 }
 
 export function ContractSummary({
   contract,
+  decisions = [],
   events = [],
   showSnapshots = false,
 }: ContractSummaryProps) {
@@ -40,11 +48,17 @@ export function ContractSummary({
         <p>
           {contract.po_number} - {productName} - {contractSubtotalLabel(contract)}
         </p>
+        <p className="form-notice">{contractReviewRoundLabel(contract)}</p>
         {contract.contract_title && <p className="form-notice">{contract.contract_title}</p>}
+        {contract.status === "accepted" && <p>Ready for future signature workflow.</p>}
       </div>
       <div className="meta-row">
         <span>{contractCreatedAtLabel(contract)}</span>
         {readyAtLabel && <span>{readyAtLabel}</span>}
+        {contractFirstReadyAtLabel(contract) && <span>{contractFirstReadyAtLabel(contract)}</span>}
+        {contractLastReadyAtLabel(contract) && <span>{contractLastReadyAtLabel(contract)}</span>}
+        {contractAcceptedAtLabel(contract) && <span>{contractAcceptedAtLabel(contract)}</span>}
+        {contractRejectedAtLabel(contract) && <span>{contractRejectedAtLabel(contract)}</span>}
         {contract.governing_law && <span>Law: {contract.governing_law}</span>}
       </div>
       <div className="quote-line-items">
@@ -64,6 +78,19 @@ export function ContractSummary({
         ))}
       </div>
       {contract.contract_terms && <p>{contract.contract_terms}</p>}
+      {decisions.length > 0 && (
+        <div className="quote-line-items">
+          {decisions.map((decision) => (
+            <div className="meta-row" key={decision.id}>
+              <span>
+                Round {decision.review_round}: {contractDecisionLabels[decision.decision]}
+              </span>
+              {decision.reason && <span>{decision.reason}</span>}
+              <span>{new Date(decision.created_at).toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      )}
       {showSnapshots && (
         <div className="quote-line-items">
           <p>RFQ: {contract.rfq_id}</p>

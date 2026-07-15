@@ -538,12 +538,25 @@ export interface PurchaseOrderDraftValues {
   requestedDeliveryDate: string;
 }
 
-export type ContractStatus = "draft" | "ready";
+export type ContractStatus =
+  | "draft"
+  | "ready"
+  | "participant_review"
+  | "revision_requested"
+  | "accepted"
+  | "rejected";
 
 export type ContractEventType =
   | "contract_created"
   | "contract_updated"
-  | "contract_ready";
+  | "contract_ready"
+  | "contract_participant_opened"
+  | "contract_revision_requested"
+  | "contract_resubmitted"
+  | "contract_accepted"
+  | "contract_rejected";
+
+export type ContractReviewDecisionValue = "accepted" | "rejected" | "revision_requested";
 
 export interface ContractRecord {
   id: string;
@@ -571,8 +584,24 @@ export interface ContractRecord {
   line_items_snapshot: Array<Record<string, unknown>>;
   created_by: string;
   ready_at: string | null;
+  review_round: number;
+  first_ready_at: string | null;
+  last_ready_at: string | null;
+  accepted_at: string | null;
+  rejected_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ContractReviewDecisionRecord {
+  id: string;
+  contract_id: string;
+  review_round: number;
+  manufacturer_id: string;
+  actor_profile_id: string;
+  decision: ContractReviewDecisionValue;
+  reason: string | null;
+  created_at: string;
 }
 
 export interface ContractEventRecord {
