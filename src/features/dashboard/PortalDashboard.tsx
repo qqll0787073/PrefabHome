@@ -1,5 +1,8 @@
 import { roleLabels } from "../../app/constants";
 import { AuthPanel } from "../auth/AuthPanel";
+import { AdminContractManagement } from "../contracts/AdminContractManagement";
+import { BuyerContracts } from "../contracts/BuyerContracts";
+import { ManufacturerContracts } from "../contracts/ManufacturerContracts";
 import { AdminManufacturerReview } from "../manufacturers/AdminManufacturerReview";
 import { ManufacturerWorkspace } from "../manufacturers/ManufacturerWorkspace";
 import { AdminProductReview } from "../products/AdminProductReview";
@@ -70,12 +73,16 @@ export function PortalDashboard({
           </section>
 
           {role === "buyer" && auth.user && (
-            <BuyerRFQDashboard user={auth.user} authMode={auth.mode} />
+            <>
+              <BuyerRFQDashboard user={auth.user} authMode={auth.mode} />
+              <BuyerContracts authMode={auth.mode} />
+            </>
           )}
 
           {role === "manufacturer" && auth.user && (
             <>
               <ManufacturerRFQInbox user={auth.user} authMode={auth.mode} />
+              <ManufacturerContracts authMode={auth.mode} />
               <ManufacturerWorkspace user={auth.user} authMode={auth.mode} />
               <ManufacturerProductList user={auth.user} authMode={auth.mode} />
             </>
@@ -84,6 +91,7 @@ export function PortalDashboard({
           {role === "admin" && auth.user && (
             <>
               <AdminRFQManagement user={auth.user} authMode={auth.mode} />
+              <AdminContractManagement authMode={auth.mode} />
               <AdminManufacturerReview authMode={auth.mode} />
               <AdminProductReview authMode={auth.mode} />
             </>
