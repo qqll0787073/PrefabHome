@@ -441,7 +441,16 @@ export interface RFQQuoteItemFormValues {
   unitPrice: string;
 }
 
-export type PurchaseOrderStatus = "draft" | "submitted" | "cancelled";
+export type PurchaseOrderStatus =
+  | "draft"
+  | "submitted"
+  | "manufacturer_review"
+  | "revision_requested"
+  | "confirmed"
+  | "rejected"
+  | "cancelled";
+
+export type PurchaseOrderDecisionValue = "confirmed" | "rejected" | "revision_requested";
 
 export interface PurchaseOrderRecord {
   id: string;
@@ -468,9 +477,24 @@ export interface PurchaseOrderRecord {
   product_snapshot: RFQProductSnapshot;
   created_by: string;
   submitted_at: string | null;
+  last_submitted_at: string | null;
   cancelled_at: string | null;
+  confirmed_at: string | null;
+  rejected_at: string | null;
+  review_round: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface PurchaseOrderDecisionRecord {
+  id: string;
+  purchase_order_id: string;
+  review_round: number;
+  manufacturer_id: string;
+  actor_profile_id: string;
+  decision: PurchaseOrderDecisionValue;
+  reason: string | null;
+  created_at: string;
 }
 
 export interface PurchaseOrderItemRecord {
@@ -490,7 +514,15 @@ export interface PurchaseOrderItemRecord {
 export interface PurchaseOrderEventRecord {
   id: string;
   purchase_order_id: string;
-  event_type: "po_created" | "po_submitted" | "po_cancelled";
+  event_type:
+    | "po_created"
+    | "po_submitted"
+    | "po_cancelled"
+    | "po_manufacturer_opened"
+    | "po_confirmed"
+    | "po_rejected"
+    | "po_revision_requested"
+    | "po_resubmitted";
   actor_profile_id: string | null;
   metadata: Record<string, unknown>;
   created_at: string;

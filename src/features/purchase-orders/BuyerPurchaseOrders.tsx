@@ -4,16 +4,22 @@ import { LoadingState } from "../../components/common/LoadingState";
 import {
   canCreatePurchaseOrderForQuote,
   cancelPurchaseOrderDraft,
+  canBuyerRevisePurchaseOrder,
   createPurchaseOrderFromQuote,
   emptyPurchaseOrderDraftValues,
+  fetchPurchaseOrderDecisions,
   fetchBuyerPurchaseOrders,
   isPurchaseOrderReadOnly,
   purchaseOrderConfirmationText,
+  purchaseOrderResubmitConfirmationText,
+  resubmitPurchaseOrder,
   submitPurchaseOrder,
   updatePurchaseOrderDraft,
+  updatePurchaseOrderRevision,
   validatePurchaseOrderDraft,
 } from "../../lib/purchaseOrders";
 import type {
+  PurchaseOrderDecisionRecord,
   PurchaseOrderDraftValues,
   PurchaseOrderWithItems,
   RFQQuoteWithItems,
@@ -27,6 +33,7 @@ interface BuyerPurchaseOrdersProps {
 
 export function BuyerPurchaseOrders({ authMode, quotes }: BuyerPurchaseOrdersProps) {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderWithItems[]>([]);
+  const [decisionsByPO, setDecisionsByPO] = useState<Record<string, PurchaseOrderDecisionRecord[]>>({});
   const [selectedPO, setSelectedPO] = useState<PurchaseOrderWithItems | null>(null);
   const [values, setValues] = useState<PurchaseOrderDraftValues>(() => emptyPurchaseOrderDraftValues());
   const [isLoading, setIsLoading] = useState(authMode === "supabase");
@@ -38,7 +45,17 @@ export function BuyerPurchaseOrders({ authMode, quotes }: BuyerPurchaseOrdersPro
     setErrors([]);
     setIsLoading(true);
     try {
-      setPurchaseOrders(authMode === "demo" ? [] : await fetchBuyerPurchaseOrders());
+      if (authMode === "demo") {
+        setPurchaseOrders([]);
+        setDecisionsByPO({});
+      } else {
+        const items = await fetchBuyerPurchaseOrders();
+        const decisionEntries = await Promise.all(
+          items.map(async (po) => [po.id, await fetchPurchaseOrderDecisions(po.id)] as const)
+        );
+        setPurchaseOrders(items);
+        setDecisionsByPO(Object.fromEntries(decisionEntries));
+      }
     } catch (error) {
       setErrors([error instanceof Error ? error.message : "Unable to load purchase orders."]);
     } finally {
@@ -87,9 +104,13 @@ export function BuyerPurchaseOrders({ authMode, quotes }: BuyerPurchaseOrdersPro
 
     setIsSaving(true);
     try {
-      await updatePurchaseOrderDraft(selectedPO.id, values);
+      if (canBuyerRevisePurchaseOrder(selectedPO)) {
+        await updatePurchaseOrderRevision(selectedPO.id, values);
+      } else {
+        await updatePurchaseOrderDraft(selectedPO.id, values);
+      }
       await loadPurchaseOrders();
-      setMessage("Purchase order draft saved.");
+      setMessage(canBuyerRevisePurchaseOrder(selectedPO) ? "Purchase order revision saved." : "Purchase order draft saved.");
     } catch (error) {
       setErrors([error instanceof Error ? error.message : "Unable to save purchase order."]);
     } finally {
@@ -108,6 +129,22 @@ export function BuyerPurchaseOrders({ authMode, quotes }: BuyerPurchaseOrdersPro
       setMessage("Purchase order submitted.");
     } catch (error) {
       setErrors([error instanceof Error ? error.message : "Unable to submit purchase order."]);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function resubmitRevision() {
+    if (!selectedPO) return;
+    if (!window.confirm(purchaseOrderResubmitConfirmationText(selectedPO))) return;
+    setIsSaving(true);
+    try {
+      await resubmitPurchaseOrder(selectedPO.id);
+      await loadPurchaseOrders();
+      setSelectedPO(null);
+      setMessage("Purchase order resubmitted.");
+    } catch (error) {
+      setErrors([error instanceof Error ? error.message : "Unable to resubmit purchase order."]);
     } finally {
       setIsSaving(false);
     }
@@ -147,7 +184,7 @@ export function BuyerPurchaseOrders({ authMode, quotes }: BuyerPurchaseOrdersPro
       <div className="review-list">
         {purchaseOrders.map((po) => (
           <div key={po.id}>
-            <PurchaseOrderSummary purchaseOrder={po} />
+            <PurchaseOrderSummary purchaseOrder={po} decisions={decisionsByPO[po.id] ?? []} />
             <div className="actions">
               <button type="button" onClick={() => selectPO(po)}>
                 Open Purchase Order
@@ -187,17 +224,25 @@ export function BuyerPurchaseOrders({ authMode, quotes }: BuyerPurchaseOrdersPro
           {!isPurchaseOrderReadOnly(selectedPO) ? (
             <div className="actions">
               <button type="button" disabled={isSaving} onClick={() => void saveDraft()}>
-                Save Draft
+                {canBuyerRevisePurchaseOrder(selectedPO) ? "Save Revision" : "Save Draft"}
               </button>
-              <button type="button" disabled={isSaving} onClick={() => void submitDraft()}>
-                Submit Purchase Order
-              </button>
-              <button type="button" disabled={isSaving} onClick={() => void cancelDraft()}>
-                Cancel Draft
-              </button>
+              {canBuyerRevisePurchaseOrder(selectedPO) ? (
+                <button type="button" disabled={isSaving} onClick={() => void resubmitRevision()}>
+                  Resubmit Purchase Order
+                </button>
+              ) : (
+                <>
+                  <button type="button" disabled={isSaving} onClick={() => void submitDraft()}>
+                    Submit Purchase Order
+                  </button>
+                  <button type="button" disabled={isSaving} onClick={() => void cancelDraft()}>
+                    Cancel Draft
+                  </button>
+                </>
+              )}
             </div>
           ) : (
-            <p className="form-notice">Submitted and cancelled purchase orders are read-only.</p>
+            <p className="form-notice">Submitted, review, confirmed, rejected, and cancelled purchase orders are read-only.</p>
           )}
         </section>
       )}
