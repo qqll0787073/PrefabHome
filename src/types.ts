@@ -538,6 +538,58 @@ export interface PurchaseOrderDraftValues {
   requestedDeliveryDate: string;
 }
 
+export type ContractStatus = "draft" | "ready";
+
+export type ContractEventType =
+  | "contract_created"
+  | "contract_updated"
+  | "contract_ready";
+
+export interface ContractRecord {
+  id: string;
+  contract_number: string;
+  purchase_order_id: string;
+  po_number: string;
+  rfq_id: string;
+  quote_id: string;
+  quote_decision_id: string;
+  buyer_id: string;
+  manufacturer_id: string;
+  status: ContractStatus;
+  currency: string;
+  subtotal: number;
+  contract_title: string | null;
+  governing_law: string | null;
+  contract_terms: string | null;
+  buyer_reference: string | null;
+  buyer_note: string | null;
+  purchase_order_snapshot: Record<string, unknown>;
+  buyer_snapshot: Record<string, unknown>;
+  manufacturer_snapshot: Record<string, unknown>;
+  quote_snapshot: Record<string, unknown>;
+  product_snapshot: Record<string, unknown>;
+  line_items_snapshot: Array<Record<string, unknown>>;
+  created_by: string;
+  ready_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContractEventRecord {
+  id: string;
+  contract_id: string;
+  event_type: ContractEventType;
+  actor_profile_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface ContractDraftValues {
+  contractTitle: string;
+  governingLaw: string;
+  contractTerms: string;
+}
+
 export interface ProfileRecord {
   id: string;
   role: Role;
