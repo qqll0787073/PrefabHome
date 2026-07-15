@@ -178,7 +178,12 @@ export function purchaseOrderSubtotalLabel(po: Pick<PurchaseOrderRecord, "subtot
 export function purchaseOrderSubmittedAtLabel(
   po: Pick<PurchaseOrderRecord, "status" | "submitted_at">
 ): string | null {
-  if (po.status !== "submitted" || !po.submitted_at) return null;
+  if (
+    !["submitted", "manufacturer_review", "revision_requested", "confirmed", "rejected"].includes(po.status) ||
+    !po.submitted_at
+  ) {
+    return null;
+  }
   return `Submitted ${new Date(po.submitted_at).toLocaleString()}`;
 }
 
@@ -190,12 +195,15 @@ export function purchaseOrderCancelledAtLabel(
 }
 
 export function purchaseOrderLastSubmittedAtLabel(
-  po: Pick<PurchaseOrderRecord, "status" | "last_submitted_at">
+  po: Pick<PurchaseOrderRecord, "status" | "submitted_at" | "last_submitted_at">
 ): string | null {
   if (!["submitted", "manufacturer_review", "revision_requested", "confirmed", "rejected"].includes(po.status)) {
     return null;
   }
   if (!po.last_submitted_at) return null;
+  if (po.submitted_at && new Date(po.last_submitted_at).getTime() === new Date(po.submitted_at).getTime()) {
+    return null;
+  }
   return `Last submitted ${new Date(po.last_submitted_at).toLocaleString()}`;
 }
 

@@ -164,20 +164,55 @@ describe("purchase order helpers", () => {
     );
   });
 
-  it("renders submitted timestamps only for submitted purchase orders", () => {
-    const submitted = {
+  it("preserves first submitted timestamp across first-round review lifecycle states", () => {
+    const statuses: PurchaseOrderRecord["status"][] = [
+      "submitted",
+      "manufacturer_review",
+      "revision_requested",
+      "confirmed",
+      "rejected",
+    ];
+
+    for (const status of statuses) {
+      const po = {
+        ...purchaseOrder,
+        status,
+        submitted_at: "2026-07-14T13:00:00Z",
+        last_submitted_at: "2026-07-14T13:00:00Z",
+        cancelled_at: null,
+        confirmed_at: status === "confirmed" ? "2026-07-14T14:00:00Z" : null,
+        rejected_at: status === "rejected" ? "2026-07-14T14:00:00Z" : null,
+        review_round: 1,
+      } satisfies PurchaseOrderRecord;
+
+      assert.match(purchaseOrderSubmittedAtLabel(po) ?? "", /^Submitted /);
+    }
+  });
+
+  it("hides duplicate last-submitted labels during the first review round", () => {
+    const firstRound = {
       ...purchaseOrder,
-      status: "submitted",
+      status: "manufacturer_review",
       submitted_at: "2026-07-14T13:00:00Z",
       last_submitted_at: "2026-07-14T13:00:00Z",
-      cancelled_at: null,
-      confirmed_at: null,
-      rejected_at: null,
       review_round: 1,
     } satisfies PurchaseOrderRecord;
 
-    assert.match(purchaseOrderSubmittedAtLabel(submitted) ?? "", /^Submitted /);
-    assert.equal(purchaseOrderCancelledAtLabel(submitted), null);
+    assert.match(purchaseOrderSubmittedAtLabel(firstRound) ?? "", /^Submitted /);
+    assert.equal(purchaseOrderLastSubmittedAtLabel(firstRound), null);
+  });
+
+  it("shows both first submitted and last submitted timestamps after resubmission", () => {
+    const secondRound = {
+      ...purchaseOrder,
+      status: "manufacturer_review",
+      submitted_at: "2026-07-14T13:00:00Z",
+      last_submitted_at: "2026-07-14T14:00:00Z",
+      review_round: 2,
+    } satisfies PurchaseOrderRecord;
+
+    assert.match(purchaseOrderSubmittedAtLabel(secondRound) ?? "", /^Submitted /);
+    assert.match(purchaseOrderLastSubmittedAtLabel(secondRound) ?? "", /^Last submitted /);
   });
 
   it("renders cancelled timestamps only for cancelled purchase orders", () => {
@@ -194,6 +229,7 @@ describe("purchase order helpers", () => {
 
     assert.match(purchaseOrderCancelledAtLabel(cancelled) ?? "", /^Cancelled /);
     assert.equal(purchaseOrderSubmittedAtLabel(cancelled), null);
+    assert.equal(purchaseOrderLastSubmittedAtLabel(cancelled), null);
   });
 
   it("never renders cancelled purchase orders as submitted", () => {
@@ -214,6 +250,7 @@ describe("purchase order helpers", () => {
 
   it("renders neither lifecycle timestamp for draft purchase orders", () => {
     assert.equal(purchaseOrderSubmittedAtLabel(purchaseOrder), null);
+    assert.equal(purchaseOrderLastSubmittedAtLabel(purchaseOrder), null);
     assert.equal(purchaseOrderCancelledAtLabel(purchaseOrder), null);
   });
 
@@ -269,7 +306,7 @@ describe("purchase order helpers", () => {
     );
   });
 
-  it("renders last-submitted timestamp for review lifecycle states", () => {
+  it("renders last-submitted timestamp for later review lifecycle states", () => {
     const reviewPO = {
       ...purchaseOrder,
       status: "manufacturer_review",

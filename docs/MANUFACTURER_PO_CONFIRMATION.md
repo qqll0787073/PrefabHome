@@ -50,6 +50,15 @@ Resubmit after revision request:
 - `submitted_at` remains the original first-submission timestamp
 - `last_submitted_at` updates
 
+UI timestamp display:
+
+- `draft` shows neither Submitted nor Last submitted.
+- `cancelled` shows only Cancelled.
+- first-round submitted lifecycle states show Submitted from `submitted_at`.
+- first-round views hide Last submitted when `last_submitted_at = submitted_at`.
+- later review rounds show Submitted from `submitted_at` and Last submitted from `last_submitted_at`.
+- confirmed and rejected POs also show their decision timestamp.
+
 ## Manufacturer Decisions
 
 Decision table: `public.purchase_order_decisions`

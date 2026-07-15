@@ -86,6 +86,10 @@ Expected helper coverage:
 - Buyer resubmit confirmation
 - confirmed/rejected read-only mapping
 - review round rendering
+- first Submitted timestamp remains visible in submitted, manufacturer review, revision requested, confirmed, and rejected states
+- duplicate Last submitted is hidden when `last_submitted_at = submitted_at`
+- later review rounds show both Submitted and Last submitted
+- draft and cancelled POs do not show submission timestamps
 - decision history ordering
 - Admin timeline mapping
 - no contract/payment controls
