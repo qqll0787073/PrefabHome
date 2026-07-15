@@ -3,9 +3,14 @@ import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
 import {
   fetchAdminPurchaseOrders,
+  fetchPurchaseOrderDecisions,
   fetchPurchaseOrderEvents,
 } from "../../lib/purchaseOrders";
-import type { PurchaseOrderEventRecord, PurchaseOrderWithItems } from "../../types";
+import type {
+  PurchaseOrderDecisionRecord,
+  PurchaseOrderEventRecord,
+  PurchaseOrderWithItems,
+} from "../../types";
 import { PurchaseOrderSummary } from "./PurchaseOrderSummary";
 
 interface AdminPurchaseOrderManagementProps {
@@ -15,6 +20,7 @@ interface AdminPurchaseOrderManagementProps {
 export function AdminPurchaseOrderManagement({ authMode }: AdminPurchaseOrderManagementProps) {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderWithItems[]>([]);
   const [eventsByPO, setEventsByPO] = useState<Record<string, PurchaseOrderEventRecord[]>>({});
+  const [decisionsByPO, setDecisionsByPO] = useState<Record<string, PurchaseOrderDecisionRecord[]>>({});
   const [isLoading, setIsLoading] = useState(authMode === "supabase");
   const [errors, setErrors] = useState<string[]>([]);
 
@@ -25,6 +31,7 @@ export function AdminPurchaseOrderManagement({ authMode }: AdminPurchaseOrderMan
     if (authMode === "demo") {
       setPurchaseOrders([]);
       setEventsByPO({});
+      setDecisionsByPO({});
       setIsLoading(false);
       return;
     }
@@ -34,9 +41,13 @@ export function AdminPurchaseOrderManagement({ authMode }: AdminPurchaseOrderMan
         const eventEntries = await Promise.all(
           items.map(async (po) => [po.id, await fetchPurchaseOrderEvents(po.id)] as const)
         );
+        const decisionEntries = await Promise.all(
+          items.map(async (po) => [po.id, await fetchPurchaseOrderDecisions(po.id)] as const)
+        );
         if (isMounted) {
           setPurchaseOrders(items);
           setEventsByPO(Object.fromEntries(eventEntries));
+          setDecisionsByPO(Object.fromEntries(decisionEntries));
         }
       })
       .catch((error) => {
@@ -54,7 +65,7 @@ export function AdminPurchaseOrderManagement({ authMode }: AdminPurchaseOrderMan
   return (
     <section className="quote-panel">
       <h4>Purchase Order Management</h4>
-      <p className="form-notice">Admin purchase order management is read-only in PH-007A.</p>
+      <p className="form-notice">Admin purchase order management is read-only in PH-007B.</p>
       {isLoading && <LoadingState message="Loading purchase orders..." />}
       <ErrorList errors={errors} />
       {!isLoading && purchaseOrders.length === 0 && <p>No purchase orders yet.</p>}
@@ -63,6 +74,7 @@ export function AdminPurchaseOrderManagement({ authMode }: AdminPurchaseOrderMan
           <PurchaseOrderSummary
             key={po.id}
             purchaseOrder={po}
+            decisions={decisionsByPO[po.id] ?? []}
             events={eventsByPO[po.id] ?? []}
             showSnapshots
           />
