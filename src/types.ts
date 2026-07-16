@@ -886,6 +886,112 @@ export interface PaymentDraftValues {
   notes: string;
 }
 
+export type ShippingReadinessStatus = "shipping_draft" | "ready_for_logistics" | "cancelled";
+
+export type ShippingMode = "ocean" | "air" | "truck" | "rail" | "multimodal" | "other";
+
+export type ShippingIncoterm =
+  | "EXW"
+  | "FCA"
+  | "FOB"
+  | "CFR"
+  | "CIF"
+  | "CPT"
+  | "CIP"
+  | "DAP"
+  | "DPU"
+  | "DDP"
+  | "OTHER"
+  | "UNSPECIFIED";
+
+export type ShippingReadinessEventType =
+  | "shipping_readiness_created"
+  | "shipping_readiness_updated"
+  | "shipping_readiness_marked_ready"
+  | "shipping_readiness_cancelled";
+
+export interface ShippingAddress {
+  address_line1?: string;
+  address_line2?: string;
+  city?: string;
+  state_region?: string;
+  postal_code?: string;
+  country_code?: string;
+}
+
+export interface ShippingReadinessRecord {
+  id: string;
+  shipping_number: string;
+  purchase_order_id: string;
+  purchase_order_number: string;
+  contract_id: string;
+  contract_number: string;
+  invoice_id: string;
+  invoice_number: string;
+  buyer_id: string;
+  manufacturer_id: string;
+  status: ShippingReadinessStatus;
+  version: number;
+  shipping_mode: ShippingMode;
+  incoterm: ShippingIncoterm | null;
+  origin_country_code: string | null;
+  origin_address: ShippingAddress | null;
+  destination_country_code: string | null;
+  destination_address: ShippingAddress | null;
+  cargo_description: string | null;
+  package_count: number | null;
+  gross_weight_kg: number | null;
+  volume_cbm: number | null;
+  requested_ship_date: string | null;
+  estimated_ready_date: string | null;
+  special_instructions: string | null;
+  purchase_order_snapshot: Record<string, unknown>;
+  contract_snapshot: Record<string, unknown>;
+  invoice_snapshot: Record<string, unknown>;
+  party_snapshot: Record<string, unknown>;
+  cargo_snapshot: Record<string, unknown>;
+  readiness_snapshot: Record<string, unknown>;
+  created_by: string;
+  ready_at: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ShippingReadinessEventRecord {
+  id: string;
+  shipping_readiness_id: string;
+  event_type: ShippingReadinessEventType;
+  actor_profile_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface ShippingReadinessDraftValues {
+  shippingMode: ShippingMode;
+  incoterm: ShippingIncoterm;
+  originAddressLine1: string;
+  originAddressLine2: string;
+  originCity: string;
+  originStateRegion: string;
+  originPostalCode: string;
+  originCountryCode: string;
+  destinationAddressLine1: string;
+  destinationAddressLine2: string;
+  destinationCity: string;
+  destinationStateRegion: string;
+  destinationPostalCode: string;
+  destinationCountryCode: string;
+  cargoDescription: string;
+  packageCount: string;
+  grossWeightKg: string;
+  volumeCbm: string;
+  requestedShipDate: string;
+  estimatedReadyDate: string;
+  specialInstructions: string;
+}
+
 export interface ProfileRecord {
   id: string;
   role: Role;
