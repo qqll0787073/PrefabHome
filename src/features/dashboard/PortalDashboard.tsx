@@ -3,6 +3,9 @@ import { AuthPanel } from "../auth/AuthPanel";
 import { AdminContractManagement } from "../contracts/AdminContractManagement";
 import { BuyerContracts } from "../contracts/BuyerContracts";
 import { ManufacturerContracts } from "../contracts/ManufacturerContracts";
+import { AdminInvoices } from "../invoices/AdminInvoices";
+import { BuyerInvoices } from "../invoices/BuyerInvoices";
+import { ManufacturerInvoices } from "../invoices/ManufacturerInvoices";
 import { AdminManufacturerReview } from "../manufacturers/AdminManufacturerReview";
 import { ManufacturerWorkspace } from "../manufacturers/ManufacturerWorkspace";
 import { AdminProductReview } from "../products/AdminProductReview";
@@ -84,6 +87,7 @@ export function PortalDashboard({
               <BuyerContracts authMode={auth.mode} />
               <BuyerSignaturePreparation authMode={auth.mode} />
               <BuyerSignatureDelivery authMode={auth.mode} />
+              <BuyerInvoices authMode={auth.mode} />
             </>
           )}
 
@@ -93,6 +97,7 @@ export function PortalDashboard({
               <ManufacturerContracts authMode={auth.mode} />
               <ManufacturerSignaturePreparation authMode={auth.mode} />
               <ManufacturerSignatureDelivery authMode={auth.mode} />
+              <ManufacturerInvoices authMode={auth.mode} />
               <ManufacturerWorkspace user={auth.user} authMode={auth.mode} />
               <ManufacturerProductList user={auth.user} authMode={auth.mode} />
             </>
@@ -104,6 +109,7 @@ export function PortalDashboard({
               <AdminContractManagement authMode={auth.mode} />
               <AdminSignaturePreparation authMode={auth.mode} />
               <AdminSignatureDelivery authMode={auth.mode} />
+              <AdminInvoices authMode={auth.mode} />
               <AdminManufacturerReview authMode={auth.mode} />
               <AdminProductReview authMode={auth.mode} />
             </>

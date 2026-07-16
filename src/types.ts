@@ -737,6 +737,83 @@ export interface SignatureDeliveryEventRecord {
   created_at: string;
 }
 
+export type InvoiceStatus = "draft" | "issued" | "cancelled";
+
+export type InvoiceEventType =
+  | "invoice_created"
+  | "invoice_updated"
+  | "invoice_issued"
+  | "invoice_cancelled";
+
+export interface InvoiceRecord {
+  id: string;
+  invoice_number: string;
+  contract_id: string;
+  contract_number: string;
+  purchase_order_id: string;
+  purchase_order_number: string;
+  buyer_id: string;
+  manufacturer_id: string;
+  status: InvoiceStatus;
+  version: number;
+  currency: string;
+  subtotal: number;
+  tax_amount: number;
+  shipping_amount: number;
+  discount_amount: number;
+  total_amount: number;
+  issue_date: string | null;
+  due_date: string | null;
+  billing_name: string | null;
+  billing_email: string | null;
+  billing_address: Record<string, unknown> | null;
+  contract_snapshot: Record<string, unknown>;
+  purchase_order_snapshot: Record<string, unknown>;
+  buyer_snapshot: Record<string, unknown>;
+  manufacturer_snapshot: Record<string, unknown>;
+  line_items_snapshot: Array<Record<string, unknown>>;
+  amount_snapshot: Record<string, unknown>;
+  created_by: string;
+  issued_at: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InvoiceLineItemRecord {
+  id: string;
+  invoice_id: string;
+  line_number: number;
+  source_po_item_id: string;
+  product_id: string | null;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  line_subtotal: number;
+  created_at: string;
+}
+
+export interface InvoiceEventRecord {
+  id: string;
+  invoice_id: string;
+  event_type: InvoiceEventType;
+  actor_profile_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface InvoiceDraftValues {
+  issueDate: string;
+  dueDate: string;
+  billingName: string;
+  billingEmail: string;
+  billingAddress: string;
+  taxAmount: string;
+  shippingAmount: string;
+  discountAmount: string;
+}
+
 export interface ProfileRecord {
   id: string;
   role: Role;
