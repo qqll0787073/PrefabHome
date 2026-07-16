@@ -28,6 +28,13 @@ export const invoiceEventLabels: Record<InvoiceEventRecord["event_type"], string
 export const invoiceCancellationReasonMaxLength = 2000;
 export const invoiceBillingNameMaxLength = 160;
 export const invoiceBillingEmailMaxLength = 254;
+export const invoiceBillingAddressLimits = {
+  addressLine1: 200,
+  addressLine2: 200,
+  city: 120,
+  stateRegion: 120,
+  postalCode: 32,
+} as const;
 
 function ensureSupabase() {
   if (!supabase) {
@@ -77,14 +84,34 @@ function parseAmount(value: string): number {
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
-function parseBillingAddress(value: string): Record<string, unknown> | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const parsed = JSON.parse(trimmed) as unknown;
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("Billing address must be a JSON object.");
-  }
-  return parsed as Record<string, unknown>;
+function addressString(address: Record<string, unknown> | null | undefined, key: string): string {
+  const value = address?.[key];
+  return typeof value === "string" ? value : "";
+}
+
+export function normalizeInvoiceBillingAddress(
+  values: Pick<
+    InvoiceDraftValues,
+    | "billingAddressLine1"
+    | "billingAddressLine2"
+    | "billingCity"
+    | "billingStateRegion"
+    | "billingPostalCode"
+    | "billingCountryCode"
+  >
+): Record<string, string> | null {
+  const address = {
+    address_line1: values.billingAddressLine1.trim(),
+    address_line2: values.billingAddressLine2.trim(),
+    city: values.billingCity.trim(),
+    state_region: values.billingStateRegion.trim(),
+    postal_code: values.billingPostalCode.trim(),
+    country_code: values.billingCountryCode.trim().toUpperCase(),
+  };
+  const compact = Object.fromEntries(
+    Object.entries(address).filter(([, value]) => value.length > 0)
+  ) as Record<string, string>;
+  return Object.keys(compact).length > 0 ? compact : null;
 }
 
 export function emptyInvoiceDraftValues(invoice?: InvoiceRecord | null): InvoiceDraftValues {
@@ -93,7 +120,12 @@ export function emptyInvoiceDraftValues(invoice?: InvoiceRecord | null): Invoice
     dueDate: invoice?.due_date ?? "",
     billingName: invoice?.billing_name ?? "",
     billingEmail: invoice?.billing_email ?? "",
-    billingAddress: invoice?.billing_address ? JSON.stringify(invoice.billing_address, null, 2) : "",
+    billingAddressLine1: addressString(invoice?.billing_address, "address_line1"),
+    billingAddressLine2: addressString(invoice?.billing_address, "address_line2"),
+    billingCity: addressString(invoice?.billing_address, "city"),
+    billingStateRegion: addressString(invoice?.billing_address, "state_region"),
+    billingPostalCode: addressString(invoice?.billing_address, "postal_code"),
+    billingCountryCode: addressString(invoice?.billing_address, "country_code"),
     taxAmount: invoice ? String(invoice.tax_amount) : "0",
     shippingAmount: invoice ? String(invoice.shipping_amount) : "0",
     discountAmount: invoice ? String(invoice.discount_amount) : "0",
@@ -130,12 +162,24 @@ export function validateInvoiceDraftValues(
   if (values.billingEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.billingEmail.trim())) {
     errors.push("Billing email must be valid.");
   }
-  if (values.billingAddress.trim()) {
-    try {
-      parseBillingAddress(values.billingAddress);
-    } catch {
-      errors.push("Billing address must be a JSON object.");
-    }
+  if (values.billingAddressLine1.trim().length > invoiceBillingAddressLimits.addressLine1) {
+    errors.push(`Address line 1 must be ${invoiceBillingAddressLimits.addressLine1} characters or fewer.`);
+  }
+  if (values.billingAddressLine2.trim().length > invoiceBillingAddressLimits.addressLine2) {
+    errors.push(`Address line 2 must be ${invoiceBillingAddressLimits.addressLine2} characters or fewer.`);
+  }
+  if (values.billingCity.trim().length > invoiceBillingAddressLimits.city) {
+    errors.push(`City must be ${invoiceBillingAddressLimits.city} characters or fewer.`);
+  }
+  if (values.billingStateRegion.trim().length > invoiceBillingAddressLimits.stateRegion) {
+    errors.push(`State or region must be ${invoiceBillingAddressLimits.stateRegion} characters or fewer.`);
+  }
+  if (values.billingPostalCode.trim().length > invoiceBillingAddressLimits.postalCode) {
+    errors.push(`Postal code must be ${invoiceBillingAddressLimits.postalCode} characters or fewer.`);
+  }
+  const countryCode = values.billingCountryCode.trim();
+  if (countryCode && !/^[A-Za-z]{2}$/.test(countryCode)) {
+    errors.push("Country code must be exactly two letters.");
   }
   if (values.issueDate && Number.isNaN(Date.parse(values.issueDate))) {
     errors.push("Issue date must be valid.");
@@ -158,7 +202,11 @@ export function validateInvoiceDraftValues(
   if (requireComplete) {
     if (!values.billingName.trim()) errors.push("Billing name is required.");
     if (!values.billingEmail.trim()) errors.push("Billing email is required.");
-    if (!values.billingAddress.trim()) errors.push("Billing address is required.");
+    if (!values.billingAddressLine1.trim()) errors.push("Address line 1 is required.");
+    if (!values.billingCity.trim()) errors.push("City is required.");
+    if (!values.billingStateRegion.trim()) errors.push("State or region is required.");
+    if (!values.billingPostalCode.trim()) errors.push("Postal code is required.");
+    if (!values.billingCountryCode.trim()) errors.push("Country code is required.");
     if (!values.issueDate) errors.push("Issue date is required.");
     if (!values.dueDate) errors.push("Due date is required.");
   }
@@ -197,6 +245,10 @@ export function isInvoiceReadOnly(invoice: Pick<InvoiceRecord, "status">): boole
 
 export function canIssueInvoice(invoice: Pick<InvoiceRecord, "status">): boolean {
   return invoice.status === "draft";
+}
+
+export function isInvoiceIssueReady(values: InvoiceDraftValues, subtotal: number): boolean {
+  return validateInvoiceDraftValues(values, subtotal, true).length === 0;
 }
 
 export function canCancelInvoice(invoice: Pick<InvoiceRecord, "status">): boolean {
@@ -262,7 +314,7 @@ export async function updateInvoiceDraft(invoiceId: string, values: InvoiceDraft
     due_date_value: values.dueDate || null,
     billing_name_text: values.billingName.trim() || null,
     billing_email_text: values.billingEmail.trim() || null,
-    billing_address_value: parseBillingAddress(values.billingAddress),
+    billing_address_value: normalizeInvoiceBillingAddress(values),
     tax_amount_value: parseAmount(values.taxAmount),
     shipping_amount_value: parseAmount(values.shippingAmount),
     discount_amount_value: parseAmount(values.discountAmount),

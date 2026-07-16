@@ -808,7 +808,12 @@ export interface InvoiceDraftValues {
   dueDate: string;
   billingName: string;
   billingEmail: string;
-  billingAddress: string;
+  billingAddressLine1: string;
+  billingAddressLine2: string;
+  billingCity: string;
+  billingStateRegion: string;
+  billingPostalCode: string;
+  billingCountryCode: string;
   taxAmount: string;
   shippingAmount: string;
   discountAmount: string;

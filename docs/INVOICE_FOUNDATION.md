@@ -48,6 +48,21 @@ The database calculates:
 
 All amounts must be non-negative, and discount cannot exceed subtotal plus tax plus shipping. Tax is manually entered for preparation only; there is no automatic tax determination.
 
+## Billing Address Schema
+
+PH-009A supports a stable billing-address JSON object with these fields:
+
+- `address_line1` required at issue
+- `city` required at issue
+- `state_region` required at issue
+- `postal_code` required at issue
+- `country_code` required at issue
+- `address_line2` optional
+
+Draft updates may save a null or partial billing address. Supported string fields are trimmed, blank `address_line2` is omitted, `country_code` is uppercased, and unsupported extra fields are not stored. Draft updates still reject non-object values, non-string supported fields, overlong supported fields, and invalid `country_code` values when provided.
+
+Issue-time validation is strict: all required fields must be present as non-empty strings after trimming. `country_code` must normalize to exactly two uppercase letters.
+
 ## Trusted RPCs
 
 - `create_invoice_from_purchase_order`

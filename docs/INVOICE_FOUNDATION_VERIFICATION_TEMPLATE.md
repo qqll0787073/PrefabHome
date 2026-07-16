@@ -26,6 +26,7 @@ Coverage:
 - source derivation
 - line-item derivation
 - amount formulas
+- billing-address schema and issue-time completeness
 - billing/date/amount validations
 - issue/cancel lifecycle
 - state-conditional concurrency protection

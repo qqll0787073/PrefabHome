@@ -274,6 +274,48 @@ export function ManufacturerInvoices({ authMode }: ManufacturerInvoicesProps) {
               />
             </label>
             <label>
+              Address line 1
+              <input
+                value={draftValues.billingAddressLine1}
+                onChange={(event) => setDraftValues({ ...draftValues, billingAddressLine1: event.target.value })}
+              />
+            </label>
+            <label>
+              Address line 2
+              <input
+                value={draftValues.billingAddressLine2}
+                onChange={(event) => setDraftValues({ ...draftValues, billingAddressLine2: event.target.value })}
+              />
+            </label>
+            <label>
+              City
+              <input
+                value={draftValues.billingCity}
+                onChange={(event) => setDraftValues({ ...draftValues, billingCity: event.target.value })}
+              />
+            </label>
+            <label>
+              State/region
+              <input
+                value={draftValues.billingStateRegion}
+                onChange={(event) => setDraftValues({ ...draftValues, billingStateRegion: event.target.value })}
+              />
+            </label>
+            <label>
+              Postal code
+              <input
+                value={draftValues.billingPostalCode}
+                onChange={(event) => setDraftValues({ ...draftValues, billingPostalCode: event.target.value })}
+              />
+            </label>
+            <label>
+              Country code
+              <input
+                value={draftValues.billingCountryCode}
+                onChange={(event) => setDraftValues({ ...draftValues, billingCountryCode: event.target.value })}
+              />
+            </label>
+            <label>
               Tax amount
               <input
                 inputMode="decimal"
@@ -298,13 +340,6 @@ export function ManufacturerInvoices({ authMode }: ManufacturerInvoicesProps) {
               />
             </label>
           </div>
-          <label>
-            Billing address JSON
-            <textarea
-              value={draftValues.billingAddress}
-              onChange={(event) => setDraftValues({ ...draftValues, billingAddress: event.target.value })}
-            />
-          </label>
           <p className="form-notice">
             Preview total:{" "}
             {Number.isNaN(previewTotal)

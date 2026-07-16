@@ -323,6 +323,101 @@ begin
 end;
 $$;
 
+create or replace function public.normalize_invoice_billing_address(
+  billing_address_value jsonb,
+  require_complete boolean default false
+)
+returns jsonb
+language plpgsql
+immutable
+as $$
+declare
+  address_line1_text text;
+  address_line2_text text;
+  city_text text;
+  state_region_text text;
+  postal_code_text text;
+  country_code_text text;
+begin
+  if billing_address_value is null then
+    if require_complete then
+      raise exception 'Complete billing address is required before issuing.';
+    end if;
+    return null;
+  end if;
+
+  if jsonb_typeof(billing_address_value) <> 'object' then
+    raise exception 'Billing address must be a JSON object.';
+  end if;
+
+  if billing_address_value ? 'address_line1' and jsonb_typeof(billing_address_value->'address_line1') <> 'string' then
+    raise exception 'Billing address line 1 must be a string.';
+  end if;
+  if billing_address_value ? 'address_line2'
+    and billing_address_value->'address_line2' <> 'null'::jsonb
+    and jsonb_typeof(billing_address_value->'address_line2') <> 'string' then
+    raise exception 'Billing address line 2 must be a string.';
+  end if;
+  if billing_address_value ? 'city' and jsonb_typeof(billing_address_value->'city') <> 'string' then
+    raise exception 'Billing city must be a string.';
+  end if;
+  if billing_address_value ? 'state_region' and jsonb_typeof(billing_address_value->'state_region') <> 'string' then
+    raise exception 'Billing state or region must be a string.';
+  end if;
+  if billing_address_value ? 'postal_code' and jsonb_typeof(billing_address_value->'postal_code') <> 'string' then
+    raise exception 'Billing postal code must be a string.';
+  end if;
+  if billing_address_value ? 'country_code' and jsonb_typeof(billing_address_value->'country_code') <> 'string' then
+    raise exception 'Billing country code must be a string.';
+  end if;
+
+  address_line1_text := nullif(btrim(coalesce(billing_address_value->>'address_line1', '')), '');
+  address_line2_text := nullif(btrim(coalesce(billing_address_value->>'address_line2', '')), '');
+  city_text := nullif(btrim(coalesce(billing_address_value->>'city', '')), '');
+  state_region_text := nullif(btrim(coalesce(billing_address_value->>'state_region', '')), '');
+  postal_code_text := nullif(btrim(coalesce(billing_address_value->>'postal_code', '')), '');
+  country_code_text := nullif(upper(btrim(coalesce(billing_address_value->>'country_code', ''))), '');
+
+  if require_complete and (
+    address_line1_text is null
+    or city_text is null
+    or state_region_text is null
+    or postal_code_text is null
+    or country_code_text is null
+  ) then
+    raise exception 'Complete billing address is required before issuing.';
+  end if;
+
+  if address_line1_text is not null and char_length(address_line1_text) > 200 then
+    raise exception 'Billing address line 1 must be 200 characters or fewer.';
+  end if;
+  if address_line2_text is not null and char_length(address_line2_text) > 200 then
+    raise exception 'Billing address line 2 must be 200 characters or fewer.';
+  end if;
+  if city_text is not null and char_length(city_text) > 120 then
+    raise exception 'Billing city must be 120 characters or fewer.';
+  end if;
+  if state_region_text is not null and char_length(state_region_text) > 120 then
+    raise exception 'Billing state or region must be 120 characters or fewer.';
+  end if;
+  if postal_code_text is not null and char_length(postal_code_text) > 32 then
+    raise exception 'Billing postal code must be 32 characters or fewer.';
+  end if;
+  if country_code_text is not null and country_code_text !~ '^[A-Z]{2}$' then
+    raise exception 'Billing country code must be exactly two letters.';
+  end if;
+
+  return jsonb_strip_nulls(jsonb_build_object(
+    'address_line1', address_line1_text,
+    'address_line2', address_line2_text,
+    'city', city_text,
+    'state_region', state_region_text,
+    'postal_code', postal_code_text,
+    'country_code', country_code_text
+  ));
+end;
+$$;
+
 create or replace function public.assert_invoice_billing_values(
   billing_name_text text,
   billing_email_text text,
@@ -350,9 +445,7 @@ begin
     raise exception 'Billing email must be a valid email address.';
   end if;
 
-  if billing_address_value is not null and jsonb_typeof(billing_address_value) <> 'object' then
-    raise exception 'Billing address must be a JSON object.';
-  end if;
+  perform public.normalize_invoice_billing_address(billing_address_value, require_complete);
 
   if issue_date_value is not null and due_date_value is not null and due_date_value < issue_date_value then
     raise exception 'Due date must be on or after the issue date.';
@@ -717,7 +810,7 @@ begin
       due_date = due_date_value,
       billing_name = nullif(btrim(coalesce(billing_name_text, '')), ''),
       billing_email = nullif(lower(btrim(coalesce(billing_email_text, ''))), ''),
-      billing_address = billing_address_value,
+      billing_address = public.normalize_invoice_billing_address(billing_address_value, false),
       tax_amount = normalized_tax,
       shipping_amount = normalized_shipping,
       discount_amount = normalized_discount,
@@ -972,6 +1065,7 @@ revoke all on function public.build_invoice_line_items_snapshot(uuid) from publi
 revoke all on function public.strip_invoice_event_metadata(jsonb) from public, anon, authenticated;
 revoke all on function public.insert_trusted_invoice_event(uuid, text, uuid, jsonb) from public, anon, authenticated;
 revoke all on function public.assert_invoice_amounts(numeric, numeric, numeric, numeric) from public, anon, authenticated;
+revoke all on function public.normalize_invoice_billing_address(jsonb, boolean) from public, anon, authenticated;
 revoke all on function public.assert_invoice_billing_values(text, text, jsonb, date, date, boolean) from public, anon, authenticated;
 revoke all on function public.protect_invoice_write() from public, anon, authenticated;
 revoke all on function public.protect_invoice_line_item_write() from public, anon, authenticated;

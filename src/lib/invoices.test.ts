@@ -14,6 +14,8 @@ import {
   invoiceStatusLabels,
   invoiceTaxDisclaimer,
   isInvoiceReadOnly,
+  isInvoiceIssueReady,
+  normalizeInvoiceBillingAddress,
   validateInvoiceCancellationReason,
   validateInvoiceDraftValues,
 } from "./invoices";
@@ -71,6 +73,22 @@ const readyPackage = {
   status: "ready_to_send",
 } as SignaturePackageRecord;
 
+const completeDraftValues = {
+  issueDate: "2026-07-16",
+  dueDate: "2026-08-16",
+  billingName: "Buyer",
+  billingEmail: "buyer@example.test",
+  billingAddressLine1: "1 Main St",
+  billingAddressLine2: "",
+  billingCity: "Los Angeles",
+  billingStateRegion: "CA",
+  billingPostalCode: "90001",
+  billingCountryCode: "us",
+  taxAmount: "80",
+  shippingAmount: "120",
+  discountAmount: "50",
+};
+
 describe("invoice helpers", () => {
   it("maps conservative invoice lifecycle labels and permissions", () => {
     assert.equal(invoiceStatusLabels.draft, "Draft");
@@ -104,7 +122,12 @@ describe("invoice helpers", () => {
           dueDate: "2026-07-15",
           billingName: "Buyer",
           billingEmail: "bad",
-          billingAddress: "[]",
+          billingAddressLine1: "x".repeat(201),
+          billingAddressLine2: "",
+          billingCity: "",
+          billingStateRegion: "",
+          billingPostalCode: "",
+          billingCountryCode: "USA",
           taxAmount: "-1",
           shippingAmount: "x",
           discountAmount: "2000",
@@ -114,10 +137,14 @@ describe("invoice helpers", () => {
       ),
       [
         "Billing email must be valid.",
-        "Billing address must be a JSON object.",
+        "Address line 1 must be 200 characters or fewer.",
+        "Country code must be exactly two letters.",
         "Due date must be on or after the issue date.",
         "Amounts must be valid numbers.",
         "Amounts must be zero or greater.",
+        "City is required.",
+        "State or region is required.",
+        "Postal code is required.",
       ]
     );
     assert.deepEqual(
@@ -127,7 +154,12 @@ describe("invoice helpers", () => {
           dueDate: "",
           billingName: "",
           billingEmail: "",
-          billingAddress: "",
+          billingAddressLine1: "",
+          billingAddressLine2: "",
+          billingCity: "",
+          billingStateRegion: "",
+          billingPostalCode: "",
+          billingCountryCode: "",
           taxAmount: "0",
           shippingAmount: "0",
           discountAmount: "0",
@@ -138,11 +170,47 @@ describe("invoice helpers", () => {
       [
         "Billing name is required.",
         "Billing email is required.",
-        "Billing address is required.",
+        "Address line 1 is required.",
+        "City is required.",
+        "State or region is required.",
+        "Postal code is required.",
+        "Country code is required.",
         "Issue date is required.",
         "Due date is required.",
       ]
     );
+  });
+
+  it("allows partial draft addresses while enforcing issue-time required fields", () => {
+    assert.deepEqual(validateInvoiceDraftValues({ ...completeDraftValues, billingCity: "" }, 1000), []);
+    assert.deepEqual(validateInvoiceDraftValues({ ...completeDraftValues, billingCity: "" }, 1000, true), [
+      "City is required.",
+    ]);
+    assert.equal(isInvoiceIssueReady(completeDraftValues, 1000), true);
+    assert.equal(isInvoiceIssueReady({ ...completeDraftValues, billingAddressLine1: " " }, 1000), false);
+  });
+
+  it("normalizes supported billing address fields and country code", () => {
+    assert.deepEqual(normalizeInvoiceBillingAddress({
+      ...completeDraftValues,
+      billingAddressLine1: "  1 Main St  ",
+      billingAddressLine2: "   ",
+      billingCountryCode: "us",
+    }), {
+      address_line1: "1 Main St",
+      city: "Los Angeles",
+      state_region: "CA",
+      postal_code: "90001",
+      country_code: "US",
+    });
+    assert.equal(normalizeInvoiceBillingAddress({
+      ...completeDraftValues,
+      billingAddressLine1: "",
+      billingCity: "",
+      billingStateRegion: "",
+      billingPostalCode: "",
+      billingCountryCode: "",
+    }), null);
   });
 
   it("previews totals without claiming database authority", () => {
@@ -194,11 +262,18 @@ describe("invoice helpers", () => {
       due_date: "2026-08-16",
       billing_name: "Buyer",
       billing_email: "buyer@example.com",
-      billing_address: { line1: "1 Main St" },
+      billing_address: {
+        address_line1: "1 Main St",
+        city: "Los Angeles",
+        state_region: "CA",
+        postal_code: "90001",
+        country_code: "US",
+      },
       tax_amount: 80,
     });
     assert.equal(values.billingName, "Buyer");
-    assert.equal(values.billingAddress.includes("line1"), true);
+    assert.equal(values.billingAddressLine1, "1 Main St");
+    assert.equal(values.billingCountryCode, "US");
     assert.equal(invoiceEventLabel({ event_type: "invoice_issued" } as InvoiceEventRecord), "Invoice issued");
   });
 });
