@@ -8,6 +8,9 @@ import { BuyerInvoices } from "../invoices/BuyerInvoices";
 import { ManufacturerInvoices } from "../invoices/ManufacturerInvoices";
 import { AdminManufacturerReview } from "../manufacturers/AdminManufacturerReview";
 import { ManufacturerWorkspace } from "../manufacturers/ManufacturerWorkspace";
+import { AdminPayments } from "../payments/AdminPayments";
+import { BuyerPayments } from "../payments/BuyerPayments";
+import { ManufacturerPayments } from "../payments/ManufacturerPayments";
 import { AdminProductReview } from "../products/AdminProductReview";
 import { ManufacturerProductList } from "../products/ManufacturerProductList";
 import { AdminRFQManagement } from "../rfqs/AdminRFQManagement";
@@ -88,6 +91,7 @@ export function PortalDashboard({
               <BuyerSignaturePreparation authMode={auth.mode} />
               <BuyerSignatureDelivery authMode={auth.mode} />
               <BuyerInvoices authMode={auth.mode} />
+              <BuyerPayments authMode={auth.mode} />
             </>
           )}
 
@@ -98,6 +102,7 @@ export function PortalDashboard({
               <ManufacturerSignaturePreparation authMode={auth.mode} />
               <ManufacturerSignatureDelivery authMode={auth.mode} />
               <ManufacturerInvoices authMode={auth.mode} />
+              <ManufacturerPayments authMode={auth.mode} />
               <ManufacturerWorkspace user={auth.user} authMode={auth.mode} />
               <ManufacturerProductList user={auth.user} authMode={auth.mode} />
             </>
@@ -110,6 +115,7 @@ export function PortalDashboard({
               <AdminSignaturePreparation authMode={auth.mode} />
               <AdminSignatureDelivery authMode={auth.mode} />
               <AdminInvoices authMode={auth.mode} />
+              <AdminPayments authMode={auth.mode} />
               <AdminManufacturerReview authMode={auth.mode} />
               <AdminProductReview authMode={auth.mode} />
             </>

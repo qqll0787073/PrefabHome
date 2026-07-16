@@ -819,6 +819,73 @@ export interface InvoiceDraftValues {
   discountAmount: string;
 }
 
+export type PaymentRecordStatus = "draft" | "recorded" | "voided";
+
+export type PaymentMethod = "bank_transfer" | "wire" | "check" | "cash" | "other";
+
+export type PaymentEventType =
+  | "payment_record_created"
+  | "payment_record_updated"
+  | "payment_recorded"
+  | "payment_record_voided";
+
+export interface PaymentRecord {
+  id: string;
+  payment_number: string;
+  invoice_id: string;
+  invoice_number: string;
+  contract_id: string;
+  contract_number: string;
+  purchase_order_id: string;
+  purchase_order_number: string;
+  buyer_id: string;
+  manufacturer_id: string;
+  status: PaymentRecordStatus;
+  version: number;
+  currency: string;
+  amount: number;
+  payment_method: PaymentMethod;
+  payment_date: string | null;
+  reference_number: string | null;
+  notes: string | null;
+  invoice_snapshot: Record<string, unknown>;
+  party_snapshot: Record<string, unknown>;
+  payment_snapshot: Record<string, unknown>;
+  created_by: string;
+  recorded_at: string | null;
+  voided_at: string | null;
+  void_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaymentEventRecord {
+  id: string;
+  payment_record_id: string;
+  event_type: PaymentEventType;
+  actor_profile_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface InvoicePaymentSummary {
+  invoice_id: string;
+  invoice_number: string;
+  currency: string;
+  invoice_total: number;
+  recorded_amount: number;
+  remaining_balance: number;
+  recorded_payment_count: number;
+}
+
+export interface PaymentDraftValues {
+  amount: string;
+  paymentMethod: PaymentMethod;
+  paymentDate: string;
+  referenceNumber: string;
+  notes: string;
+}
+
 export interface ProfileRecord {
   id: string;
   role: Role;
