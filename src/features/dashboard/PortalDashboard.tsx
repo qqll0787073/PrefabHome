@@ -10,6 +10,9 @@ import { ManufacturerProductList } from "../products/ManufacturerProductList";
 import { AdminRFQManagement } from "../rfqs/AdminRFQManagement";
 import { BuyerRFQDashboard } from "../rfqs/BuyerRFQDashboard";
 import { ManufacturerRFQInbox } from "../rfqs/ManufacturerRFQInbox";
+import { AdminSignatureDelivery } from "../signature-delivery/AdminSignatureDelivery";
+import { BuyerSignatureDelivery } from "../signature-delivery/BuyerSignatureDelivery";
+import { ManufacturerSignatureDelivery } from "../signature-delivery/ManufacturerSignatureDelivery";
 import { AdminSignaturePreparation } from "../signatures/AdminSignaturePreparation";
 import { BuyerSignaturePreparation } from "../signatures/BuyerSignaturePreparation";
 import { ManufacturerSignaturePreparation } from "../signatures/ManufacturerSignaturePreparation";
@@ -80,6 +83,7 @@ export function PortalDashboard({
               <BuyerRFQDashboard user={auth.user} authMode={auth.mode} />
               <BuyerContracts authMode={auth.mode} />
               <BuyerSignaturePreparation authMode={auth.mode} />
+              <BuyerSignatureDelivery authMode={auth.mode} />
             </>
           )}
 
@@ -88,6 +92,7 @@ export function PortalDashboard({
               <ManufacturerRFQInbox user={auth.user} authMode={auth.mode} />
               <ManufacturerContracts authMode={auth.mode} />
               <ManufacturerSignaturePreparation authMode={auth.mode} />
+              <ManufacturerSignatureDelivery authMode={auth.mode} />
               <ManufacturerWorkspace user={auth.user} authMode={auth.mode} />
               <ManufacturerProductList user={auth.user} authMode={auth.mode} />
             </>
@@ -98,6 +103,7 @@ export function PortalDashboard({
               <AdminRFQManagement user={auth.user} authMode={auth.mode} />
               <AdminContractManagement authMode={auth.mode} />
               <AdminSignaturePreparation authMode={auth.mode} />
+              <AdminSignatureDelivery authMode={auth.mode} />
               <AdminManufacturerReview authMode={auth.mode} />
               <AdminProductReview authMode={auth.mode} />
             </>
