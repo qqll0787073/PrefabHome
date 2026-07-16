@@ -619,6 +619,67 @@ export interface ContractDraftValues {
   contractTerms: string;
 }
 
+export type SignaturePackageStatus = "draft" | "ready_to_send";
+
+export type SignatureParticipantRole = "buyer_signer" | "manufacturer_signer";
+
+export type SignatureParticipantStatus = "pending";
+
+export type SignaturePackageEventType =
+  | "signature_package_created"
+  | "signature_participant_updated"
+  | "signature_package_ready";
+
+export interface SignaturePackageRecord {
+  id: string;
+  package_number: string;
+  contract_id: string;
+  contract_number: string;
+  buyer_id: string;
+  manufacturer_id: string;
+  status: SignaturePackageStatus;
+  version: number;
+  contract_snapshot: Record<string, unknown>;
+  buyer_snapshot: Record<string, unknown>;
+  manufacturer_snapshot: Record<string, unknown>;
+  decision_snapshot: Record<string, unknown>;
+  signing_content_snapshot: Record<string, unknown>;
+  created_by: string;
+  ready_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SignatureParticipantRecord {
+  id: string;
+  signature_package_id: string;
+  participant_role: SignatureParticipantRole;
+  profile_id: string | null;
+  organization_id: string | null;
+  full_name: string | null;
+  email: string | null;
+  title: string | null;
+  signing_order: number;
+  status: SignatureParticipantStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SignaturePackageEventRecord {
+  id: string;
+  signature_package_id: string;
+  event_type: SignaturePackageEventType;
+  actor_profile_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface SignatureParticipantValues {
+  fullName: string;
+  email: string;
+  title: string;
+}
+
 export interface ProfileRecord {
   id: string;
   role: Role;

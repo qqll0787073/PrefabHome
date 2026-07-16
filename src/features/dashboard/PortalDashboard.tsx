@@ -10,6 +10,9 @@ import { ManufacturerProductList } from "../products/ManufacturerProductList";
 import { AdminRFQManagement } from "../rfqs/AdminRFQManagement";
 import { BuyerRFQDashboard } from "../rfqs/BuyerRFQDashboard";
 import { ManufacturerRFQInbox } from "../rfqs/ManufacturerRFQInbox";
+import { AdminSignaturePreparation } from "../signatures/AdminSignaturePreparation";
+import { BuyerSignaturePreparation } from "../signatures/BuyerSignaturePreparation";
+import { ManufacturerSignaturePreparation } from "../signatures/ManufacturerSignaturePreparation";
 import type { AuthState } from "../../lib/auth";
 import type { Role } from "../../types";
 
@@ -76,6 +79,7 @@ export function PortalDashboard({
             <>
               <BuyerRFQDashboard user={auth.user} authMode={auth.mode} />
               <BuyerContracts authMode={auth.mode} />
+              <BuyerSignaturePreparation authMode={auth.mode} />
             </>
           )}
 
@@ -83,6 +87,7 @@ export function PortalDashboard({
             <>
               <ManufacturerRFQInbox user={auth.user} authMode={auth.mode} />
               <ManufacturerContracts authMode={auth.mode} />
+              <ManufacturerSignaturePreparation authMode={auth.mode} />
               <ManufacturerWorkspace user={auth.user} authMode={auth.mode} />
               <ManufacturerProductList user={auth.user} authMode={auth.mode} />
             </>
@@ -92,6 +97,7 @@ export function PortalDashboard({
             <>
               <AdminRFQManagement user={auth.user} authMode={auth.mode} />
               <AdminContractManagement authMode={auth.mode} />
+              <AdminSignaturePreparation authMode={auth.mode} />
               <AdminManufacturerReview authMode={auth.mode} />
               <AdminProductReview authMode={auth.mode} />
             </>
