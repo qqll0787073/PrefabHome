@@ -587,7 +587,11 @@ begin
     raise exception 'Only buyers can queue signature delivery requests.';
   end if;
 
-  select * into delivery_row from public.signature_delivery_requests where id = delivery_uuid;
+  select *
+  into delivery_row
+  from public.signature_delivery_requests
+  where id = delivery_uuid
+  for update;
   if delivery_row.id is null then
     raise exception 'Signature delivery request not found.';
   end if;
@@ -608,7 +612,12 @@ begin
   set status = 'queued',
       queued_at = now()
   where id = delivery_uuid
+    and status = 'delivery_draft'
   returning * into delivery_row;
+
+  if not found then
+    raise exception 'Signature delivery request lifecycle conflict while queueing.';
+  end if;
 
   perform public.insert_trusted_signature_delivery_event(
     delivery_row.id,
@@ -666,7 +675,11 @@ begin
     raise exception 'Cancellation reason must be 2000 characters or fewer.';
   end if;
 
-  select * into delivery_row from public.signature_delivery_requests where id = delivery_uuid;
+  select *
+  into delivery_row
+  from public.signature_delivery_requests
+  where id = delivery_uuid
+  for update;
   if delivery_row.id is null then
     raise exception 'Signature delivery request not found.';
   end if;
@@ -686,7 +699,12 @@ begin
       cancelled_at = now(),
       cancellation_reason = normalized_reason
   where id = delivery_uuid
+    and status in ('delivery_draft', 'queued')
   returning * into delivery_row;
+
+  if not found then
+    raise exception 'Signature delivery request lifecycle conflict while cancelling.';
+  end if;
 
   perform public.insert_trusted_signature_delivery_event(
     delivery_row.id,

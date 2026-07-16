@@ -589,7 +589,11 @@ begin
     raise exception 'Only buyers can queue signature delivery requests.';
   end if;
 
-  select * into delivery_row from public.signature_delivery_requests where id = delivery_uuid;
+  select *
+  into delivery_row
+  from public.signature_delivery_requests
+  where id = delivery_uuid
+  for update;
   if delivery_row.id is null then
     raise exception 'Signature delivery request not found.';
   end if;
@@ -610,7 +614,12 @@ begin
   set status = 'queued',
       queued_at = now()
   where id = delivery_uuid
+    and status = 'delivery_draft'
   returning * into delivery_row;
+
+  if not found then
+    raise exception 'Signature delivery request lifecycle conflict while queueing.';
+  end if;
 
   perform public.insert_trusted_signature_delivery_event(
     delivery_row.id,
@@ -668,7 +677,11 @@ begin
     raise exception 'Cancellation reason must be 2000 characters or fewer.';
   end if;
 
-  select * into delivery_row from public.signature_delivery_requests where id = delivery_uuid;
+  select *
+  into delivery_row
+  from public.signature_delivery_requests
+  where id = delivery_uuid
+  for update;
   if delivery_row.id is null then
     raise exception 'Signature delivery request not found.';
   end if;
@@ -688,7 +701,12 @@ begin
       cancelled_at = now(),
       cancellation_reason = normalized_reason
   where id = delivery_uuid
+    and status in ('delivery_draft', 'queued')
   returning * into delivery_row;
+
+  if not found then
+    raise exception 'Signature delivery request lifecycle conflict while cancelling.';
+  end if;
 
   perform public.insert_trusted_signature_delivery_event(
     delivery_row.id,
@@ -953,6 +971,15 @@ begin
   insert into signature_delivery_foundation_results values ('Buyer cancels queued request', cancelled_row.status = 'cancelled', cancelled_row.status);
   insert into signature_delivery_foundation_results values ('cancelled_at database-generated', cancelled_row.cancelled_at is not null, coalesce(cancelled_row.cancelled_at::text, 'null'));
   insert into signature_delivery_foundation_results values ('cancel reason stored', cancelled_row.cancellation_reason = 'Rollback verification cancellation', coalesce(cancelled_row.cancellation_reason, 'null'));
+  insert into signature_delivery_foundation_results values ('queue versus cancel serialized', cancelled_row.queued_at is not null and cancelled_row.cancelled_at is not null and cancelled_row.cancelled_at >= cancelled_row.queued_at, 'serialized timestamps');
+
+  blocked := false;
+  begin
+    perform public.cancel_signature_delivery_request(delivery_row.id, 'Second cancellation attempt');
+  exception when others then
+    blocked := true;
+  end;
+  insert into signature_delivery_foundation_results values ('repeated cancel denied', blocked, 'blocked: ' || blocked);
 
   blocked := false;
   begin
@@ -1013,6 +1040,10 @@ begin
 
   select count(*) into event_count from public.signature_delivery_events where delivery_request_id = delivery_row.id;
   insert into signature_delivery_foundation_results values ('trusted events created', event_count = 3, 'events: ' || event_count);
+  select count(*) into event_count from public.signature_delivery_events where delivery_request_id = delivery_row.id and event_type = 'signature_delivery_queued';
+  insert into signature_delivery_foundation_results values ('exactly one queued event', event_count = 1, 'queued events: ' || event_count);
+  select count(*) into event_count from public.signature_delivery_events where delivery_request_id = delivery_row.id and event_type = 'signature_delivery_cancelled';
+  insert into signature_delivery_foundation_results values ('exactly one cancelled event', event_count = 1, 'cancelled events: ' || event_count);
   insert into signature_delivery_foundation_results values (
     'event metadata stripped',
     not exists (
