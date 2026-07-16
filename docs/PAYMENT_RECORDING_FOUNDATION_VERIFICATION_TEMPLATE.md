@@ -26,6 +26,9 @@ Coverage:
 - Payment number generation.
 - Amount must be positive.
 - Amount cannot exceed remaining balance.
+- Blank payment date allowed for drafts.
+- Historical and current database dates accepted.
+- Future payment dates denied during draft update and record flow.
 - Draft and voided rows do not count.
 - Multiple recorded rows count.
 - Voided rows release balance.

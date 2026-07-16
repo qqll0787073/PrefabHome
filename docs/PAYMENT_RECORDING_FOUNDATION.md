@@ -30,6 +30,8 @@ A Manufacturer may create a payment record only for an issued invoice assigned t
 
 Draft and voided payments do not count toward the invoice payment summary. Only `recorded` rows count.
 
+Drafts may leave `payment_date` blank, but any provided payment date must be historical or the database `current_date`. Recording a payment requires a non-null payment date and rejects future dates in the database.
+
 ## Summary
 
 `public.get_invoice_payment_summary(invoice_uuid uuid)` returns:
@@ -54,6 +56,7 @@ Direct table writes are denied. Trusted RPCs set a transaction-local guard for w
 `draft -> recorded`
 - Locks the invoice and payment row.
 - Rechecks status and balance.
+- Requires a non-null payment date that is not in the future.
 - Sets `recorded_at`.
 - Inserts one `payment_recorded` event.
 

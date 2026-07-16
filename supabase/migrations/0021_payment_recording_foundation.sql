@@ -200,7 +200,7 @@ create or replace function public.assert_payment_record_values(
 )
 returns void
 language plpgsql
-immutable
+stable
 as $$
 declare
   normalized_method text := lower(btrim(coalesce(payment_method_value, '')));
@@ -215,6 +215,10 @@ begin
 
   if require_payment_date and payment_date_value is null then
     raise exception 'Payment date is required before recording.';
+  end if;
+
+  if payment_date_value is not null and payment_date_value > current_date then
+    raise exception 'Payment date cannot be in the future.';
   end if;
 
   if reference_number_text is not null and char_length(btrim(reference_number_text)) > 120 then

@@ -202,7 +202,7 @@ create or replace function public.assert_payment_record_values(
 )
 returns void
 language plpgsql
-immutable
+stable
 as $$
 declare
   normalized_method text := lower(btrim(coalesce(payment_method_value, '')));
@@ -217,6 +217,10 @@ begin
 
   if require_payment_date and payment_date_value is null then
     raise exception 'Payment date is required before recording.';
+  end if;
+
+  if payment_date_value is not null and payment_date_value > current_date then
+    raise exception 'Payment date cannot be in the future.';
   end if;
 
   if reference_number_text is not null and char_length(btrim(reference_number_text)) > 120 then
@@ -981,6 +985,7 @@ declare
   seed record;
   second_seed record;
   payment_row public.payment_records%rowtype;
+  future_payment public.payment_records%rowtype;
   recorded_payment public.payment_records%rowtype;
   voided_payment public.payment_records%rowtype;
   summary_row record;
@@ -1000,6 +1005,7 @@ begin
 
   select * into payment_row from public.create_payment_record(seed.invoice_id, 400, 'wire');
   perform pg_temp.record_payment_check('manufacturer can create draft payment for issued invoice', payment_row.status = 'draft' and payment_row.amount = 400 and payment_row.currency = 'USD', payment_row.payment_number);
+  perform pg_temp.record_payment_check('draft with null payment date allowed', payment_row.status = 'draft' and payment_row.payment_date is null, payment_row.payment_number);
   perform pg_temp.record_payment_check('payment number format is generated', payment_row.payment_number ~ '^PAY-[0-9]{4}-[0-9]{6}$', payment_row.payment_number);
   perform pg_temp.record_payment_check('source identifiers are derived from invoice', payment_row.invoice_id = seed.invoice_id and payment_row.contract_id is not null and payment_row.purchase_order_id is not null, payment_row.invoice_number);
   perform pg_temp.record_payment_check('created event inserted once', (select count(*) from public.payment_events where payment_record_id = payment_row.id and event_type = 'payment_record_created') = 1, 'created event');
@@ -1007,9 +1013,50 @@ begin
   select * into summary_row from public.get_invoice_payment_summary(seed.invoice_id);
   perform pg_temp.record_payment_check('draft payment does not count toward summary', summary_row.recorded_amount = 0 and summary_row.remaining_balance = 1000 and summary_row.recorded_payment_count = 0, row_to_json(summary_row)::text);
 
+  select * into payment_row from public.update_payment_record_draft(payment_row.id, 425, 'wire', current_date - 30, 'HIST-1', null);
+  perform pg_temp.record_payment_check('historical payment date accepted', payment_row.payment_date = current_date - 30, payment_row.payment_date::text);
+
   select * into payment_row from public.update_payment_record_draft(payment_row.id, 450, 'bank_transfer', current_date, '  EXT-123  ', '  External record note  ');
+  perform pg_temp.record_payment_check('current database payment date accepted', payment_row.payment_date = current_date, payment_row.payment_date::text);
   perform pg_temp.record_payment_check('draft update normalizes metadata', payment_row.amount = 450 and payment_row.reference_number = 'EXT-123' and payment_row.notes = 'External record note', payment_row.payment_snapshot::text);
-  perform pg_temp.record_payment_check('updated event inserted once', (select count(*) from public.payment_events where payment_record_id = payment_row.id and event_type = 'payment_record_updated') = 1, 'updated event');
+  perform pg_temp.record_payment_check('updated events inserted for draft edits', (select count(*) from public.payment_events where payment_record_id = payment_row.id and event_type = 'payment_record_updated') >= 2, 'updated events');
+
+  select * into future_payment from public.create_payment_record(seed.invoice_id, 50, 'wire');
+  blocked := false;
+  begin
+    perform public.update_payment_record_draft(future_payment.id, 50, 'wire', current_date + 1, 'FUTURE-1', null);
+  exception when others then blocked := true;
+  end;
+  perform pg_temp.record_payment_check('future date denied during draft update', blocked, 'future draft update');
+
+  reset role;
+  perform set_config('app.payment_record_trusted_write', 'on', true);
+  update public.payment_records
+  set payment_date = current_date + 1,
+      reference_number = 'MALFORMED-FUTURE',
+      updated_at = now()
+  where id = future_payment.id;
+  perform set_config('app.payment_record_trusted_write', '', true);
+
+  set local role authenticated;
+  perform set_config('request.jwt.claim.sub', seed.manufacturer_owner_id::text, true);
+  blocked := false;
+  begin
+    perform public.record_payment(future_payment.id);
+  exception when others then blocked := true;
+  end;
+  perform pg_temp.record_payment_check('future date denied during record flow', blocked, 'future record');
+  perform pg_temp.record_payment_check('future date denial creates no recorded event', (select count(*) from public.payment_events where payment_record_id = future_payment.id and event_type = 'payment_recorded') = 0, 'no future event');
+  select * into summary_row from public.get_invoice_payment_summary(seed.invoice_id);
+  perform pg_temp.record_payment_check('future date denial does not affect summary', summary_row.recorded_amount = 0 and summary_row.remaining_balance = 1000 and summary_row.recorded_payment_count = 0, row_to_json(summary_row)::text);
+
+  select * into future_payment from public.update_payment_record_draft(future_payment.id, 50, 'wire', current_date, 'VALID-AFTER-FUTURE', null);
+  select * into future_payment from public.record_payment(future_payment.id);
+  perform pg_temp.record_payment_check('valid date can still be recorded normally', future_payment.status = 'recorded' and future_payment.recorded_at is not null and future_payment.payment_date = current_date, 'valid after future');
+  select * into voided_payment from public.void_payment_record(future_payment.id, 'Remove date validation fixture');
+  perform pg_temp.record_payment_check('valid date fixture voided before balance checks', voided_payment.status = 'voided', 'fixture voided');
+  select * into summary_row from public.get_invoice_payment_summary(seed.invoice_id);
+  perform pg_temp.record_payment_check('voided valid date fixture does not affect later balance checks', summary_row.recorded_amount = 0 and summary_row.remaining_balance = 1000 and summary_row.recorded_payment_count = 0, row_to_json(summary_row)::text);
 
   blocked := false;
   begin

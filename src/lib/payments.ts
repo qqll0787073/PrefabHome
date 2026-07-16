@@ -54,6 +54,16 @@ function parseAmount(value: string): number {
   return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : Number.NaN;
 }
 
+function isFutureDateInput(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const [, year, month, day] = match;
+  const inputDate = new Date(Number(year), Number(month) - 1, Number(day));
+  const today = new Date();
+  const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return inputDate > todayDate;
+}
+
 function toReadablePaymentError(error: { message?: string }): Error {
   const message = error.message?.toLowerCase() ?? "";
 
@@ -104,6 +114,9 @@ export function validatePaymentDraftValues(values: PaymentDraftValues, remaining
   }
   if (!paymentMethods.includes(values.paymentMethod)) errors.push("Choose a supported external payment method.");
   if (values.paymentDate && Number.isNaN(Date.parse(values.paymentDate))) errors.push("Payment date must be valid.");
+  if (values.paymentDate && !Number.isNaN(Date.parse(values.paymentDate)) && isFutureDateInput(values.paymentDate)) {
+    errors.push("Payment date cannot be in the future.");
+  }
   if (values.referenceNumber.trim().length > paymentReferenceMaxLength) {
     errors.push(`Reference number must be ${paymentReferenceMaxLength} characters or fewer.`);
   }
@@ -112,6 +125,10 @@ export function validatePaymentDraftValues(values: PaymentDraftValues, remaining
   }
 
   return errors;
+}
+
+export function isPaymentRecordReady(values: PaymentDraftValues, remainingBalance?: number): boolean {
+  return Boolean(values.paymentDate) && validatePaymentDraftValues(values, remainingBalance).length === 0;
 }
 
 export function validatePaymentVoidReason(reason: string): string[] {

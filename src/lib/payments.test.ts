@@ -7,6 +7,7 @@ import {
   emptyPaymentDraftValues,
   externalPaymentRecordNotice,
   isPaymentRecordReadOnly,
+  isPaymentRecordReady,
   paymentEventLabel,
   paymentMethods,
   paymentRecordConfirmationText,
@@ -58,6 +59,15 @@ const summary = {
   recorded_payment_count: 1,
 } satisfies InvoicePaymentSummary;
 
+function dateInput(daysFromToday: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + daysFromToday);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 test("payment creation eligibility requires issued invoice with remaining balance", () => {
   assert.equal(canCreatePaymentRecord({ status: "issued" }, summary), true);
   assert.equal(canCreatePaymentRecord({ status: "draft" }, summary), false);
@@ -69,7 +79,7 @@ test("payment draft validation enforces amount, method, dates, and balance", () 
   assert.deepEqual(validatePaymentDraftValues({
     amount: "500",
     paymentMethod: "wire",
-    paymentDate: "2026-07-16",
+    paymentDate: dateInput(0),
     referenceNumber: "REF-1",
     notes: "External transfer reference.",
   }, 750), []);
@@ -106,6 +116,26 @@ test("payment draft validation enforces amount, method, dates, and balance", () 
     "Reference number must be 120 characters or fewer.",
     "Notes must be 2000 characters or fewer.",
   ]);
+});
+
+test("payment date validation allows blank drafts, historical dates, and today but rejects future dates", () => {
+  const baseValues = {
+    amount: "100",
+    paymentMethod: "wire" as const,
+    referenceNumber: "",
+    notes: "",
+  };
+
+  assert.deepEqual(validatePaymentDraftValues({ ...baseValues, paymentDate: "" }, 750), []);
+  assert.deepEqual(validatePaymentDraftValues({ ...baseValues, paymentDate: dateInput(-30) }, 750), []);
+  assert.deepEqual(validatePaymentDraftValues({ ...baseValues, paymentDate: dateInput(0) }, 750), []);
+  assert.deepEqual(validatePaymentDraftValues({ ...baseValues, paymentDate: dateInput(1) }, 750), [
+    "Payment date cannot be in the future.",
+  ]);
+
+  assert.equal(isPaymentRecordReady({ ...baseValues, paymentDate: "" }, 750), false);
+  assert.equal(isPaymentRecordReady({ ...baseValues, paymentDate: dateInput(1) }, 750), false);
+  assert.equal(isPaymentRecordReady({ ...baseValues, paymentDate: dateInput(0) }, 750), true);
 });
 
 test("payment lifecycle helpers match draft, recorded, and voided states", () => {

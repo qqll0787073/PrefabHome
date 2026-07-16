@@ -13,6 +13,7 @@ import {
   fetchManufacturerPaymentRecords,
   fetchPaymentEvents,
   isPaymentRecordReadOnly,
+  isPaymentRecordReady,
   paymentMethods,
   paymentRecordConfirmationText,
   paymentSummaryLabels,
@@ -293,7 +294,10 @@ export function ManufacturerPayments({ authMode }: ManufacturerPaymentsProps) {
               <button disabled={isSaving} onClick={() => void saveDraft()}>
                 Save Draft
               </button>
-              <button disabled={isSaving} onClick={() => void recordSelectedPayment()}>
+              <button
+                disabled={isSaving || !isPaymentRecordReady(draftValues, summaries[selectedPayment.invoice_id]?.remaining_balance)}
+                onClick={() => void recordSelectedPayment()}
+              >
                 Record Payment
               </button>
             </div>
