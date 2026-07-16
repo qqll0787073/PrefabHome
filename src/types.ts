@@ -680,6 +680,63 @@ export interface SignatureParticipantValues {
   title: string;
 }
 
+export type SignatureDeliveryStatus = "delivery_draft" | "queued" | "cancelled";
+
+export type SignatureDeliveryProviderKey = "unconfigured";
+
+export type SignatureDeliveryRecipientStatus = "pending";
+
+export type SignatureDeliveryEventType =
+  | "signature_delivery_created"
+  | "signature_delivery_queued"
+  | "signature_delivery_cancelled";
+
+export interface SignatureDeliveryRequestRecord {
+  id: string;
+  delivery_number: string;
+  signature_package_id: string;
+  package_number: string;
+  contract_id: string;
+  contract_number: string;
+  buyer_id: string;
+  manufacturer_id: string;
+  status: SignatureDeliveryStatus;
+  provider_key: SignatureDeliveryProviderKey;
+  package_snapshot: Record<string, unknown>;
+  recipient_snapshot: unknown[];
+  request_payload_snapshot: Record<string, unknown>;
+  created_by: string;
+  queued_at: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SignatureDeliveryRecipientRecord {
+  id: string;
+  delivery_request_id: string;
+  source_participant_id: string;
+  participant_role: SignatureParticipantRole;
+  profile_id: string | null;
+  organization_id: string | null;
+  full_name: string;
+  email: string;
+  title: string | null;
+  signing_order: number;
+  delivery_status: SignatureDeliveryRecipientStatus;
+  created_at: string;
+}
+
+export interface SignatureDeliveryEventRecord {
+  id: string;
+  delivery_request_id: string;
+  event_type: SignatureDeliveryEventType;
+  actor_profile_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
 export interface ProfileRecord {
   id: string;
   role: Role;
