@@ -2,7 +2,7 @@
 
 Date: July 17, 2026
 
-Branch: `logistics-booking-live-smoke-verification`
+Branch: `test-infrastructure-staging-foundation`
 
 Base branch: `auth-profiles`
 
@@ -16,23 +16,47 @@ Foundation verification commit: `a7c38a42b1e7755c94d28c1fa4a89847ec5a3a7c`
 
 ## Environment Safety Assessment
 
-Configured environment type: `linked project`
+Configured environment type: `staging`
 
-Linked Supabase project ref: `eoyrfrjbjglfudfuwxdf`
+Staging Supabase project ref: `bvzbkjpbnczquecwqvlm`
 
-Safety decision: blocked before fixture creation.
+Production ref denylist: `eoyrfrjbjglfudfuwxdf`
 
-Only the linked project is configured through local project metadata. Ignored local env files contain app and smoke credential variable names, but no separate disposable or staging Supabase project reference was found. A local Supabase instance was not evidenced as configured/running for this repository.
+Safety decision: safe for staging dry-run, migration apply, and temporary fixture smoke.
 
-The safety-first harness was run and produced:
+Confirmed before remote writes:
 
-- Status: `blocked_before_fixture_creation`
-- Present local keys: app Supabase URL/key and Buyer, Manufacturer, Admin smoke credential variable names
-- Fixture prefix generated for the dry safety assessment: `lbr_live_<timestamp>_<random>`
-- Fixture records created: `0`
-- Secrets printed: `0`
+- `.env.staging.local` is ignored by Git through `.gitignore:10:*.local`
+- `PREFAB_STAGING_PROJECT_REF` equals `bvzbkjpbnczquecwqvlm`
+- staging URL project ref matches `bvzbkjpbnczquecwqvlm`
+- production ref `eoyrfrjbjglfudfuwxdf` remains denylisted
+- normal repository `supabase/.temp/project-ref` remained production and was not used for staging writes
+- all staging Supabase CLI calls used an isolated temporary `--workdir`
+- secret values printed: `0`
 
-Live fixture creation was not performed because the request requires proving cleanup feasibility before creating linked-project records, and no disposable/staging/local environment was available.
+## Migration Bootstrap
+
+Isolated staging migration list before apply: local `0001` through `0023`; remote initially empty.
+
+Dry run before apply:
+
+```powershell
+npx.cmd supabase db push --dry-run --workdir <isolated-staging-workspace>
+```
+
+Result: exactly migrations `0001` through `0023` pending.
+
+Apply:
+
+```powershell
+npx.cmd supabase db push --yes --workdir <isolated-staging-workspace>
+```
+
+Result: migrations `0001` through `0023` applied to staging.
+
+Post-apply remote migration list: `0001` through `0023`.
+
+Post-apply dry run: remote database is up to date.
 
 ## Harness
 
@@ -53,45 +77,74 @@ No credentials, tokens, private keys, service-role keys, or fixture dumps are st
 
 ## Fixture Setup
 
-Fixture setup count: `0`
+Fixture prefix: `lbr_live_1784322087578_59cb921b`
 
-No Buyer, Manufacturer, Admin, Product, RFQ, Quote, Purchase Order, Contract, Invoice, Shipping Readiness, Logistics Booking Request, or event rows were created.
+Temporary staging fixtures were created for:
 
-Reason: no safe disposable/staging/local environment exists, and linked-project fixture creation was not explicitly opted in after cleanup proof.
+- Buyer, Manufacturer, Other Manufacturer, and Admin Auth users
+- approved Manufacturer applications
+- Products
+- RFQs
+- accepted Quote/Decision chain
+- confirmed Purchase Orders
+- accepted Contracts
+- Signature Packages
+- issued Invoices
+- ready Shipping Readiness records
+- Logistics Booking Requests and events
 
 ## Authenticated API Smoke
 
-Authenticated assertion count: `0`
+Authenticated assertion count: `34/34`.
 
-Manufacturer result: not run.
+Manufacturer result: passed.
 
-Buyer result: not run.
+Buyer result: passed.
 
-Admin result: not run.
+Admin result: passed.
 
-Anonymous result: not run.
+Other Manufacturer isolation result: passed.
 
-Reason: blocked before fixture creation by environment safety assessment.
+Anonymous denial result: passed.
+
+Verified:
+
+- Manufacturer can sign in through normal Supabase Auth.
+- Buyer can sign in through normal Supabase Auth.
+- Admin can sign in through normal Supabase Auth.
+- Other Manufacturer can sign in through normal Supabase Auth.
+- Manufacturer can read eligible ready-for-logistics Shipping Readiness.
+- Manufacturer can create a booking draft from an eligible source.
+- Booking derives immutable source references and cargo fields.
+- Manufacturer can update allowed draft fields.
+- Source cargo is not overwritten by draft edits.
+- Manufacturer can submit to `submitted_for_arrangement`.
+- Exactly one submitted event is created.
+- Other Manufacturer cannot read or submit another Manufacturer's booking request.
+- Buyer can read their own booking request and events.
+- Buyer cannot create, update, submit, withdraw, or directly update booking requests.
+- Admin can read but cannot create through the Manufacturer RPC or directly update booking requests.
+- Anonymous cannot read or invoke booking RPCs.
+- Draft withdraw succeeds and is terminal.
+- Submitted withdraw succeeds.
 
 ## True Concurrency
 
-Submit / Submit: not run.
+Submit / Submit: passed; exactly one request succeeded, exactly one request was rejected, and exactly one submitted event was created.
 
-Withdraw / Withdraw: not run.
+Withdraw / Withdraw: passed; exactly one request succeeded, exactly one request was rejected, and exactly one withdrawn event was created.
 
-Submit / Withdraw: not run.
+Submit / Withdraw: passed; race serialized to legal final state `withdrawn`, with one withdrawn event and zero submitted events in the observed run.
 
-Actual concurrency method: not executed.
+Actual concurrency method: concurrent authenticated Supabase RPC promises against staging.
 
-Reason: true concurrency requires disposable fixture records, and fixture setup was blocked before linked-project data creation.
-
-Existing rollback SQL still provides same-transaction state-conflict coverage, but that is not claimed as true concurrent API testing.
+Existing rollback SQL also provides same-transaction state-conflict coverage.
 
 ## Browser Smoke
 
-Browser result: not run.
+Browser result: not completed in this environment.
 
-Exact blocker: browser role smoke requires eligible disposable fixture records. Fixture creation was blocked because no safe disposable/staging/local environment was configured and linked-project fixture creation was not opted in after cleanup proof.
+Exact blocker: no Playwright/Puppeteer harness exists in this branch, and prior local Chrome headless/browser-control attempts for role-flow smoke are documented as unreliable in this environment.
 
 No browser automation packages were installed.
 
@@ -103,7 +156,7 @@ No browser automation packages were installed.
 
 `npm.cmd run build`: passed.
 
-Rollback SQL:
+Rollback SQL against staging:
 
 ```powershell
 npx.cmd supabase db query --linked --file supabase/tests/logistics_booking_request_foundation_security.sql
@@ -113,30 +166,26 @@ Result: passed, `70/70`.
 
 Secret scan: passed, no matches.
 
-Remote migration state: `0001` through `0023`.
+Staging remote migration state: `0001` through `0023`.
 
 No migration `0024` was created.
 
 ## Cleanup
 
-Cleanup counts:
+Cleanup counts after exact-ID cleanup and residue audit:
 
 - Fixture Auth users: `0`
-- Fixture profiles: `0`
 - Fixture manufacturers: `0`
 - Fixture products: `0`
-- Fixture RFQs: `0`
-- Fixture quotes: `0`
-- Fixture purchase orders: `0`
-- Fixture contracts: `0`
-- Fixture invoices: `0`
-- Fixture Shipping Readiness records: `0`
 - Fixture Booking Requests: `0`
-- Fixture events: `0`
 
-No fixture cleanup was required because no fixture rows were created.
+Exact-ID cleanup reported:
 
-Port cleanup: local app server was not started; port `3000` remained clear.
+- Logistics booking requests: `0`
+- Shipping Readiness records: `0`
+- Auth users: `0`
+
+Prefix residue audit for `lbr_live_%` returned zero Auth users, manufacturers, products, and booking requests.
 
 ## Boundary Statements
 
@@ -170,10 +219,6 @@ PH-010C was not started.
 
 No carrier, freight-forwarder, ocean booking, air cargo, trucking, rail, customs, tracking, mapping, payment, email, or document-signing provider was integrated.
 
-## Unresolved Limitation
+## Remaining Limitation
 
-PH-010B.1 live authenticated lifecycle, true-concurrency, and browser smoke verification remains blocked until one of the following is provided:
-
-- A disposable/staging Supabase project.
-- A local Supabase instance suitable for reset.
-- Explicit approval to use the linked project with a proven exact-ID cleanup path before any fixture rows are created.
+Browser role smoke remains unavailable in this environment until a reliable approved browser harness exists. Authenticated API lifecycle, authorization, cleanup, and true-concurrency verification passed against staging.
