@@ -6,6 +6,9 @@ import { ManufacturerContracts } from "../contracts/ManufacturerContracts";
 import { AdminInvoices } from "../invoices/AdminInvoices";
 import { BuyerInvoices } from "../invoices/BuyerInvoices";
 import { ManufacturerInvoices } from "../invoices/ManufacturerInvoices";
+import { AdminLogisticsBookingRequests } from "../logistics-booking/AdminLogisticsBookingRequests";
+import { BuyerLogisticsBookingRequests } from "../logistics-booking/BuyerLogisticsBookingRequests";
+import { ManufacturerLogisticsBookingRequests } from "../logistics-booking/ManufacturerLogisticsBookingRequests";
 import { AdminManufacturerReview } from "../manufacturers/AdminManufacturerReview";
 import { ManufacturerWorkspace } from "../manufacturers/ManufacturerWorkspace";
 import { AdminPayments } from "../payments/AdminPayments";
@@ -96,6 +99,7 @@ export function PortalDashboard({
               <BuyerInvoices authMode={auth.mode} />
               <BuyerPayments authMode={auth.mode} />
               <BuyerShippingReadiness authMode={auth.mode} />
+              <BuyerLogisticsBookingRequests authMode={auth.mode} />
             </>
           )}
 
@@ -108,6 +112,7 @@ export function PortalDashboard({
               <ManufacturerInvoices authMode={auth.mode} />
               <ManufacturerPayments authMode={auth.mode} />
               <ManufacturerShippingReadiness authMode={auth.mode} />
+              <ManufacturerLogisticsBookingRequests authMode={auth.mode} />
               <ManufacturerWorkspace user={auth.user} authMode={auth.mode} />
               <ManufacturerProductList user={auth.user} authMode={auth.mode} />
             </>
@@ -122,6 +127,7 @@ export function PortalDashboard({
               <AdminInvoices authMode={auth.mode} />
               <AdminPayments authMode={auth.mode} />
               <AdminShippingReadiness authMode={auth.mode} />
+              <AdminLogisticsBookingRequests authMode={auth.mode} />
               <AdminManufacturerReview authMode={auth.mode} />
               <AdminProductReview authMode={auth.mode} />
             </>

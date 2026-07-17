@@ -992,6 +992,104 @@ export interface ShippingReadinessDraftValues {
   specialInstructions: string;
 }
 
+export type LogisticsBookingRequestStatus = "booking_draft" | "submitted_for_arrangement" | "withdrawn";
+
+export type LogisticsTransportMode = ShippingMode;
+
+export type LogisticsContainerPreference =
+  | "20ft_standard"
+  | "40ft_standard"
+  | "40ft_high_cube"
+  | "flat_rack"
+  | "open_top"
+  | "reefer"
+  | "less_than_container_load"
+  | "air_cargo"
+  | "truckload"
+  | "less_than_truckload"
+  | "not_specified"
+  | "other";
+
+export type LogisticsBookingRequestEventType =
+  | "booking_request_created"
+  | "booking_request_updated"
+  | "booking_request_submitted"
+  | "booking_request_withdrawn";
+
+export interface LogisticsBookingRequestRecord {
+  id: string;
+  booking_request_number: string;
+  shipping_readiness_id: string;
+  shipping_number: string;
+  purchase_order_id: string;
+  purchase_order_number: string;
+  contract_id: string;
+  contract_number: string;
+  invoice_id: string;
+  invoice_number: string;
+  buyer_id: string;
+  manufacturer_id: string;
+  status: LogisticsBookingRequestStatus;
+  version: number;
+  requested_transport_mode: LogisticsTransportMode;
+  requested_incoterm: ShippingIncoterm | null;
+  preferred_departure_date: string | null;
+  latest_acceptable_departure_date: string | null;
+  origin_location: ShippingAddress | null;
+  destination_location: ShippingAddress | null;
+  cargo_description: string | null;
+  package_count: number | null;
+  gross_weight_kg: number | null;
+  volume_cbm: number | null;
+  container_preference: LogisticsContainerPreference | null;
+  equipment_notes: string | null;
+  handling_requirements: string | null;
+  booking_notes: string | null;
+  shipping_readiness_snapshot: Record<string, unknown>;
+  source_snapshot: Record<string, unknown>;
+  party_snapshot: Record<string, unknown>;
+  cargo_snapshot: Record<string, unknown>;
+  booking_request_snapshot: Record<string, unknown>;
+  created_by: string;
+  submitted_at: string | null;
+  withdrawn_at: string | null;
+  withdrawal_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LogisticsBookingRequestEventRecord {
+  id: string;
+  booking_request_id: string;
+  event_type: LogisticsBookingRequestEventType;
+  actor_profile_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface LogisticsBookingRequestDraftValues {
+  requestedTransportMode: LogisticsTransportMode;
+  requestedIncoterm: ShippingIncoterm;
+  preferredDepartureDate: string;
+  latestAcceptableDepartureDate: string;
+  originAddressLine1: string;
+  originAddressLine2: string;
+  originCity: string;
+  originStateRegion: string;
+  originPostalCode: string;
+  originCountryCode: string;
+  destinationAddressLine1: string;
+  destinationAddressLine2: string;
+  destinationCity: string;
+  destinationStateRegion: string;
+  destinationPostalCode: string;
+  destinationCountryCode: string;
+  containerPreference: LogisticsContainerPreference;
+  equipmentNotes: string;
+  handlingRequirements: string;
+  bookingNotes: string;
+}
+
 export interface ProfileRecord {
   id: string;
   role: Role;
