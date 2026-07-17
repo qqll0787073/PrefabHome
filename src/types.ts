@@ -1103,6 +1103,8 @@ export type LogisticsProviderType =
   | "multimodal_operator"
   | "other";
 
+export type LogisticsCandidateTransportMode = "ocean" | "air" | "trucking" | "rail" | "multimodal" | "other";
+
 export type LogisticsProviderCandidateStatus = "draft" | "active" | "withdrawn" | "rejected" | "selected";
 export type LogisticsProviderSelectionStatus = "selected" | "superseded" | "cancelled";
 export type LogisticsArrangementEventType =
@@ -1120,6 +1122,7 @@ export interface LogisticsProviderCandidateRecord {
   logistics_booking_request_id: string;
   provider_name: string;
   provider_type: LogisticsProviderType;
+  transport_mode: LogisticsCandidateTransportMode;
   service_level: string | null;
   estimated_departure_date: string | null;
   estimated_arrival_date: string | null;
@@ -1166,9 +1169,50 @@ export interface LogisticsArrangementEventRecord {
   created_at: string;
 }
 
+export interface ParticipantLogisticsProviderCandidateRecord {
+  id: string;
+  logistics_booking_request_id: string;
+  provider_name: string;
+  provider_type: LogisticsProviderType;
+  transport_mode: LogisticsCandidateTransportMode;
+  service_level: string | null;
+  estimated_departure_date: string | null;
+  estimated_arrival_date: string | null;
+  estimated_transit_days: number | null;
+  estimated_cost: number | null;
+  currency: string | null;
+  candidate_status: LogisticsProviderCandidateStatus;
+  is_selected: boolean;
+  public_planning_status: LogisticsBookingRequestStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ParticipantLogisticsProviderSelectionRecord {
+  id: string;
+  logistics_booking_request_id: string;
+  selected_candidate_id: string;
+  selection_status: LogisticsProviderSelectionStatus;
+  selected_at: string;
+  superseded_at: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ParticipantLogisticsArrangementEventRecord {
+  id: string;
+  logistics_booking_request_id: string;
+  candidate_id: string | null;
+  selection_id: string | null;
+  event_type: LogisticsArrangementEventType;
+  created_at: string;
+}
+
 export interface LogisticsProviderCandidateValues {
   providerName: string;
   providerType: LogisticsProviderType;
+  transportMode: LogisticsCandidateTransportMode;
   serviceLevel: string;
   estimatedDepartureDate: string;
   estimatedArrivalDate: string;

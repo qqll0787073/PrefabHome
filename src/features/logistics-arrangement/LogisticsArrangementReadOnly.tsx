@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
 import {
-  fetchLogisticsArrangementEvents,
-  fetchLogisticsProviderCandidates,
-  fetchLogisticsProviderSelections,
+  fetchParticipantLogisticsArrangementEvents,
+  fetchParticipantLogisticsProviderCandidates,
+  fetchParticipantLogisticsProviderSelections,
+  logisticsCandidateTransportModeLabels,
   logisticsArrangementEventLabels,
   logisticsArrangementNotice,
   logisticsProviderTypeLabels,
@@ -12,10 +13,10 @@ import {
 } from "../../lib/logisticsArrangement";
 import { fetchBuyerBookingRequests, fetchManufacturerBookingRequests, logisticsBookingStatusLabels } from "../../lib/logisticsBookingRequests";
 import type {
-  LogisticsArrangementEventRecord,
   LogisticsBookingRequestRecord,
-  LogisticsProviderCandidateRecord,
-  LogisticsProviderSelectionRecord,
+  ParticipantLogisticsArrangementEventRecord,
+  ParticipantLogisticsProviderCandidateRecord,
+  ParticipantLogisticsProviderSelectionRecord,
   Role,
 } from "../../types";
 
@@ -26,9 +27,9 @@ interface LogisticsArrangementReadOnlyProps {
 
 export function LogisticsArrangementReadOnly({ authMode, role }: LogisticsArrangementReadOnlyProps) {
   const [requests, setRequests] = useState<LogisticsBookingRequestRecord[]>([]);
-  const [candidates, setCandidates] = useState<LogisticsProviderCandidateRecord[]>([]);
-  const [selections, setSelections] = useState<LogisticsProviderSelectionRecord[]>([]);
-  const [events, setEvents] = useState<LogisticsArrangementEventRecord[]>([]);
+  const [candidates, setCandidates] = useState<ParticipantLogisticsProviderCandidateRecord[]>([]);
+  const [selections, setSelections] = useState<ParticipantLogisticsProviderSelectionRecord[]>([]);
+  const [events, setEvents] = useState<ParticipantLogisticsArrangementEventRecord[]>([]);
   const [isLoading, setIsLoading] = useState(authMode === "supabase");
   const [errors, setErrors] = useState<string[]>([]);
 
@@ -46,9 +47,9 @@ export function LogisticsArrangementReadOnly({ authMode, role }: LogisticsArrang
         }
         const [requestRows, candidateRows, selectionRows, eventRows] = await Promise.all([
           role === "buyer" ? fetchBuyerBookingRequests() : fetchManufacturerBookingRequests(),
-          fetchLogisticsProviderCandidates(),
-          fetchLogisticsProviderSelections(),
-          fetchLogisticsArrangementEvents(),
+          fetchParticipantLogisticsProviderCandidates(),
+          fetchParticipantLogisticsProviderSelections(),
+          fetchParticipantLogisticsArrangementEvents(),
         ]);
         setRequests(requestRows);
         setCandidates(candidateRows);
@@ -87,7 +88,7 @@ export function LogisticsArrangementReadOnly({ authMode, role }: LogisticsArrang
               <div className="quote-line-items">
                 {requestCandidates.map((candidate) => (
                   <div className="meta-row" key={candidate.id}>
-                    <span>{candidate.provider_name} · {logisticsProviderTypeLabels[candidate.provider_type]}</span>
+                    <span>{candidate.provider_name} - {logisticsProviderTypeLabels[candidate.provider_type]} - {logisticsCandidateTransportModeLabels[candidate.transport_mode]}</span>
                     <span>{candidate.estimated_cost !== null ? `${candidate.currency ?? ""} ${candidate.estimated_cost.toFixed(2)}`.trim() : "Estimate pending"}</span>
                   </div>
                 ))}

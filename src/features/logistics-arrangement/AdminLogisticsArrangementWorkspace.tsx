@@ -8,9 +8,11 @@ import {
   cancelLogisticsProviderSelection,
   createLogisticsProviderCandidate,
   emptyLogisticsProviderCandidateValues,
-  fetchLogisticsArrangementEvents,
-  fetchLogisticsProviderCandidates,
-  fetchLogisticsProviderSelections,
+  fetchAdminLogisticsArrangementEvents,
+  fetchAdminLogisticsProviderCandidates,
+  fetchAdminLogisticsProviderSelections,
+  logisticsCandidateTransportModeLabels,
+  logisticsCandidateTransportModes,
   logisticsArrangementEventLabels,
   logisticsArrangementNotice,
   logisticsProviderTypeLabels,
@@ -55,7 +57,7 @@ export function AdminLogisticsArrangementWorkspace({ authMode }: AdminLogisticsA
         return;
       }
       const [requestRows, candidateRows, selectionRows, eventRows] = await Promise.all([
-        fetchAdminBookingRequests(), fetchLogisticsProviderCandidates(), fetchLogisticsProviderSelections(), fetchLogisticsArrangementEvents(),
+        fetchAdminBookingRequests(), fetchAdminLogisticsProviderCandidates(), fetchAdminLogisticsProviderSelections(), fetchAdminLogisticsArrangementEvents(),
       ]);
       const eligible = requestRows.filter((request) => !["booking_draft", "withdrawn"].includes(request.status));
       setRequests(eligible); setCandidates(candidateRows); setSelections(selectionRows); setEvents(eventRows);
@@ -104,7 +106,7 @@ export function AdminLogisticsArrangementWorkspace({ authMode }: AdminLogisticsA
       {requests.length > 0 && (
         <label className="review-notes">Booking request
           <select value={selectedRequestId} onChange={(event) => { setSelectedRequestId(event.target.value); setEditingCandidateId(null); setValues(emptyLogisticsProviderCandidateValues()); }}>
-            {requests.map((request) => <option key={request.id} value={request.id}>{request.booking_request_number} · {logisticsBookingStatusLabels[request.status]}</option>)}
+            {requests.map((request) => <option key={request.id} value={request.id}>{request.booking_request_number} - {logisticsBookingStatusLabels[request.status]}</option>)}
           </select>
         </label>
       )}
@@ -117,6 +119,7 @@ export function AdminLogisticsArrangementWorkspace({ authMode }: AdminLogisticsA
               <div className="form-grid">
                 <label>Provider name<input value={values.providerName} onChange={(event) => field("providerName", event.target.value)} /></label>
                 <label>Provider type<select value={values.providerType} onChange={(event) => field("providerType", event.target.value as LogisticsProviderCandidateValues["providerType"])}>{logisticsProviderTypes.map((type) => <option key={type} value={type}>{logisticsProviderTypeLabels[type]}</option>)}</select></label>
+                <label>Transport mode<select value={values.transportMode} onChange={(event) => field("transportMode", event.target.value as LogisticsProviderCandidateValues["transportMode"])}>{logisticsCandidateTransportModes.map((mode) => <option key={mode} value={mode}>{logisticsCandidateTransportModeLabels[mode]}</option>)}</select></label>
                 <label>Service level<input value={values.serviceLevel} onChange={(event) => field("serviceLevel", event.target.value)} /></label>
                 <label>Quote reference<input value={values.quoteReference} onChange={(event) => field("quoteReference", event.target.value)} /></label>
                 <label>Estimated departure<input type="date" value={values.estimatedDepartureDate} onChange={(event) => field("estimatedDepartureDate", event.target.value)} /></label>
@@ -135,7 +138,7 @@ export function AdminLogisticsArrangementWorkspace({ authMode }: AdminLogisticsA
           <div className="review-list">
             {requestCandidates.map((candidate) => (
               <article className="quote-card" key={candidate.id}>
-                <div className="quote-card-header"><div><h5>{candidate.provider_name}</h5><span>{logisticsProviderTypeLabels[candidate.provider_type]}</span></div><span className={`status status-${candidate.candidate_status}`}>{candidate.candidate_status}</span></div>
+                <div className="quote-card-header"><div><h5>{candidate.provider_name}</h5><span>{logisticsProviderTypeLabels[candidate.provider_type]} - {logisticsCandidateTransportModeLabels[candidate.transport_mode]}</span></div><span className={`status status-${candidate.candidate_status}`}>{candidate.candidate_status}</span></div>
                 <div className="meta-grid"><span>{candidate.service_level ?? "Service level pending"}</span><span>{candidate.estimated_transit_days !== null ? `${candidate.estimated_transit_days} days` : "Transit pending"}</span><span>{candidate.estimated_cost !== null ? `${candidate.currency ?? ""} ${candidate.estimated_cost.toFixed(2)}`.trim() : "Cost pending"}</span><span>Version {candidate.version}</span></div>
                 {candidate.notes && <p>{candidate.notes}</p>}
                 {candidate.candidate_status === "active" && selectedRequest.status !== "ready_for_external_booking" && <div className="actions"><button className="ghost" disabled={isSaving} onClick={() => { setEditingCandidateId(candidate.id); setValues(emptyLogisticsProviderCandidateValues(candidate)); }}>Edit</button><button disabled={isSaving || !canSelectProviderCandidate(candidate)} onClick={() => void run(() => selectLogisticsProviderCandidate(selectedRequest.id, candidate.id, "", Boolean(selectedCandidate)), selectedCandidate ? "Provider selection replaced." : "Provider selected.")}>{selectedCandidate ? "Replace selection" : "Select"}</button><button className="ghost" disabled={isSaving} onClick={() => { const reason = window.prompt("Withdrawal reason"); if (reason) void run(() => withdrawLogisticsProviderCandidate(candidate.id, reason), "Candidate withdrawn."); }}>Withdraw</button></div>}

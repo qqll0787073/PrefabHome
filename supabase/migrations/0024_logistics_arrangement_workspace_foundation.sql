@@ -27,6 +27,7 @@ create table public.logistics_provider_candidates (
   logistics_booking_request_id uuid not null references public.logistics_booking_requests(id) on delete cascade,
   provider_name text not null,
   provider_type text not null,
+  transport_mode text not null,
   service_level text,
   estimated_departure_date date,
   estimated_arrival_date date,
@@ -47,6 +48,7 @@ create table public.logistics_provider_candidates (
   constraint logistics_provider_candidates_request_id_unique unique (id, logistics_booking_request_id),
   constraint logistics_provider_candidates_provider_name_check check (char_length(btrim(provider_name)) between 1 and 200),
   constraint logistics_provider_candidates_provider_type_check check (provider_type in ('carrier','freight_forwarder','broker','multimodal_operator','other')),
+  constraint logistics_provider_candidates_transport_mode_check check (transport_mode in ('ocean','air','trucking','rail','multimodal','other')),
   constraint logistics_provider_candidates_status_check check (candidate_status in ('draft','active','withdrawn','rejected','selected')),
   constraint logistics_provider_candidates_version_check check (version > 0),
   constraint logistics_provider_candidates_service_level_check check (service_level is null or char_length(service_level) <= 160),
@@ -123,15 +125,14 @@ alter table public.logistics_arrangement_events enable row level security;
 revoke all on public.logistics_provider_candidates from anon;
 revoke all on public.logistics_provider_selections from anon;
 revoke all on public.logistics_arrangement_events from anon;
-grant select on public.logistics_provider_candidates, public.logistics_provider_selections, public.logistics_arrangement_events to authenticated;
-revoke insert, update, delete on public.logistics_provider_candidates, public.logistics_provider_selections, public.logistics_arrangement_events from authenticated;
+revoke all on public.logistics_provider_candidates, public.logistics_provider_selections, public.logistics_arrangement_events from authenticated;
 
-create policy logistics_provider_candidates_participant_read on public.logistics_provider_candidates
-  for select to authenticated using (public.can_access_logistics_booking_request(logistics_booking_request_id));
-create policy logistics_provider_selections_participant_read on public.logistics_provider_selections
-  for select to authenticated using (public.can_access_logistics_booking_request(logistics_booking_request_id));
-create policy logistics_arrangement_events_participant_read on public.logistics_arrangement_events
-  for select to authenticated using (public.can_access_logistics_booking_request(logistics_booking_request_id));
+create policy logistics_provider_candidates_admin_read on public.logistics_provider_candidates
+  for select to authenticated using (public.is_admin());
+create policy logistics_provider_selections_admin_read on public.logistics_provider_selections
+  for select to authenticated using (public.is_admin());
+create policy logistics_arrangement_events_admin_read on public.logistics_arrangement_events
+  for select to authenticated using (public.is_admin());
 
 create or replace function public.is_trusted_logistics_arrangement_write()
 returns boolean language sql stable as $$
@@ -147,7 +148,7 @@ end;
 $$;
 
 create or replace function public.assert_logistics_provider_candidate_values(
-  provider_name_value text, provider_type_value text, service_level_value text,
+  provider_name_value text, provider_type_value text, transport_mode_value text, service_level_value text,
   estimated_departure_date_value date, estimated_arrival_date_value date,
   estimated_transit_days_value integer, estimated_cost_value numeric, currency_value text,
   quote_reference_value text, contact_name_value text, contact_email_value text,
@@ -157,6 +158,7 @@ begin
   if nullif(btrim(coalesce(provider_name_value, '')), '') is null then raise exception 'Provider name is required.'; end if;
   if char_length(btrim(provider_name_value)) > 200 then raise exception 'Provider name must be 200 characters or fewer.'; end if;
   if lower(btrim(coalesce(provider_type_value, ''))) not in ('carrier','freight_forwarder','broker','multimodal_operator','other') then raise exception 'Provider type is not supported.'; end if;
+  if lower(btrim(coalesce(transport_mode_value, ''))) not in ('ocean','air','trucking','rail','multimodal','other') then raise exception 'Transport mode is not supported.'; end if;
   if service_level_value is not null and char_length(btrim(service_level_value)) > 160 then raise exception 'Service level must be 160 characters or fewer.'; end if;
   if estimated_transit_days_value is not null and estimated_transit_days_value not between 0 and 3650 then raise exception 'Estimated transit days must be between 0 and 3650.'; end if;
   if estimated_cost_value is not null and estimated_cost_value < 0 then raise exception 'Estimated cost cannot be negative.'; end if;
@@ -167,6 +169,151 @@ begin
   if contact_email_value is not null and char_length(btrim(contact_email_value)) > 320 then raise exception 'Contact email must be 320 characters or fewer.'; end if;
   if contact_phone_value is not null and char_length(btrim(contact_phone_value)) > 80 then raise exception 'Contact phone must be 80 characters or fewer.'; end if;
   if notes_value is not null and char_length(btrim(notes_value)) > 4000 then raise exception 'Notes must be 4000 characters or fewer.'; end if;
+end;
+$$;
+
+create or replace function public.get_participant_logistics_provider_candidates(booking_request_uuid uuid default null)
+returns table (
+  id uuid,
+  logistics_booking_request_id uuid,
+  provider_name text,
+  provider_type text,
+  transport_mode text,
+  service_level text,
+  estimated_departure_date date,
+  estimated_arrival_date date,
+  estimated_transit_days integer,
+  estimated_cost numeric,
+  currency text,
+  candidate_status text,
+  is_selected boolean,
+  public_planning_status text,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'Authentication is required.'; end if;
+  return query
+    select
+      candidate.id,
+      candidate.logistics_booking_request_id,
+      candidate.provider_name,
+      candidate.provider_type,
+      candidate.transport_mode,
+      candidate.service_level,
+      candidate.estimated_departure_date,
+      candidate.estimated_arrival_date,
+      candidate.estimated_transit_days,
+      candidate.estimated_cost,
+      candidate.currency,
+      candidate.candidate_status,
+      exists (
+        select 1 from public.logistics_provider_selections selection_row
+        where selection_row.logistics_booking_request_id = candidate.logistics_booking_request_id
+          and selection_row.selected_candidate_id = candidate.id
+          and selection_row.selection_status = 'selected'
+      ),
+      request.status,
+      candidate.created_at,
+      candidate.updated_at
+    from public.logistics_provider_candidates candidate
+    join public.logistics_booking_requests request on request.id = candidate.logistics_booking_request_id
+    where (booking_request_uuid is null or candidate.logistics_booking_request_id = booking_request_uuid)
+      and candidate.candidate_status in ('active','selected')
+      and public.can_access_logistics_booking_request(candidate.logistics_booking_request_id);
+end;
+$$;
+
+create or replace function public.get_participant_logistics_provider_selections(booking_request_uuid uuid default null)
+returns table (
+  id uuid,
+  logistics_booking_request_id uuid,
+  selected_candidate_id uuid,
+  selection_status text,
+  selected_at timestamptz,
+  superseded_at timestamptz,
+  cancelled_at timestamptz,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'Authentication is required.'; end if;
+  return query
+    select
+      selection_row.id,
+      selection_row.logistics_booking_request_id,
+      selection_row.selected_candidate_id,
+      selection_row.selection_status,
+      selection_row.selected_at,
+      selection_row.superseded_at,
+      selection_row.cancelled_at,
+      selection_row.created_at,
+      selection_row.updated_at
+    from public.logistics_provider_selections selection_row
+    where (booking_request_uuid is null or selection_row.logistics_booking_request_id = booking_request_uuid)
+      and public.can_access_logistics_booking_request(selection_row.logistics_booking_request_id);
+end;
+$$;
+
+create or replace function public.get_participant_logistics_arrangement_events(booking_request_uuid uuid default null)
+returns table (
+  id uuid,
+  logistics_booking_request_id uuid,
+  candidate_id uuid,
+  selection_id uuid,
+  event_type text,
+  created_at timestamptz
+)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'Authentication is required.'; end if;
+  return query
+    select
+      event_row.id,
+      event_row.logistics_booking_request_id,
+      event_row.candidate_id,
+      event_row.selection_id,
+      event_row.event_type,
+      event_row.created_at
+    from public.logistics_arrangement_events event_row
+    where (booking_request_uuid is null or event_row.logistics_booking_request_id = booking_request_uuid)
+      and public.can_access_logistics_booking_request(event_row.logistics_booking_request_id)
+    order by event_row.created_at, event_row.id;
+end;
+$$;
+
+create or replace function public.admin_list_logistics_provider_candidates(booking_request_uuid uuid default null)
+returns setof public.logistics_provider_candidates
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public.assert_logistics_arrangement_admin();
+  return query select candidate.* from public.logistics_provider_candidates candidate
+    where booking_request_uuid is null or candidate.logistics_booking_request_id = booking_request_uuid
+    order by candidate.created_at, candidate.id;
+end;
+$$;
+
+create or replace function public.admin_list_logistics_provider_selections(booking_request_uuid uuid default null)
+returns setof public.logistics_provider_selections
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public.assert_logistics_arrangement_admin();
+  return query select selection_row.* from public.logistics_provider_selections selection_row
+    where booking_request_uuid is null or selection_row.logistics_booking_request_id = booking_request_uuid
+    order by selection_row.selected_at, selection_row.id;
+end;
+$$;
+
+create or replace function public.admin_list_logistics_arrangement_events(booking_request_uuid uuid default null)
+returns setof public.logistics_arrangement_events
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform public.assert_logistics_arrangement_admin();
+  return query select event_row.* from public.logistics_arrangement_events event_row
+    where booking_request_uuid is null or event_row.logistics_booking_request_id = booking_request_uuid
+    order by event_row.created_at, event_row.id;
 end;
 $$;
 
@@ -243,7 +390,7 @@ create trigger protect_logistics_provider_selection_write before insert or updat
 create trigger protect_logistics_arrangement_event_write before insert or update or delete on public.logistics_arrangement_events for each row execute function public.protect_logistics_arrangement_event_write();
 
 create or replace function public.admin_create_logistics_provider_candidate(
-  booking_request_uuid uuid, provider_name_value text, provider_type_value text,
+  booking_request_uuid uuid, provider_name_value text, provider_type_value text, transport_mode_value text,
   service_level_value text default null, estimated_departure_date_value date default null,
   estimated_arrival_date_value date default null, estimated_transit_days_value integer default null,
   estimated_cost_value numeric default null, currency_value text default null,
@@ -257,10 +404,10 @@ begin
   select * into booking_row from public.logistics_booking_requests where id = booking_request_uuid for update;
   if booking_row.id is null then raise exception 'Logistics booking request not found.'; end if;
   if booking_row.status not in ('submitted_for_arrangement','carrier_options_available','carrier_selected') then raise exception 'Provider candidates can only be added while arranging carrier options.'; end if;
-  perform public.assert_logistics_provider_candidate_values(provider_name_value, provider_type_value, service_level_value, estimated_departure_date_value, estimated_arrival_date_value, estimated_transit_days_value, estimated_cost_value, currency_value, quote_reference_value, contact_name_value, contact_email_value, contact_phone_value, notes_value);
+  perform public.assert_logistics_provider_candidate_values(provider_name_value, provider_type_value, transport_mode_value, service_level_value, estimated_departure_date_value, estimated_arrival_date_value, estimated_transit_days_value, estimated_cost_value, currency_value, quote_reference_value, contact_name_value, contact_email_value, contact_phone_value, notes_value);
   perform set_config('app.logistics_arrangement_trusted_write', 'on', true);
-  insert into public.logistics_provider_candidates(logistics_booking_request_id, provider_name, provider_type, service_level, estimated_departure_date, estimated_arrival_date, estimated_transit_days, estimated_cost, currency, quote_reference, contact_name, contact_email, contact_phone, notes, candidate_status, created_by, updated_by)
-  values (booking_request_uuid, btrim(provider_name_value), lower(btrim(provider_type_value)), nullif(btrim(service_level_value), ''), estimated_departure_date_value, estimated_arrival_date_value, estimated_transit_days_value, estimated_cost_value, nullif(upper(btrim(currency_value)), ''), nullif(btrim(quote_reference_value), ''), nullif(btrim(contact_name_value), ''), nullif(btrim(contact_email_value), ''), nullif(btrim(contact_phone_value), ''), nullif(btrim(notes_value), ''), 'active', actor_uuid, actor_uuid)
+  insert into public.logistics_provider_candidates(logistics_booking_request_id, provider_name, provider_type, transport_mode, service_level, estimated_departure_date, estimated_arrival_date, estimated_transit_days, estimated_cost, currency, quote_reference, contact_name, contact_email, contact_phone, notes, candidate_status, created_by, updated_by)
+  values (booking_request_uuid, btrim(provider_name_value), lower(btrim(provider_type_value)), lower(btrim(transport_mode_value)), nullif(btrim(service_level_value), ''), estimated_departure_date_value, estimated_arrival_date_value, estimated_transit_days_value, estimated_cost_value, nullif(upper(btrim(currency_value)), ''), nullif(btrim(quote_reference_value), ''), nullif(btrim(contact_name_value), ''), nullif(btrim(contact_email_value), ''), nullif(btrim(contact_phone_value), ''), nullif(btrim(notes_value), ''), 'active', actor_uuid, actor_uuid)
   returning * into candidate_row;
   perform set_config('app.logistics_arrangement_trusted_write', '', true);
   if booking_row.status = 'submitted_for_arrangement' then
@@ -283,7 +430,7 @@ end;
 $$;
 
 create or replace function public.admin_update_logistics_provider_candidate(
-  candidate_uuid uuid, provider_name_value text, provider_type_value text,
+  candidate_uuid uuid, provider_name_value text, provider_type_value text, transport_mode_value text,
   service_level_value text default null, estimated_departure_date_value date default null,
   estimated_arrival_date_value date default null, estimated_transit_days_value integer default null,
   estimated_cost_value numeric default null, currency_value text default null,
@@ -299,9 +446,9 @@ begin
   select status into booking_status from public.logistics_booking_requests where id = candidate_row.logistics_booking_request_id for update;
   if booking_status not in ('carrier_options_available','carrier_selected') then raise exception 'Provider candidates cannot be edited in the current arrangement state.'; end if;
   if candidate_row.candidate_status not in ('draft','active') then raise exception 'Only draft or active provider candidates can be edited.'; end if;
-  perform public.assert_logistics_provider_candidate_values(provider_name_value, provider_type_value, service_level_value, estimated_departure_date_value, estimated_arrival_date_value, estimated_transit_days_value, estimated_cost_value, currency_value, quote_reference_value, contact_name_value, contact_email_value, contact_phone_value, notes_value);
+  perform public.assert_logistics_provider_candidate_values(provider_name_value, provider_type_value, transport_mode_value, service_level_value, estimated_departure_date_value, estimated_arrival_date_value, estimated_transit_days_value, estimated_cost_value, currency_value, quote_reference_value, contact_name_value, contact_email_value, contact_phone_value, notes_value);
   perform set_config('app.logistics_arrangement_trusted_write', 'on', true);
-  update public.logistics_provider_candidates set provider_name=btrim(provider_name_value), provider_type=lower(btrim(provider_type_value)), service_level=nullif(btrim(service_level_value),''), estimated_departure_date=estimated_departure_date_value, estimated_arrival_date=estimated_arrival_date_value, estimated_transit_days=estimated_transit_days_value, estimated_cost=estimated_cost_value, currency=nullif(upper(btrim(currency_value)),''), quote_reference=nullif(btrim(quote_reference_value),''), contact_name=nullif(btrim(contact_name_value),''), contact_email=nullif(btrim(contact_email_value),''), contact_phone=nullif(btrim(contact_phone_value),''), notes=nullif(btrim(notes_value),''), updated_by=actor_uuid
+  update public.logistics_provider_candidates set provider_name=btrim(provider_name_value), provider_type=lower(btrim(provider_type_value)), transport_mode=lower(btrim(transport_mode_value)), service_level=nullif(btrim(service_level_value),''), estimated_departure_date=estimated_departure_date_value, estimated_arrival_date=estimated_arrival_date_value, estimated_transit_days=estimated_transit_days_value, estimated_cost=estimated_cost_value, currency=nullif(upper(btrim(currency_value)),''), quote_reference=nullif(btrim(quote_reference_value),''), contact_name=nullif(btrim(contact_name_value),''), contact_email=nullif(btrim(contact_email_value),''), contact_phone=nullif(btrim(contact_phone_value),''), notes=nullif(btrim(notes_value),''), updated_by=actor_uuid
     where id=candidate_uuid and candidate_status in ('draft','active') returning * into candidate_row;
   if not found then raise exception 'Provider candidate lifecycle conflict while updating.'; end if;
   perform set_config('app.logistics_arrangement_trusted_write', '', true);
@@ -425,22 +572,35 @@ $$;
 
 revoke all on function public.is_trusted_logistics_arrangement_write() from public, anon, authenticated;
 revoke all on function public.assert_logistics_arrangement_admin() from public, anon, authenticated;
-revoke all on function public.assert_logistics_provider_candidate_values(text,text,text,date,date,integer,numeric,text,text,text,text,text,text) from public, anon, authenticated;
+revoke all on function public.assert_logistics_provider_candidate_values(text,text,text,text,date,date,integer,numeric,text,text,text,text,text,text) from public, anon, authenticated;
+revoke all on function public.get_participant_logistics_provider_candidates(uuid) from public, anon, authenticated;
+revoke all on function public.get_participant_logistics_provider_selections(uuid) from public, anon, authenticated;
+revoke all on function public.get_participant_logistics_arrangement_events(uuid) from public, anon, authenticated;
+revoke all on function public.admin_list_logistics_provider_candidates(uuid) from public, anon, authenticated;
+revoke all on function public.admin_list_logistics_provider_selections(uuid) from public, anon, authenticated;
+revoke all on function public.admin_list_logistics_arrangement_events(uuid) from public, anon, authenticated;
 revoke all on function public.strip_logistics_arrangement_event_metadata(jsonb) from public, anon, authenticated;
 revoke all on function public.insert_trusted_logistics_arrangement_event(uuid,uuid,uuid,text,uuid,jsonb) from public, anon, authenticated;
 revoke all on function public.protect_logistics_provider_candidate_write() from public, anon, authenticated;
 revoke all on function public.protect_logistics_provider_selection_write() from public, anon, authenticated;
 revoke all on function public.protect_logistics_arrangement_event_write() from public, anon, authenticated;
 
-revoke all on function public.admin_create_logistics_provider_candidate(uuid,text,text,text,date,date,integer,numeric,text,text,text,text,text,text) from public, anon, authenticated;
-revoke all on function public.admin_update_logistics_provider_candidate(uuid,text,text,text,date,date,integer,numeric,text,text,text,text,text,text) from public, anon, authenticated;
+revoke all on function public.admin_create_logistics_provider_candidate(uuid,text,text,text,text,date,date,integer,numeric,text,text,text,text,text,text) from public, anon, authenticated;
+revoke all on function public.admin_update_logistics_provider_candidate(uuid,text,text,text,text,date,date,integer,numeric,text,text,text,text,text,text) from public, anon, authenticated;
 revoke all on function public.admin_withdraw_logistics_provider_candidate(uuid,text) from public, anon, authenticated;
 revoke all on function public.admin_select_logistics_provider_candidate(uuid,uuid,text,boolean) from public, anon, authenticated;
 revoke all on function public.admin_cancel_logistics_provider_selection(uuid,text) from public, anon, authenticated;
 revoke all on function public.admin_mark_ready_for_external_booking(uuid) from public, anon, authenticated;
 
-grant execute on function public.admin_create_logistics_provider_candidate(uuid,text,text,text,date,date,integer,numeric,text,text,text,text,text,text) to authenticated;
-grant execute on function public.admin_update_logistics_provider_candidate(uuid,text,text,text,date,date,integer,numeric,text,text,text,text,text,text) to authenticated;
+grant execute on function public.get_participant_logistics_provider_candidates(uuid) to authenticated;
+grant execute on function public.get_participant_logistics_provider_selections(uuid) to authenticated;
+grant execute on function public.get_participant_logistics_arrangement_events(uuid) to authenticated;
+grant execute on function public.admin_list_logistics_provider_candidates(uuid) to authenticated;
+grant execute on function public.admin_list_logistics_provider_selections(uuid) to authenticated;
+grant execute on function public.admin_list_logistics_arrangement_events(uuid) to authenticated;
+
+grant execute on function public.admin_create_logistics_provider_candidate(uuid,text,text,text,text,date,date,integer,numeric,text,text,text,text,text,text) to authenticated;
+grant execute on function public.admin_update_logistics_provider_candidate(uuid,text,text,text,text,date,date,integer,numeric,text,text,text,text,text,text) to authenticated;
 grant execute on function public.admin_withdraw_logistics_provider_candidate(uuid,text) to authenticated;
 grant execute on function public.admin_select_logistics_provider_candidate(uuid,uuid,text,boolean) to authenticated;
 grant execute on function public.admin_cancel_logistics_provider_selection(uuid,text) to authenticated;

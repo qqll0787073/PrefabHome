@@ -10,7 +10,9 @@ Migration: `supabase/migrations/0024_logistics_arrangement_workspace_foundation.
 
 ## Data Model
 
-`logistics_provider_candidates` stores admin-entered planning estimates. Provider name, type, service level, estimated dates, transit days, estimated cost, currency, quote reference, contact fields, and internal notes remain structured planning data. Candidate history is retained through status and version fields rather than deletion.
+`logistics_provider_candidates` stores admin-entered planning estimates. `provider_type` identifies the provider's organizational role (`carrier`, `freight_forwarder`, `broker`, `multimodal_operator`, or `other`). The separate `transport_mode` identifies the proposed movement mode (`ocean`, `air`, `trucking`, `rail`, `multimodal`, or `other`). This permits combinations such as a freight forwarder offering ocean service or a carrier offering trucking service.
+
+Provider name, role, transport mode, service level, estimated dates, transit days, estimated cost, currency, quote reference, contact fields, and internal notes remain structured planning data. Candidate history is retained through status and version fields rather than deletion.
 
 `logistics_provider_selections` stores immutable selection history. A partial unique index permits only one row with `selection_status = 'selected'` for each booking request. A composite foreign key guarantees that the selected candidate belongs to the same booking request.
 
@@ -29,7 +31,7 @@ The booking request lifecycle is extended additively:
 
 ## Trusted RPCs
 
-Only authenticated Admin users may execute these RPCs:
+Only authenticated Admin users may execute these mutation RPCs:
 
 - `admin_create_logistics_provider_candidate`
 - `admin_update_logistics_provider_candidate`
@@ -40,18 +42,32 @@ Only authenticated Admin users may execute these RPCs:
 
 Each lifecycle RPC locks the booking request and relevant candidate or selection rows before authorization and state decisions. Updates are state-conditional and return a clear conflict error when the expected state no longer exists. Internal trigger and event helpers have no `anon` or `authenticated` execute grant.
 
+Admin full-read RPCs are separately authority-checked and return the internal records required by the workspace:
+
+- `admin_list_logistics_provider_candidates`
+- `admin_list_logistics_provider_selections`
+- `admin_list_logistics_arrangement_events`
+
+Authenticated Buyers and Manufacturers use fixed-column participant-safe RPCs:
+
+- `get_participant_logistics_provider_candidates`
+- `get_participant_logistics_provider_selections`
+- `get_participant_logistics_arrangement_events`
+
+Each participant RPC applies `can_access_logistics_booking_request` to every returned row. The candidate result includes candidate/request IDs, provider name, provider role, transport mode, service level, planning dates, transit days, estimated cost/currency, candidate/selection/planning status, and safe timestamps. It excludes quote references, provider contact fields, internal notes, audit actor IDs, and version fields. The event result includes event identity, safe foreign keys, event type, and timestamp only; actor identity and metadata are excluded.
+
 ## Authorization
 
-- Admin: reads all booking requests, candidates, selections, and events; mutates arrangement state through trusted RPCs only.
-- Buyer: read-only access only when `logistics_booking_requests.buyer_id = auth.uid()`.
-- Manufacturer: read-only access only when the user owns the booking request manufacturer.
-- Anonymous: no table access and no RPC access.
+- Admin: reads full candidate, selection, and event records through Admin-only secure RPCs; mutates arrangement state through trusted RPCs only.
+- Buyer: reads only the participant-safe projection for requests where `logistics_booking_requests.buyer_id = auth.uid()`.
+- Manufacturer: reads only the participant-safe projection for requests owned by that Manufacturer account.
+- Anonymous: no base-table or RPC access.
 
-Direct `INSERT`, `UPDATE`, and `DELETE` privileges are revoked from ordinary authenticated users. RLS policies delegate participant ownership to `can_access_logistics_booking_request`.
+Direct `SELECT`, `INSERT`, `UPDATE`, and `DELETE` privileges on all three internal arrangement tables are revoked from ordinary authenticated users. Their base-table RLS policies are Admin-only as defense in depth, while the secure participant RPCs perform row ownership checks and expose explicit safe columns. Frontend field omission is not part of the security boundary.
 
 ## Application Structure
 
-- `src/lib/logisticsArrangement.ts`: validation, lifecycle helpers, queries, and trusted RPC calls.
+- `src/lib/logisticsArrangement.ts`: independent provider-role/transport-mode validation, participant-safe reads, Admin full reads, lifecycle helpers, and trusted mutation RPC calls.
 - `src/features/logistics-arrangement/AdminLogisticsArrangementWorkspace.tsx`: Admin candidate and selection workflow.
 - `src/features/logistics-arrangement/LogisticsArrangementReadOnly.tsx`: Buyer and Manufacturer participant views.
 - `src/lib/logisticsArrangement.test.ts`: frontend helper regression tests.

@@ -21,6 +21,7 @@ const candidate = {
   logistics_booking_request_id: request.id,
   provider_name: "Northstar Freight",
   provider_type: "freight_forwarder",
+  transport_mode: "ocean",
   service_level: "Port to port",
   estimated_departure_date: "2026-08-01",
   estimated_arrival_date: "2026-08-20",
@@ -44,10 +45,47 @@ test("validates provider candidate inputs and normalizes empty form values", () 
   const values = emptyLogisticsProviderCandidateValues(candidate);
   assert.deepEqual(validateLogisticsProviderCandidate(values), []);
   assert.equal(values.currency, "USD");
+  assert.equal(values.transportMode, "ocean");
   assert.equal(validateLogisticsProviderCandidate({ ...values, providerName: "" }).includes("Provider name is required."), true);
   assert.equal(validateLogisticsProviderCandidate({ ...values, currency: "US" }).includes("Currency must be a three-letter code."), true);
   assert.equal(validateLogisticsProviderCandidate({ ...values, estimatedCost: "-1" }).includes("Estimated cost must be zero or greater."), true);
   assert.equal(validateLogisticsProviderCandidate({ ...values, estimatedArrivalDate: "2026-07-01" }).includes("Estimated arrival cannot be before estimated departure."), true);
+});
+
+test("validates provider role and transport mode independently", () => {
+  const freightForwarderOcean = emptyLogisticsProviderCandidateValues({ ...candidate, provider_type: "freight_forwarder", transport_mode: "ocean" });
+  const carrierTrucking = emptyLogisticsProviderCandidateValues({ ...candidate, provider_type: "carrier", transport_mode: "trucking" });
+  assert.deepEqual(validateLogisticsProviderCandidate(freightForwarderOcean), []);
+  assert.deepEqual(validateLogisticsProviderCandidate(carrierTrucking), []);
+  assert.equal(validateLogisticsProviderCandidate({ ...freightForwarderOcean, transportMode: "space" as never }).includes("Choose a supported transport mode."), true);
+  assert.equal(validateLogisticsProviderCandidate({ ...freightForwarderOcean, providerType: "ocean" as never }).includes("Choose a supported provider type."), true);
+});
+
+test("participant candidate shape excludes internal fields", () => {
+  const safeCandidate = {
+    id: candidate.id,
+    logistics_booking_request_id: candidate.logistics_booking_request_id,
+    provider_name: candidate.provider_name,
+    provider_type: candidate.provider_type,
+    transport_mode: candidate.transport_mode,
+    service_level: candidate.service_level,
+    estimated_departure_date: candidate.estimated_departure_date,
+    estimated_arrival_date: candidate.estimated_arrival_date,
+    estimated_transit_days: candidate.estimated_transit_days,
+    estimated_cost: candidate.estimated_cost,
+    currency: candidate.currency,
+    candidate_status: candidate.candidate_status,
+    is_selected: false,
+    public_planning_status: "carrier_options_available",
+    created_at: candidate.created_at,
+    updated_at: candidate.updated_at,
+  };
+  assert.equal("contact_name" in safeCandidate, false);
+  assert.equal("contact_email" in safeCandidate, false);
+  assert.equal("contact_phone" in safeCandidate, false);
+  assert.equal("notes" in safeCandidate, false);
+  assert.equal("quote_reference" in safeCandidate, false);
+  assert.equal("created_by" in safeCandidate, false);
 });
 
 test("limits candidate management to arrangement lifecycle states", () => {
