@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "tsx --test src/**/*.test.ts"
+    "test": "tsx --test src/**/*.test.ts && node --test \"scripts/test-infrastructure/*.test.mjs\"",
+    "test:staging:safety": "node --test \"scripts/test-infrastructure/staging-safety.test.mjs\"",
+    "test:staging:bootstrap": "node --test \"scripts/test-infrastructure/bootstrap-staging.test.mjs\"",
+    "test:staging:smoke": "node scripts/smoke/logistics-booking-live-smoke.mjs",
+    "test:staging:cleanup": "node --test \"scripts/test-infrastructure/cleanup-staging-fixture.test.mjs\""
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
