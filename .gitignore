@@ -4,9 +4,15 @@ dist/
 .env
 .env.*
 !.env.example
+!.env.staging.example
 npm-debug.log*
 .DS_Store
 *.local
 vite.config.d.ts
 vite.config.js
 supabase/.temp/
+.tmp/
+*.token
+*.tokens
+smoke-output/
+fixture-manifests/
