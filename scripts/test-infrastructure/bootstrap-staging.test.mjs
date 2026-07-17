@@ -12,19 +12,21 @@ const validEnv = {
   PREFAB_STAGING_DATABASE_PASSWORD: "password-value-not-printed",
 };
 
-test("local migrations are exactly 0001 through 0023", () => {
+test("local migrations are exactly 0001 through 0024", () => {
   const versions = listMigrationVersions();
   assert.equal(versions[0], "0001");
-  assert.equal(versions.at(-1), "0023");
+  assert.equal(versions.at(-1), "0024");
   assertExpectedMigrations(versions);
 });
 
-test("migration assertion rejects missing versions or 0024", () => {
-  assert.throws(() => assertExpectedMigrations(["0001", "0024"]), /Expected migrations/);
+test("migration assertion rejects missing versions or 0025", () => {
+  assert.throws(() => assertExpectedMigrations(["0001", "0025"]), /Expected migrations/);
 });
 
 test("isolated workspace plan passes staging ref explicitly", () => {
   const plan = createIsolatedWorkspacePlan("abcdefghijklmnopqrst");
+  assert.deepEqual(plan.initializeCommand, ["npx", "supabase", "init"]);
+  assert.deepEqual(plan.filesToCopy, ["supabase/migrations"]);
   assert.deepEqual(plan.linkCommand, ["npx", "supabase", "link", "--project-ref", "abcdefghijklmnopqrst"]);
   assert.deepEqual(plan.dryRunCommand, ["npx", "supabase", "db", "push", "--dry-run"]);
 });
@@ -35,5 +37,5 @@ test("dry-run bootstrap plan does not execute remote writes", () => {
   assert.equal(plan.remoteWritesExecuted, 0);
   assert.equal(plan.migrationApplicationEnabled, false);
   assert.equal(plan.applyBlockedByTaskScope, true);
-  assert.equal(plan.pendingIfEmpty.length, 23);
+  assert.equal(plan.pendingIfEmpty.length, 24);
 });

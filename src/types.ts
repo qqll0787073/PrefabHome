@@ -992,7 +992,13 @@ export interface ShippingReadinessDraftValues {
   specialInstructions: string;
 }
 
-export type LogisticsBookingRequestStatus = "booking_draft" | "submitted_for_arrangement" | "withdrawn";
+export type LogisticsBookingRequestStatus =
+  | "booking_draft"
+  | "submitted_for_arrangement"
+  | "carrier_options_available"
+  | "carrier_selected"
+  | "ready_for_external_booking"
+  | "withdrawn";
 
 export type LogisticsTransportMode = ShippingMode;
 
@@ -1088,6 +1094,92 @@ export interface LogisticsBookingRequestDraftValues {
   equipmentNotes: string;
   handlingRequirements: string;
   bookingNotes: string;
+}
+
+export type LogisticsProviderType =
+  | "carrier"
+  | "freight_forwarder"
+  | "broker"
+  | "multimodal_operator"
+  | "other";
+
+export type LogisticsProviderCandidateStatus = "draft" | "active" | "withdrawn" | "rejected" | "selected";
+export type LogisticsProviderSelectionStatus = "selected" | "superseded" | "cancelled";
+export type LogisticsArrangementEventType =
+  | "candidate_created"
+  | "candidate_updated"
+  | "candidate_withdrawn"
+  | "carrier_options_available"
+  | "provider_selected"
+  | "provider_selection_changed"
+  | "provider_selection_cancelled"
+  | "ready_for_external_booking";
+
+export interface LogisticsProviderCandidateRecord {
+  id: string;
+  logistics_booking_request_id: string;
+  provider_name: string;
+  provider_type: LogisticsProviderType;
+  service_level: string | null;
+  estimated_departure_date: string | null;
+  estimated_arrival_date: string | null;
+  estimated_transit_days: number | null;
+  estimated_cost: number | null;
+  currency: string | null;
+  quote_reference: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  notes: string | null;
+  candidate_status: LogisticsProviderCandidateStatus;
+  version: number;
+  created_by: string;
+  updated_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LogisticsProviderSelectionRecord {
+  id: string;
+  logistics_booking_request_id: string;
+  selected_candidate_id: string;
+  selection_status: LogisticsProviderSelectionStatus;
+  selection_reason: string | null;
+  selected_by: string;
+  selected_at: string;
+  superseded_at: string | null;
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancellation_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LogisticsArrangementEventRecord {
+  id: string;
+  logistics_booking_request_id: string;
+  candidate_id: string | null;
+  selection_id: string | null;
+  event_type: LogisticsArrangementEventType;
+  actor_profile_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface LogisticsProviderCandidateValues {
+  providerName: string;
+  providerType: LogisticsProviderType;
+  serviceLevel: string;
+  estimatedDepartureDate: string;
+  estimatedArrivalDate: string;
+  estimatedTransitDays: string;
+  estimatedCost: string;
+  currency: string;
+  quoteReference: string;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+  notes: string;
 }
 
 export interface ProfileRecord {

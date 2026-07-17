@@ -32,6 +32,9 @@ export const logisticsContainerPreferences: LogisticsContainerPreference[] = [
 export const logisticsBookingStatusLabels: Record<LogisticsBookingRequestStatus, string> = {
   booking_draft: "Draft",
   submitted_for_arrangement: "Submitted for arrangement",
+  carrier_options_available: "Carrier options available",
+  carrier_selected: "Carrier selected",
+  ready_for_external_booking: "Ready for external booking",
   withdrawn: "Withdrawn",
 };
 

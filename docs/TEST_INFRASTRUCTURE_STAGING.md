@@ -55,12 +55,12 @@ The guard prints only environment type, project ref, present/missing variable na
 
 It verifies:
 
-- migrations are exactly `0001` through `0023`
-- no migration `0024` exists
-- migrations match `auth-profiles`
+- local migrations are exactly `0001` through `0024`; protected baseline migrations `0001` through `0023` remain unchanged
+- migration `0024` is the only new local migration
+- protected migrations match `auth-profiles`
 - staging safety guard passes
 
-The isolated CLI workspace design copies only `supabase/config.toml` and `supabase/migrations` into a temporary staging workspace, links that workspace to the explicit staging ref, lists migrations, and performs `supabase db push --dry-run`.
+The isolated CLI workspace design initializes a temporary Supabase project, copies only `supabase/migrations`, links that workspace to the explicit staging ref, lists migrations, and performs `supabase db push --dry-run`.
 
 Actual migration application is disabled in this task even if `PREFAB_STAGING_APPLY_MIGRATIONS=true` is set. Future application requires a user-provided staging ref and separate approval.
 
