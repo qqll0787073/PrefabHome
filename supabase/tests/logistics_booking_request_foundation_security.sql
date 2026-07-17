@@ -329,12 +329,163 @@ grant execute on function public.create_logistics_booking_request(uuid) to authe
 grant execute on function public.update_logistics_booking_request_draft(uuid, text, text, date, date, jsonb, jsonb, text, text, text, text) to authenticated;
 grant execute on function public.submit_logistics_booking_request(uuid) to authenticated;
 grant execute on function public.withdraw_logistics_booking_request(uuid, text) to authenticated;
+grant execute on function public.can_access_logistics_booking_request(uuid) to authenticated;
 
-create temp table logistics_booking_request_results(check_name text primary key, passed boolean not null, detail text not null) on commit drop;
+create temp table logistics_booking_request_results(check_name text primary key, passed boolean not null, detail text not null default '') on commit drop;
+grant select, insert, update, delete on table logistics_booking_request_results to authenticated, anon;
 
-create or replace function pg_temp.record_lbr_check(check_name text, passed boolean, detail text default '') returns void language plpgsql as $$
+create or replace function pg_temp.record_lbr_check(p_check_name text, p_passed boolean, p_detail text default '') returns void language plpgsql as $$
 begin
-  insert into logistics_booking_request_results values (check_name, passed, coalesce(detail, ''));
+  insert into logistics_booking_request_results values (p_check_name, p_passed, coalesce(p_detail, ''))
+  on conflict (check_name) do update set passed = excluded.passed, detail = excluded.detail;
+end;
+$$;
+
+create or replace function pg_temp.logistics_location(label_text text)
+returns jsonb language sql immutable as $$
+  select jsonb_build_object('address_line1', label_text || ' Dock', 'city', label_text || ' City', 'state_region', label_text || ' State', 'postal_code', '10001', 'country_code', 'US', 'ignored', 'strip');
+$$;
+
+create or replace function pg_temp.set_actor(actor_uuid uuid)
+returns void language plpgsql as $$
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claim.sub', actor_uuid::text, true);
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+end;
+$$;
+
+create or replace function pg_temp.expect_blocked(check_name text, statement_text text)
+returns void language plpgsql as $$
+declare blocked boolean := false;
+begin
+  begin
+    execute statement_text;
+  exception when others then
+    blocked := true;
+  end;
+  perform pg_temp.record_lbr_check(check_name, blocked, statement_text);
+end;
+$$;
+
+create or replace function pg_temp.seed_logistics_chain(label_text text)
+returns table (
+  buyer_id uuid,
+  manufacturer_owner_id uuid,
+  other_manufacturer_owner_id uuid,
+  admin_id uuid,
+  manufacturer_id uuid,
+  other_manufacturer_id uuid,
+  purchase_order_id uuid,
+  contract_id uuid,
+  invoice_id uuid,
+  shipping_readiness_id uuid
+)
+language plpgsql
+as $$
+declare
+  buyer_uuid uuid := gen_random_uuid();
+  manufacturer_owner_uuid uuid := gen_random_uuid();
+  other_manufacturer_owner_uuid uuid := gen_random_uuid();
+  admin_uuid uuid := gen_random_uuid();
+  manufacturer_uuid uuid;
+  other_manufacturer_uuid uuid;
+  product_uuid uuid;
+  rfq_uuid uuid;
+  quote_uuid uuid;
+  decision_uuid uuid;
+  po_uuid uuid;
+  po_item_uuid uuid;
+  contract_uuid uuid;
+  invoice_uuid uuid;
+  shipping_uuid uuid;
+begin
+  reset role;
+  insert into auth.users(instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, is_sso_user, is_anonymous)
+  values
+    ('00000000-0000-0000-0000-000000000000', buyer_uuid, 'authenticated', 'authenticated', label_text || '-buyer@example.test', 'placeholder', now(), '{"provider":"email","providers":["email"]}'::jsonb, '{"full_name":"Logistics Buyer","role":"buyer"}'::jsonb, now(), now(), false, false),
+    ('00000000-0000-0000-0000-000000000000', manufacturer_owner_uuid, 'authenticated', 'authenticated', label_text || '-manufacturer@example.test', 'placeholder', now(), '{"provider":"email","providers":["email"]}'::jsonb, '{"full_name":"Logistics Manufacturer","role":"manufacturer"}'::jsonb, now(), now(), false, false),
+    ('00000000-0000-0000-0000-000000000000', other_manufacturer_owner_uuid, 'authenticated', 'authenticated', label_text || '-other@example.test', 'placeholder', now(), '{"provider":"email","providers":["email"]}'::jsonb, '{"full_name":"Other Manufacturer","role":"manufacturer"}'::jsonb, now(), now(), false, false),
+    ('00000000-0000-0000-0000-000000000000', admin_uuid, 'authenticated', 'authenticated', label_text || '-admin@example.test', 'placeholder', now(), '{"provider":"email","providers":["email"]}'::jsonb, '{"full_name":"Logistics Admin","role":"buyer"}'::jsonb, now(), now(), false, false);
+  update public.profiles set role = 'admin' where id = admin_uuid;
+
+  insert into public.manufacturers(owner_id, company_name, company_display_name, country, application_status)
+  values (manufacturer_owner_uuid, label_text || ' Factory Legal', label_text || ' Factory', 'China', 'draft')
+  returning id into manufacturer_uuid;
+  insert into public.manufacturers(owner_id, company_name, company_display_name, country, application_status)
+  values (other_manufacturer_owner_uuid, label_text || ' Other Legal', label_text || ' Other', 'Vietnam', 'draft')
+  returning id into other_manufacturer_uuid;
+  perform pg_temp.set_actor(admin_uuid);
+  update public.manufacturers set application_status = 'approved', reviewed_by = admin_uuid, reviewed_at = now() where id in (manufacturer_uuid, other_manufacturer_uuid);
+
+  perform pg_temp.set_actor(manufacturer_owner_uuid);
+  insert into public.products(manufacturer_id, name, model_name, category, description, currency, status)
+  values (manufacturer_uuid, label_text || ' Home', label_text || ' Model', 'Modular', 'Logistics product', 'USD', 'draft')
+  returning id into product_uuid;
+
+  perform pg_temp.set_actor(buyer_uuid);
+  insert into public.rfqs(buyer_id, manufacturer_id, product_id, product_snapshot, status, requested_quantity, requested_currency, incoterm, destination_country)
+  values (buyer_uuid, manufacturer_uuid, product_uuid, jsonb_build_object('name', label_text || ' Home'), 'submitted', 1, 'USD', 'FOB', 'United States')
+  returning id into rfq_uuid;
+
+  reset role;
+  perform set_config('app.quote_trusted_write', 'on', true);
+  insert into public.rfq_quotes(rfq_id, manufacturer_id, version, status, currency, subtotal, incoterm, created_by, submitted_at)
+  values (rfq_uuid, manufacturer_uuid, 1, 'accepted', 'USD', 1000, 'FOB', manufacturer_owner_uuid, now())
+  returning id into quote_uuid;
+  insert into public.rfq_quote_items(quote_id, line_order, item_type, description, quantity, unit, unit_price)
+  values (quote_uuid, 1, 'product', label_text || ' module', 2, 'unit', 500)
+  returning id into po_item_uuid;
+  perform set_config('app.quote_trusted_write', '', true);
+
+  perform set_config('app.quote_decision_trusted_write', 'on', true);
+  insert into public.rfq_quote_decisions(rfq_id, quote_id, buyer_id, decision, reason)
+  values (rfq_uuid, quote_uuid, buyer_uuid, 'accepted', 'accepted')
+  returning id into decision_uuid;
+  perform set_config('app.quote_decision_trusted_write', '', true);
+
+  reset role;
+  perform set_config('app.purchase_order_trusted_write', 'on', true);
+  insert into public.purchase_orders(po_number, rfq_id, quote_id, quote_decision_id, buyer_id, manufacturer_id, status, currency, subtotal, incoterm, quote_snapshot, buyer_snapshot, manufacturer_snapshot, product_snapshot, created_by, submitted_at, last_submitted_at, confirmed_at, review_round)
+  values ('PO-2099-' || lpad((floor(random() * 999999))::int::text, 6, '0'), rfq_uuid, quote_uuid, decision_uuid, buyer_uuid, manufacturer_uuid, 'confirmed', 'USD', 1000, 'FOB', jsonb_build_object('quote_id', quote_uuid), jsonb_build_object('profile_id', buyer_uuid), jsonb_build_object('manufacturer_id', manufacturer_uuid), jsonb_build_object('product_id', product_uuid), buyer_uuid, now(), now(), now(), 1)
+  returning id into po_uuid;
+  insert into public.purchase_order_items(purchase_order_id, source_quote_item_id, line_order, item_type, description, quantity, unit, unit_price, amount)
+  select po_uuid, item.id, item.line_order, item.item_type, item.description, item.quantity, item.unit, item.unit_price, item.amount from public.rfq_quote_items item where item.quote_id = quote_uuid
+  returning id into po_item_uuid;
+  perform set_config('app.purchase_order_trusted_write', '', true);
+
+  reset role;
+  perform set_config('app.contract_trusted_write', 'on', true);
+  insert into public.contracts(contract_number, purchase_order_id, po_number, rfq_id, quote_id, quote_decision_id, buyer_id, manufacturer_id, status, currency, subtotal, contract_title, purchase_order_snapshot, buyer_snapshot, manufacturer_snapshot, quote_snapshot, product_snapshot, line_items_snapshot, created_by, ready_at, review_round, first_ready_at, last_ready_at, accepted_at)
+  values ('CON-2099-' || lpad((floor(random() * 999999))::int::text, 6, '0'), po_uuid, (select po_number from public.purchase_orders where id = po_uuid), rfq_uuid, quote_uuid, decision_uuid, buyer_uuid, manufacturer_uuid, 'accepted', 'USD', 1000, label_text || ' Contract', jsonb_build_object('purchase_order_id', po_uuid), jsonb_build_object('profile_id', buyer_uuid), jsonb_build_object('manufacturer_id', manufacturer_uuid), jsonb_build_object('quote_id', quote_uuid), jsonb_build_object('product_id', product_uuid), jsonb_build_array(jsonb_build_object('source_purchase_order_item_id', po_item_uuid, 'amount', 1000)), buyer_uuid, now(), 1, now(), now(), now())
+  returning id into contract_uuid;
+  perform set_config('app.contract_trusted_write', '', true);
+
+  reset role;
+  perform set_config('app.signature_preparation_trusted_write', 'on', true);
+  insert into public.signature_packages(package_number, contract_id, contract_number, buyer_id, manufacturer_id, status, version, contract_snapshot, buyer_snapshot, manufacturer_snapshot, decision_snapshot, signing_content_snapshot, created_by, ready_at)
+  values ('SIG-2099-' || lpad((floor(random() * 999999))::int::text, 6, '0'), contract_uuid, (select contract_number from public.contracts where id = contract_uuid), buyer_uuid, manufacturer_uuid, 'ready_to_send', 1, jsonb_build_object('contract_id', contract_uuid), jsonb_build_object('profile_id', buyer_uuid), jsonb_build_object('manufacturer_id', manufacturer_uuid), jsonb_build_object('decision', 'accepted'), jsonb_build_object('internal_only', true), buyer_uuid, now());
+  perform set_config('app.signature_preparation_trusted_write', '', true);
+
+  perform pg_temp.set_actor(manufacturer_owner_uuid);
+  select id into invoice_uuid from public.create_invoice_from_purchase_order(po_uuid);
+  perform public.update_invoice_draft(invoice_uuid, current_date, current_date + 30, 'Logistics Buyer', label_text || '-buyer@example.test', '{"address_line1":"1 Main St","city":"Los Angeles","state_region":"CA","postal_code":"90001","country_code":"US"}'::jsonb, 0, 0, 0);
+  select id into invoice_uuid from public.issue_invoice(invoice_uuid);
+
+  select id into shipping_uuid from public.create_shipping_readiness(po_uuid);
+  perform public.update_shipping_readiness_draft(shipping_uuid, 'ocean', 'FOB', pg_temp.logistics_location('Origin'), pg_temp.logistics_location('Destination'), label_text || ' packed modules', 3, 12000, 72, current_date + 10, current_date + 5, 'Ready');
+  select id into shipping_uuid from public.mark_shipping_readiness_ready(shipping_uuid);
+
+  return query select buyer_uuid, manufacturer_owner_uuid, other_manufacturer_owner_uuid, admin_uuid, manufacturer_uuid, other_manufacturer_uuid, po_uuid, contract_uuid, invoice_uuid, shipping_uuid;
+exception when others then
+  perform set_config('app.quote_trusted_write', '', true);
+  perform set_config('app.quote_decision_trusted_write', '', true);
+  perform set_config('app.purchase_order_trusted_write', '', true);
+  perform set_config('app.contract_trusted_write', '', true);
+  perform set_config('app.signature_preparation_trusted_write', '', true);
+  perform set_config('app.shipping_readiness_trusted_write', '', true);
+  perform set_config('app.logistics_booking_request_trusted_write', '', true);
+  raise;
 end;
 $$;
 
@@ -342,6 +493,16 @@ do $$
 declare
   volatility text;
   direct_blocked boolean := false;
+  seed record;
+  seed2 record;
+  seed3 record;
+  booking public.logistics_booking_requests%rowtype;
+  other_booking public.logistics_booking_requests%rowtype;
+  updated public.logistics_booking_requests%rowtype;
+  submitted public.logistics_booking_requests%rowtype;
+  withdrawn public.logistics_booking_requests%rowtype;
+  event_count integer;
+  visible_count integer;
 begin
   perform pg_temp.record_lbr_check('booking request table exists', to_regclass('public.logistics_booking_requests') is not null, 'table');
   perform pg_temp.record_lbr_check('booking request events table exists', to_regclass('public.logistics_booking_request_events') is not null, 'events');
@@ -366,6 +527,165 @@ begin
   perform pg_temp.record_lbr_check('request snapshot records no external booking claims', public.build_logistics_booking_request_snapshot('ocean','FOB',current_date,current_date,null,null,'not_specified',null,null,null)->>'booking_confirmed' = 'false', 'snapshot');
   perform pg_temp.record_lbr_check('events are trusted types only', exists (select 1 from pg_constraint where conname = 'logistics_booking_request_events_type_check' and pg_get_constraintdef(oid) ~ 'booking_request_submitted'), 'events');
   perform pg_temp.record_lbr_check('no external logistics columns exist', not exists (select 1 from information_schema.columns where table_schema='public' and table_name='logistics_booking_requests' and column_name ~ 'carrier|forwarder|tracking|waybill|vessel|flight|eta|customs|tariff|insurance'), 'columns');
+
+  select * into seed from pg_temp.seed_logistics_chain('lbr-primary');
+  perform pg_temp.set_actor(seed.manufacturer_owner_id);
+  select * into booking from public.create_logistics_booking_request(seed.shipping_readiness_id);
+  perform pg_temp.record_lbr_check('assigned manufacturer can create from eligible upstream chain', booking.status = 'booking_draft' and booking.buyer_id = seed.buyer_id and booking.manufacturer_id = seed.manufacturer_id and booking.shipping_readiness_id = seed.shipping_readiness_id, booking.status);
+  perform pg_temp.record_lbr_check('created booking derives source ids and snapshots', booking.purchase_order_id = seed.purchase_order_id and booking.contract_id = seed.contract_id and booking.invoice_id = seed.invoice_id and jsonb_typeof(booking.shipping_readiness_snapshot) = 'object' and jsonb_typeof(booking.source_snapshot) = 'object' and booking.package_count = 3, 'snapshot');
+  perform pg_temp.record_lbr_check('created booking does not mutate source statuses', (select status from public.shipping_readiness_records where id = seed.shipping_readiness_id) = 'ready_for_logistics' and (select status from public.purchase_orders where id = seed.purchase_order_id) = 'confirmed' and (select status from public.contracts where id = seed.contract_id) = 'accepted' and (select status from public.invoices where id = seed.invoice_id) = 'issued', 'sources');
+  select count(*) into event_count from public.logistics_booking_request_events where booking_request_id = booking.id and event_type = 'booking_request_created';
+  perform pg_temp.record_lbr_check('created booking emits exactly one created event', event_count = 1, event_count::text);
+  perform pg_temp.expect_blocked('duplicate booking for same shipping readiness denied', format('select public.create_logistics_booking_request(%L::uuid)', seed.shipping_readiness_id));
+
+  select * into seed2 from pg_temp.seed_logistics_chain('lbr-create-denied');
+  perform pg_temp.set_actor(seed2.other_manufacturer_owner_id);
+  perform pg_temp.expect_blocked('other manufacturer cannot create booking', format('select public.create_logistics_booking_request(%L::uuid)', seed2.shipping_readiness_id));
+  perform pg_temp.set_actor(seed2.buyer_id);
+  perform pg_temp.expect_blocked('buyer cannot create booking', format('select public.create_logistics_booking_request(%L::uuid)', seed2.shipping_readiness_id));
+  perform pg_temp.set_actor(seed2.admin_id);
+  perform pg_temp.expect_blocked('admin cannot create booking', format('select public.create_logistics_booking_request(%L::uuid)', seed2.shipping_readiness_id));
+  reset role;
+  set local role anon;
+  perform set_config('request.jwt.claim.sub', '', true);
+  perform pg_temp.expect_blocked('anonymous cannot create booking', format('select public.create_logistics_booking_request(%L::uuid)', seed2.shipping_readiness_id));
+
+  select * into seed3 from pg_temp.seed_logistics_chain('lbr-source-denied');
+  reset role;
+  perform set_config('app.shipping_readiness_trusted_write', 'on', true);
+  update public.shipping_readiness_records set status = 'shipping_draft', ready_at = null, cancelled_at = null, cancellation_reason = null where id = seed3.shipping_readiness_id;
+  perform set_config('app.shipping_readiness_trusted_write', '', true);
+  perform pg_temp.set_actor(seed3.manufacturer_owner_id);
+  perform pg_temp.expect_blocked('create denied unless shipping readiness is ready_for_logistics', format('select public.create_logistics_booking_request(%L::uuid)', seed3.shipping_readiness_id));
+  reset role;
+  perform set_config('app.shipping_readiness_trusted_write', 'on', true);
+  update public.shipping_readiness_records set status = 'ready_for_logistics', ready_at = now(), cancelled_at = null, cancellation_reason = null where id = seed3.shipping_readiness_id;
+  perform set_config('app.shipping_readiness_trusted_write', '', true);
+  reset role;
+  perform set_config('app.invoice_trusted_write', 'on', true);
+  update public.invoices set status = 'draft', issued_at = null, cancelled_at = null, cancellation_reason = null where id = seed3.invoice_id;
+  perform set_config('app.invoice_trusted_write', '', true);
+  perform pg_temp.expect_blocked('create denied unless invoice remains issued', format('select public.create_logistics_booking_request(%L::uuid)', seed3.shipping_readiness_id));
+
+  perform pg_temp.set_actor(seed.manufacturer_owner_id);
+  select * into updated from public.update_logistics_booking_request_draft(booking.id, ' AIR ', 'FOB', current_date + 20, current_date + 25, '{"address_line1":" 22 Port Road ","address_line2":" ","city":" Ningbo ","state_region":" Zhejiang ","postal_code":" 315000 ","country_code":" cn ","ignored":"x"}'::jsonb, '{"address_line1":" 500 Market St ","city":" Seattle ","state_region":" WA ","postal_code":" 98101 ","country_code":" us "}'::jsonb, ' 40FT_HIGH_CUBE ', ' Keep dry ', ' Forklift required ', ' Arrange after inspection ');
+  perform pg_temp.record_lbr_check('draft update normalizes editable fields', updated.requested_transport_mode = 'air' and updated.container_preference = '40ft_high_cube' and updated.origin_location->>'country_code' = 'CN' and not (updated.origin_location ? 'ignored') and not (updated.origin_location ? 'address_line2') and updated.equipment_notes = 'Keep dry', 'updated');
+  perform pg_temp.record_lbr_check('draft update preserves source fields', updated.purchase_order_id = booking.purchase_order_id and updated.contract_id = booking.contract_id and updated.invoice_id = booking.invoice_id and updated.cargo_description = booking.cargo_description, 'source');
+  select count(*) into event_count from public.logistics_booking_request_events where booking_request_id = booking.id and event_type = 'booking_request_updated';
+  perform pg_temp.record_lbr_check('draft update emits one updated event', event_count = 1, event_count::text);
+  perform pg_temp.expect_blocked('invalid transport mode denied', format('select public.update_logistics_booking_request_draft(%L::uuid,''spaceship'',''FOB'',current_date + 1,current_date + 2,''{}''::jsonb,''{}''::jsonb,''not_specified'',null,null,null)', booking.id));
+  perform pg_temp.expect_blocked('invalid incoterm denied', format('select public.update_logistics_booking_request_draft(%L::uuid,''ocean'',''BAD'',current_date + 1,current_date + 2,''{}''::jsonb,''{}''::jsonb,''not_specified'',null,null,null)', booking.id));
+  perform pg_temp.expect_blocked('malformed location denied', format('select public.update_logistics_booking_request_draft(%L::uuid,''ocean'',''FOB'',current_date + 1,current_date + 2,''[]''::jsonb,''{}''::jsonb,''not_specified'',null,null,null)', booking.id));
+  perform pg_temp.expect_blocked('invalid country code denied', format('select public.update_logistics_booking_request_draft(%L::uuid,''ocean'',''FOB'',current_date + 1,current_date + 2,''{""country_code"":""USA""}''::jsonb,''{}''::jsonb,''not_specified'',null,null,null)', booking.id));
+  perform pg_temp.expect_blocked('past departure date denied', format('select public.update_logistics_booking_request_draft(%L::uuid,''ocean'',''FOB'',current_date - 1,current_date + 2,''{}''::jsonb,''{}''::jsonb,''not_specified'',null,null,null)', booking.id));
+
+  select * into submitted from public.submit_logistics_booking_request(booking.id);
+  perform pg_temp.record_lbr_check('valid submit succeeds once', submitted.status = 'submitted_for_arrangement' and submitted.submitted_at is not null, submitted.status);
+  select count(*) into event_count from public.logistics_booking_request_events where booking_request_id = booking.id and event_type = 'booking_request_submitted';
+  perform pg_temp.record_lbr_check('submit emits one submitted event', event_count = 1, event_count::text);
+  perform pg_temp.expect_blocked('duplicate submit denied', format('select public.submit_logistics_booking_request(%L::uuid)', booking.id));
+  perform pg_temp.expect_blocked('submitted booking cannot be edited by manufacturer', format('select public.update_logistics_booking_request_draft(%L::uuid,''ocean'',''FOB'',current_date + 1,current_date + 2,''{}''::jsonb,''{}''::jsonb,''not_specified'',null,null,null)', booking.id));
+
+  select * into seed2 from pg_temp.seed_logistics_chain('lbr-incomplete-submit');
+  perform pg_temp.set_actor(seed2.manufacturer_owner_id);
+  select * into other_booking from public.create_logistics_booking_request(seed2.shipping_readiness_id);
+  perform public.update_logistics_booking_request_draft(other_booking.id, 'ocean', 'FOB', null, null, null, null, 'not_specified', null, null, null);
+  perform pg_temp.expect_blocked('incomplete draft cannot be submitted', format('select public.submit_logistics_booking_request(%L::uuid)', other_booking.id));
+
+  select * into seed2 from pg_temp.seed_logistics_chain('lbr-submit-source');
+  perform pg_temp.set_actor(seed2.manufacturer_owner_id);
+  select * into other_booking from public.create_logistics_booking_request(seed2.shipping_readiness_id);
+  perform public.update_logistics_booking_request_draft(other_booking.id, 'ocean', 'FOB', current_date + 10, current_date + 12, pg_temp.logistics_location('Origin'), pg_temp.logistics_location('Destination'), 'not_specified', null, null, null);
+  reset role;
+  perform set_config('app.shipping_readiness_trusted_write', 'on', true);
+  update public.shipping_readiness_records set status = 'cancelled', cancelled_at = now(), cancellation_reason = 'source cancelled' where id = seed2.shipping_readiness_id;
+  perform set_config('app.shipping_readiness_trusted_write', '', true);
+  perform pg_temp.expect_blocked('submit denied when source shipping readiness no longer ready', format('select public.submit_logistics_booking_request(%L::uuid)', other_booking.id));
+
+  select * into seed2 from pg_temp.seed_logistics_chain('lbr-withdraw-draft');
+  perform pg_temp.set_actor(seed2.manufacturer_owner_id);
+  select * into other_booking from public.create_logistics_booking_request(seed2.shipping_readiness_id);
+  select * into withdrawn from public.withdraw_logistics_booking_request(other_booking.id, ' draft no longer needed ');
+  perform pg_temp.record_lbr_check('draft withdraw succeeds terminally', withdrawn.status = 'withdrawn' and withdrawn.submitted_at is null and withdrawn.withdrawn_at is not null and withdrawn.withdrawal_reason = 'draft no longer needed', withdrawn.status);
+  select count(*) into event_count from public.logistics_booking_request_events where booking_request_id = other_booking.id and event_type = 'booking_request_withdrawn';
+  perform pg_temp.record_lbr_check('draft withdraw emits one withdrawn event', event_count = 1, event_count::text);
+  perform pg_temp.expect_blocked('withdrawn booking cannot be withdrawn again', format('select public.withdraw_logistics_booking_request(%L::uuid,''again'')', other_booking.id));
+  perform pg_temp.expect_blocked('withdrawn booking cannot be submitted', format('select public.submit_logistics_booking_request(%L::uuid)', other_booking.id));
+  perform pg_temp.record_lbr_check('withdraw event records no external cancellation claim', exists (select 1 from public.logistics_booking_request_events where booking_request_id = other_booking.id and event_type = 'booking_request_withdrawn' and metadata->>'external_arrangement_cancelled' = 'false'), 'metadata');
+
+  select * into seed2 from pg_temp.seed_logistics_chain('lbr-withdraw-submitted');
+  perform pg_temp.set_actor(seed2.manufacturer_owner_id);
+  select * into other_booking from public.create_logistics_booking_request(seed2.shipping_readiness_id);
+  perform public.update_logistics_booking_request_draft(other_booking.id, 'ocean', 'FOB', current_date + 10, current_date + 12, pg_temp.logistics_location('Origin'), pg_temp.logistics_location('Destination'), 'not_specified', null, null, null);
+  perform public.submit_logistics_booking_request(other_booking.id);
+  select * into withdrawn from public.withdraw_logistics_booking_request(other_booking.id, 'submitted withdrawn');
+  perform pg_temp.record_lbr_check('submitted withdraw succeeds and preserves submitted_at history', withdrawn.status = 'withdrawn' and withdrawn.submitted_at is not null and withdrawn.withdrawn_at is not null, withdrawn.status);
+  perform pg_temp.expect_blocked('blank withdraw reason denied', format('select public.withdraw_logistics_booking_request(%L::uuid,''   '')', booking.id));
+
+  -- State-conditional conflict simulation in one rollback SQL session: repeated stale lifecycle calls exercise the same UPDATE ... WHERE status guards that serialize concurrent transactions.
+  select * into seed2 from pg_temp.seed_logistics_chain('lbr-conflict-submit-submit');
+  perform pg_temp.set_actor(seed2.manufacturer_owner_id);
+  select * into other_booking from public.create_logistics_booking_request(seed2.shipping_readiness_id);
+  perform public.update_logistics_booking_request_draft(other_booking.id, 'ocean', 'FOB', current_date + 10, current_date + 12, pg_temp.logistics_location('Origin'), pg_temp.logistics_location('Destination'), 'not_specified', null, null, null);
+  perform public.submit_logistics_booking_request(other_booking.id);
+  perform pg_temp.expect_blocked('state-conditional submit-submit conflict denies second submit', format('select public.submit_logistics_booking_request(%L::uuid)', other_booking.id));
+  perform pg_temp.record_lbr_check('state-conditional submit-submit creates no duplicate event', (select count(*) from public.logistics_booking_request_events where booking_request_id = other_booking.id and event_type = 'booking_request_submitted') = 1, 'submit-submit');
+
+  select * into seed2 from pg_temp.seed_logistics_chain('lbr-conflict-withdraw-withdraw');
+  perform pg_temp.set_actor(seed2.manufacturer_owner_id);
+  select * into other_booking from public.create_logistics_booking_request(seed2.shipping_readiness_id);
+  perform public.withdraw_logistics_booking_request(other_booking.id, 'first');
+  perform pg_temp.expect_blocked('state-conditional withdraw-withdraw conflict denies second withdraw', format('select public.withdraw_logistics_booking_request(%L::uuid,''second'')', other_booking.id));
+  perform pg_temp.record_lbr_check('state-conditional withdraw-withdraw creates no duplicate event', (select count(*) from public.logistics_booking_request_events where booking_request_id = other_booking.id and event_type = 'booking_request_withdrawn') = 1, 'withdraw-withdraw');
+
+  select * into seed2 from pg_temp.seed_logistics_chain('lbr-conflict-submit-withdraw');
+  perform pg_temp.set_actor(seed2.manufacturer_owner_id);
+  select * into other_booking from public.create_logistics_booking_request(seed2.shipping_readiness_id);
+  perform public.update_logistics_booking_request_draft(other_booking.id, 'ocean', 'FOB', current_date + 10, current_date + 12, pg_temp.logistics_location('Origin'), pg_temp.logistics_location('Destination'), 'not_specified', null, null, null);
+  perform public.submit_logistics_booking_request(other_booking.id);
+  perform public.withdraw_logistics_booking_request(other_booking.id, 'cancel submitted arrangement request');
+  perform pg_temp.record_lbr_check('state-conditional submit-then-withdraw serializes final terminal state', (select status from public.logistics_booking_requests where id = other_booking.id) = 'withdrawn' and (select count(*) from public.logistics_booking_request_events where booking_request_id = other_booking.id and event_type in ('booking_request_submitted','booking_request_withdrawn')) = 2, 'submit-withdraw');
+
+  select * into seed2 from pg_temp.seed_logistics_chain('lbr-conflict-withdraw-submit');
+  perform pg_temp.set_actor(seed2.manufacturer_owner_id);
+  select * into other_booking from public.create_logistics_booking_request(seed2.shipping_readiness_id);
+  perform public.withdraw_logistics_booking_request(other_booking.id, 'withdraw first');
+  perform pg_temp.expect_blocked('state-conditional withdraw-submit conflict denies submit after terminal withdraw', format('select public.submit_logistics_booking_request(%L::uuid)', other_booking.id));
+
+  select * into seed2 from pg_temp.seed_logistics_chain('lbr-rls-other');
+  perform pg_temp.set_actor(seed2.manufacturer_owner_id);
+  select * into other_booking from public.create_logistics_booking_request(seed2.shipping_readiness_id);
+  perform pg_temp.set_actor(seed.buyer_id);
+  select count(*) into visible_count from public.logistics_booking_requests where id = booking.id;
+  perform pg_temp.record_lbr_check('buyer can read own booking request', visible_count = 1, visible_count::text);
+  select count(*) into visible_count from public.logistics_booking_requests where id = other_booking.id;
+  perform pg_temp.record_lbr_check('buyer cannot read another buyer booking request', visible_count = 0, visible_count::text);
+  select count(*) into visible_count from public.logistics_booking_request_events where booking_request_id = booking.id;
+  perform pg_temp.record_lbr_check('buyer can read own booking events', visible_count >= 1, visible_count::text);
+  perform pg_temp.set_actor(seed.manufacturer_owner_id);
+  select count(*) into visible_count from public.logistics_booking_requests where id = booking.id;
+  perform pg_temp.record_lbr_check('assigned manufacturer can read own booking request', visible_count = 1, visible_count::text);
+  perform pg_temp.set_actor(seed.other_manufacturer_owner_id);
+  select count(*) into visible_count from public.logistics_booking_requests where id = booking.id;
+  perform pg_temp.record_lbr_check('other manufacturer cannot read booking request', visible_count = 0, visible_count::text);
+  perform pg_temp.set_actor(seed.admin_id);
+  select count(*) into visible_count from public.logistics_booking_requests where id in (booking.id, other_booking.id);
+  perform pg_temp.record_lbr_check('admin can read all booking requests', visible_count = 2, visible_count::text);
+  reset role;
+  set local role anon;
+  begin
+    select count(*) into visible_count from public.logistics_booking_requests where id = booking.id;
+  exception when others then
+    visible_count := 0;
+  end;
+  perform pg_temp.record_lbr_check('anonymous cannot read booking requests', visible_count = 0, visible_count::text);
+  perform pg_temp.set_actor(seed.manufacturer_owner_id);
+  perform pg_temp.expect_blocked('direct request insert denied', 'insert into public.logistics_booking_requests(booking_request_number, shipping_readiness_id, shipping_number, purchase_order_id, purchase_order_number, contract_id, contract_number, invoice_id, invoice_number, buyer_id, manufacturer_id, requested_transport_mode, shipping_readiness_snapshot, source_snapshot, party_snapshot, cargo_snapshot, booking_request_snapshot, created_by) values (''BKR-2099-999999'', gen_random_uuid(), ''SHIP'', gen_random_uuid(), ''PO'', gen_random_uuid(), ''CON'', gen_random_uuid(), ''INV'', auth.uid(), gen_random_uuid(), ''ocean'', ''{}''::jsonb, ''{}''::jsonb, ''{}''::jsonb, ''{}''::jsonb, ''{}''::jsonb, auth.uid())');
+  perform pg_temp.expect_blocked('direct request update denied', format('update public.logistics_booking_requests set status = ''withdrawn'' where id = %L::uuid', booking.id));
+  perform pg_temp.expect_blocked('direct request delete denied', format('delete from public.logistics_booking_requests where id = %L::uuid', booking.id));
+  perform pg_temp.expect_blocked('direct event insert denied', format('insert into public.logistics_booking_request_events(booking_request_id,event_type,actor_profile_id,metadata) values (%L::uuid,''booking_request_submitted'',auth.uid(),''{""actor_profile_id"":""spoof""}''::jsonb)', booking.id));
+  perform pg_temp.expect_blocked('direct event update denied', format('update public.logistics_booking_request_events set metadata = ''{""tampered"":true}''::jsonb where booking_request_id = %L::uuid', booking.id));
+  perform pg_temp.expect_blocked('direct event delete denied', format('delete from public.logistics_booking_request_events where booking_request_id = %L::uuid', booking.id));
 end;
 $$;
 

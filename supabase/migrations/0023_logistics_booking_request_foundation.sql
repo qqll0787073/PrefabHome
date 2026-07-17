@@ -327,3 +327,4 @@ grant execute on function public.create_logistics_booking_request(uuid) to authe
 grant execute on function public.update_logistics_booking_request_draft(uuid, text, text, date, date, jsonb, jsonb, text, text, text, text) to authenticated;
 grant execute on function public.submit_logistics_booking_request(uuid) to authenticated;
 grant execute on function public.withdraw_logistics_booking_request(uuid, text) to authenticated;
+grant execute on function public.can_access_logistics_booking_request(uuid) to authenticated;
