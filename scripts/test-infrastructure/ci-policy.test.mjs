@@ -5,6 +5,12 @@ import test from "node:test";
 
 const workflowPath = ".github/workflows/ci.yml";
 const workflow = readFileSync(workflowPath, "utf8");
+const packageManifest = JSON.parse(readFileSync("package.json", "utf8"));
+
+test("infrastructure test glob remains portable to the Linux CI shell", () => {
+  assert.match(packageManifest.scripts.test, /node --test scripts\/test-infrastructure\/\*\.test\.mjs/);
+  assert.doesNotMatch(packageManifest.scripts.test, /node --test ["']scripts\/test-infrastructure/);
+});
 
 test("CI runs required verification for PRs and production-sprint-1", () => {
   assert.match(workflow, /^\s*pull_request:\s*$/m);

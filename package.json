@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build --configLoader runner",
     "preview": "vite preview",
-    "test": "tsx --test src/**/*.test.ts && node --test \"scripts/test-infrastructure/*.test.mjs\"",
+    "test": "tsx --test src/**/*.test.ts && node --test scripts/test-infrastructure/*.test.mjs",
     "verify:beta:docs": "node scripts/release/check-beta-docs.mjs",
     "verify:beta:secrets": "node scripts/release/scan-tracked-secrets.mjs",
     "verify:beta": "npm run build && npm run test && npm audit --audit-level=low && npm run verify:beta:secrets && npm run verify:beta:docs",
