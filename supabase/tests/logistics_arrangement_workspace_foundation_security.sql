@@ -228,7 +228,9 @@ begin
   perform pg_temp.record_arrangement_check('participant candidate result excludes contact name', definition not ilike '%contact_name%', definition);
   perform pg_temp.record_arrangement_check('participant candidate result excludes contact email', definition not ilike '%contact_email%', definition);
   perform pg_temp.record_arrangement_check('participant candidate result excludes contact phone', definition not ilike '%contact_phone%', definition);
+  perform pg_temp.record_arrangement_check('participant candidate result excludes quote reference', definition not ilike '%quote_reference%', definition);
   perform pg_temp.record_arrangement_check('participant candidate result excludes internal notes', definition not ilike '%notes%', definition);
+  perform pg_temp.record_arrangement_check('participant candidate result excludes internal version', definition not ilike '%version%', definition);
   perform pg_temp.record_arrangement_check('participant candidate result includes provider role and transport mode', definition ilike '%provider_type%' and definition ilike '%transport_mode%', definition);
 
   select pg_get_function_result(p.oid) into definition from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='get_participant_logistics_arrangement_events' limit 1;
@@ -404,6 +406,7 @@ $$;
 do $$
 declare
   seed record;
+  cross_seed record;
   buyer_uuid uuid;
   manufacturer_owner_uuid uuid;
   other_manufacturer_owner_uuid uuid;
@@ -411,8 +414,15 @@ declare
   manufacturer_uuid uuid;
   other_manufacturer_uuid uuid;
   booking_uuid uuid := gen_random_uuid();
+  cross_booking_uuid uuid;
   candidate_one public.logistics_provider_candidates%rowtype;
   candidate_two public.logistics_provider_candidates%rowtype;
+  cross_candidate public.logistics_provider_candidates%rowtype;
+  selection_one public.logistics_provider_selections%rowtype;
+  selection_two public.logistics_provider_selections%rowtype;
+  selection_three public.logistics_provider_selections%rowtype;
+  cancelled_selection public.logistics_provider_selections%rowtype;
+  ready_booking public.logistics_booking_requests%rowtype;
   visible_count integer;
 begin
   select * into seed from pg_temp.seed_arrangement_chain('arrangement-' || substr(gen_random_uuid()::text, 1, 8));
@@ -451,6 +461,75 @@ begin
   select count(*) into visible_count from public.admin_list_logistics_provider_candidates(booking_uuid);
   perform pg_temp.record_arrangement_check('invalid transport mode creates no candidate', visible_count=2, visible_count::text);
 
+  select * into candidate_one from public.admin_update_logistics_provider_candidate(
+    candidate_one.id, 'Ocean Forwarder Updated', 'freight_forwarder', 'ocean', 'Port to door',
+    current_date + 12, current_date + 23, 11, 12750, 'usd', 'Q-OCEAN-2',
+    'Private Contact Updated', 'private-updated@example.test', '+1-555-0101', 'Updated Admin-only ocean notes'
+  );
+  perform pg_temp.record_arrangement_check(
+    'admin updates provider candidate through trusted RPC',
+    candidate_one.provider_name='Ocean Forwarder Updated' and candidate_one.version=2,
+    candidate_one.provider_name || '/v' || candidate_one.version
+  );
+
+  select * into cross_seed from pg_temp.seed_arrangement_chain('arrangement-cross-' || substr(gen_random_uuid()::text, 1, 8));
+  perform pg_temp.set_arrangement_actor(cross_seed.manufacturer_owner_id);
+  select id into cross_booking_uuid from public.create_logistics_booking_request(cross_seed.shipping_readiness_id);
+  perform public.update_logistics_booking_request_draft(
+    cross_booking_uuid, 'trucking', 'FOB', current_date + 12, current_date + 15,
+    pg_temp.arrangement_location('Cross Origin'), pg_temp.arrangement_location('Cross Destination'),
+    'flatbed', 'Keep dry', 'Crane required', 'Cross-request security verification'
+  );
+  select id into cross_booking_uuid from public.submit_logistics_booking_request(cross_booking_uuid);
+
+  perform pg_temp.set_arrangement_actor(admin_uuid);
+  select * into cross_candidate from public.admin_create_logistics_provider_candidate(
+    cross_booking_uuid, 'Cross Request Carrier', 'carrier', 'trucking', 'Door to door',
+    current_date + 12, current_date + 15, 3, 4200, 'usd', 'Q-CROSS-1',
+    'Cross Contact', 'cross-private@example.test', '+1-555-0300', 'Cross-request Admin notes'
+  );
+  perform pg_temp.expect_arrangement_blocked(
+    'cross-request candidate selection is rejected',
+    format('select public.admin_select_logistics_provider_candidate(%L::uuid,%L::uuid,''invalid cross-request selection'',false)', booking_uuid, cross_candidate.id)
+  );
+
+  select * into selection_one from public.admin_select_logistics_provider_candidate(booking_uuid, candidate_one.id, 'Initial ocean selection', false);
+  select count(*) into visible_count from public.admin_list_logistics_provider_selections(booking_uuid) where selection_status='selected';
+  perform pg_temp.record_arrangement_check('initial selection creates exactly one current selection', visible_count=1 and selection_one.selection_status='selected', visible_count::text);
+  perform pg_temp.record_arrangement_check('initial selection moves request to carrier selected', (select status from public.logistics_booking_requests where id=booking_uuid)='carrier_selected', booking_uuid::text);
+
+  select * into selection_two from public.admin_select_logistics_provider_candidate(booking_uuid, candidate_two.id, 'Replace with road option', true);
+  select count(*) into visible_count from public.admin_list_logistics_provider_selections(booking_uuid) where selection_status='selected';
+  perform pg_temp.record_arrangement_check('replacement preserves one current selection', visible_count=1 and selection_two.selection_status='selected', visible_count::text);
+  perform pg_temp.record_arrangement_check('replacement supersedes prior selection', exists(select 1 from public.admin_list_logistics_provider_selections(booking_uuid) where id=selection_one.id and selection_status='superseded'), selection_one.id::text);
+
+  select * into cancelled_selection from public.admin_cancel_logistics_provider_selection(booking_uuid, 'Re-open carrier planning');
+  select count(*) into visible_count from public.admin_list_logistics_provider_selections(booking_uuid) where selection_status='selected';
+  perform pg_temp.record_arrangement_check('cancel ends the current selection', visible_count=0 and cancelled_selection.selection_status='cancelled', visible_count::text);
+  perform pg_temp.record_arrangement_check('cancel returns request to carrier options', (select status from public.logistics_booking_requests where id=booking_uuid)='carrier_options_available', booking_uuid::text);
+
+  select * into selection_three from public.admin_select_logistics_provider_candidate(booking_uuid, candidate_one.id, 'Final complete ocean option', false);
+  select count(*) into visible_count from public.admin_list_logistics_provider_selections(booking_uuid) where selection_status='selected';
+  perform pg_temp.record_arrangement_check('final selection retains current-selection uniqueness', visible_count=1 and selection_three.selection_status='selected', visible_count::text);
+
+  select * into ready_booking from public.admin_mark_ready_for_external_booking(booking_uuid);
+  perform pg_temp.record_arrangement_check('complete selected provider can be marked ready', ready_booking.status='ready_for_external_booking', ready_booking.status);
+  perform pg_temp.record_arrangement_check(
+    'trusted lifecycle emits the expected arrangement events',
+    not exists (
+      select 1 from public.admin_list_logistics_arrangement_events(booking_uuid)
+      where event_type not in (
+        'candidate_created','candidate_updated','candidate_withdrawn','carrier_options_available',
+        'provider_selected','provider_selection_changed','provider_selection_cancelled','ready_for_external_booking'
+      )
+    )
+    and exists (select 1 from public.admin_list_logistics_arrangement_events(booking_uuid) where event_type='candidate_updated')
+    and exists (select 1 from public.admin_list_logistics_arrangement_events(booking_uuid) where event_type='provider_selection_changed')
+    and exists (select 1 from public.admin_list_logistics_arrangement_events(booking_uuid) where event_type='provider_selection_cancelled')
+    and exists (select 1 from public.admin_list_logistics_arrangement_events(booking_uuid) where event_type='ready_for_external_booking'),
+    booking_uuid::text
+  );
+
   perform pg_temp.set_arrangement_actor(buyer_uuid);
   select count(*) into visible_count from public.get_participant_logistics_provider_candidates(booking_uuid);
   perform pg_temp.record_arrangement_check('buyer reads own participant-safe candidates', visible_count=2, visible_count::text);
@@ -458,8 +537,15 @@ begin
   perform pg_temp.expect_arrangement_blocked('buyer cannot obtain contact_name', format('select contact_name from public.get_participant_logistics_provider_candidates(%L::uuid)', booking_uuid));
   perform pg_temp.expect_arrangement_blocked('buyer cannot obtain contact_email', format('select contact_email from public.get_participant_logistics_provider_candidates(%L::uuid)', booking_uuid));
   perform pg_temp.expect_arrangement_blocked('buyer cannot obtain contact_phone', format('select contact_phone from public.get_participant_logistics_provider_candidates(%L::uuid)', booking_uuid));
+  perform pg_temp.expect_arrangement_blocked('buyer cannot obtain quote_reference', format('select quote_reference from public.get_participant_logistics_provider_candidates(%L::uuid)', booking_uuid));
   perform pg_temp.expect_arrangement_blocked('buyer cannot obtain internal notes', format('select notes from public.get_participant_logistics_provider_candidates(%L::uuid)', booking_uuid));
+  perform pg_temp.expect_arrangement_blocked('buyer cannot obtain internal version', format('select version from public.get_participant_logistics_provider_candidates(%L::uuid)', booking_uuid));
   perform pg_temp.expect_arrangement_blocked('buyer cannot obtain internal event metadata', format('select metadata from public.get_participant_logistics_arrangement_events(%L::uuid)', booking_uuid));
+  perform pg_temp.expect_arrangement_blocked('buyer cannot obtain event actor identity', format('select actor_profile_id from public.get_participant_logistics_arrangement_events(%L::uuid)', booking_uuid));
+  select count(*) into visible_count from public.get_participant_logistics_provider_selections(booking_uuid);
+  perform pg_temp.record_arrangement_check('buyer reads owned selection history safely', visible_count=3, visible_count::text);
+  select count(*) into visible_count from public.get_participant_logistics_arrangement_events(booking_uuid);
+  perform pg_temp.record_arrangement_check('buyer reads owned arrangement timeline safely', visible_count >= 9, visible_count::text);
   perform pg_temp.expect_arrangement_blocked('buyer direct candidate table select denied', 'select * from public.logistics_provider_candidates');
   perform pg_temp.expect_arrangement_blocked('buyer direct selection table select denied', 'select * from public.logistics_provider_selections');
   perform pg_temp.expect_arrangement_blocked('buyer direct event table select denied', 'select * from public.logistics_arrangement_events');
@@ -484,7 +570,7 @@ begin
   perform pg_temp.set_arrangement_actor(admin_uuid);
   perform pg_temp.record_arrangement_check(
     'admin approved surface retrieves internal candidate fields',
-    exists(select 1 from public.admin_list_logistics_provider_candidates(booking_uuid) where id=candidate_one.id and contact_name='Private Contact' and contact_email='private@example.test' and contact_phone='+1-555-0100' and notes='Admin-only ocean notes'),
+    exists(select 1 from public.admin_list_logistics_provider_candidates(booking_uuid) where id=candidate_one.id and quote_reference='Q-OCEAN-2' and contact_name='Private Contact Updated' and contact_email='private-updated@example.test' and contact_phone='+1-555-0101' and notes='Updated Admin-only ocean notes' and version >= 2),
     'admin full row'
   );
   perform pg_temp.record_arrangement_check(

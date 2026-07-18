@@ -1,0 +1,251 @@
+name: PH-010C staging migration apply
+
+on:
+  push:
+    branches:
+      - ph010c-logistics-workspace-foundation
+    paths:
+      - .github/workflows/ph010c-staging-apply.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ph010c-staging-migration-apply
+  cancel-in-progress: false
+
+jobs:
+  apply-and-verify-staging:
+    if: github.ref_name == 'ph010c-logistics-workspace-foundation'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      EXPECTED_STAGING_PROJECT_REF: bvzbkjpbnczquecwqvlm
+      PRODUCTION_PROJECT_REF: eoyrfrjbjglfudfuwxdf
+      PREFAB_STAGING_PROJECT_REF: ${{ secrets.PREFAB_STAGING_PROJECT_REF }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.PREFAB_STAGING_DATABASE_PASSWORD }}
+
+    steps:
+      - name: Checkout approved feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: ph010c-logistics-workspace-foundation
+
+      - name: Enforce staging safety boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_REF_NAME" != "ph010c-logistics-workspace-foundation" ]]; then
+            echo "Unexpected workflow branch." >&2
+            exit 1
+          fi
+          if [[ -z "${PREFAB_STAGING_PROJECT_REF:-}" || -z "${SUPABASE_ACCESS_TOKEN:-}" || -z "${SUPABASE_DB_PASSWORD:-}" ]]; then
+            echo "Required staging Actions secrets are missing." >&2
+            exit 1
+          fi
+          if [[ "$PREFAB_STAGING_PROJECT_REF" == "$PRODUCTION_PROJECT_REF" ]]; then
+            echo "Production project ref is denied." >&2
+            exit 1
+          fi
+          if [[ "$PREFAB_STAGING_PROJECT_REF" != "$EXPECTED_STAGING_PROJECT_REF" ]]; then
+            echo "Staging project ref does not match the approved target." >&2
+            exit 1
+          fi
+
+          echo "Staging safety guard passed; production ref denied."
+
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.109.1
+
+      - name: Apply exactly migration 0024 and verify staging
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cli_version="$(supabase --version)"
+          if [[ "$cli_version" != "2.109.1" ]]; then
+            echo "Unexpected Supabase CLI version." >&2
+            exit 1
+          fi
+
+          workspace="$(mktemp -d)"
+          trap 'rm -rf "$workspace"' EXIT
+          supabase init --workdir "$workspace" >/dev/null
+          mkdir -p "$workspace/supabase/migrations"
+          cp supabase/migrations/[0-9][0-9][0-9][0-9]_*.sql "$workspace/supabase/migrations/"
+
+          mapfile -t local_versions < <(find "$workspace/supabase/migrations" -maxdepth 1 -type f -printf '%f\n' | sed -nE 's/^([0-9]{4})_.+\.sql$/\1/p' | sort)
+          mapfile -t expected_local < <(seq 1 24 | xargs -I{} printf '%04d\n' {})
+          if ! diff -u <(printf '%s\n' "${expected_local[@]}") <(printf '%s\n' "${local_versions[@]}"); then
+            echo "Isolated workspace must contain exactly migrations 0001 through 0024." >&2
+            exit 1
+          fi
+
+          supabase link --project-ref "$PREFAB_STAGING_PROJECT_REF" --workdir "$workspace" >/dev/null
+
+          sanitize() {
+            perl -pe 's/\e\[[0-9;?]*[ -\/]*[@-~]//g' "$1"
+          }
+          parse_remote() {
+            awk -F '|' '
+              NF >= 2 {
+                remote = $2
+                gsub(/[`[:space:]]/, "", remote)
+                if (remote ~ /^[0-9]{4}$/) print remote
+              }
+            ' "$1" | sort -u
+          }
+
+          before_raw="$RUNNER_TEMP/ph010c-apply-before-raw.txt"
+          before="$RUNNER_TEMP/ph010c-apply-before.txt"
+          supabase migration list --linked --workdir "$workspace" > "$before_raw" 2>&1
+          sanitize "$before_raw" > "$before"
+          mapfile -t remote_before < <(parse_remote "$before")
+          mapfile -t expected_before < <(seq 1 23 | xargs -I{} printf '%04d\n' {})
+          if [[ ${#remote_before[@]} -eq 0 ]] || ! diff -u <(printf '%s\n' "${expected_before[@]}") <(printf '%s\n' "${remote_before[@]}"); then
+            echo "Sanitized migration list immediately before apply:" >&2
+            cat "$before" >&2
+            echo "Remote migrations must be exactly 0001 through 0023 before apply." >&2
+            exit 1
+          fi
+
+          dry_run_output="$(supabase db push --linked --dry-run --workdir "$workspace" 2>&1)"
+          printf '%s\n' "$dry_run_output"
+          mapfile -t pending < <(printf '%s\n' "$dry_run_output" | grep -oE '[0-9]{4}_[[:alnum:]_]+\.sql' | sort -u)
+          expected_pending="0024_logistics_arrangement_workspace_foundation.sql"
+          if [[ ${#pending[@]} -ne 1 || "${pending[0]}" != "$expected_pending" ]]; then
+            echo "The pre-apply dry run must contain exactly migration 0024." >&2
+            exit 1
+          fi
+
+          apply_output="$(supabase db push --linked --yes --workdir "$workspace" 2>&1)"
+          printf '%s\n' "$apply_output"
+          applied_migration="$expected_pending"
+
+          after_raw="$RUNNER_TEMP/ph010c-apply-after-raw.txt"
+          after="$RUNNER_TEMP/ph010c-apply-after.txt"
+          supabase migration list --linked --workdir "$workspace" > "$after_raw" 2>&1
+          sanitize "$after_raw" > "$after"
+          mapfile -t remote_after < <(parse_remote "$after")
+          if [[ ${#remote_after[@]} -eq 0 ]] || ! diff -u <(printf '%s\n' "${expected_local[@]}") <(printf '%s\n' "${remote_after[@]}"); then
+            echo "Sanitized migration list immediately after apply:" >&2
+            cat "$after" >&2
+            echo "Remote migrations must be exactly 0001 through 0024 after apply." >&2
+            exit 1
+          fi
+
+          smoke_output="$(supabase db query --linked --workdir "$workspace" --file "$GITHUB_WORKSPACE/supabase/tests/logistics_arrangement_workspace_foundation_security.sql" 2>&1)"
+          printf '%s\n' "$smoke_output"
+          assertion_count="$(printf '%s\n' "$smoke_output" | sed -nE 's/.*passed: ([0-9]+)\/\1 checks.*/\1/p' | tail -1)"
+          if [[ "$assertion_count" != "123" ]]; then
+            echo "Expected the expanded rollback suite to pass 123/123 checks." >&2
+            exit 1
+          fi
+
+          audit_sql="$RUNNER_TEMP/ph010c-post-apply-audit.sql"
+          cat > "$audit_sql" <<'SQL'
+          do $$
+          declare
+            required_tables text[] := array[
+              'logistics_provider_candidates',
+              'logistics_provider_selections',
+              'logistics_arrangement_events'
+            ];
+            required_functions text[] := array[
+              'get_participant_logistics_provider_candidates',
+              'get_participant_logistics_provider_selections',
+              'get_participant_logistics_arrangement_events',
+              'admin_list_logistics_provider_candidates',
+              'admin_list_logistics_provider_selections',
+              'admin_list_logistics_arrangement_events',
+              'admin_create_logistics_provider_candidate',
+              'admin_update_logistics_provider_candidate',
+              'admin_withdraw_logistics_provider_candidate',
+              'admin_select_logistics_provider_candidate',
+              'admin_cancel_logistics_provider_selection',
+              'admin_mark_ready_for_external_booking'
+            ];
+            object_name text;
+          begin
+            if (select count(*) from supabase_migrations.schema_migrations where version='0024') <> 1 then
+              raise exception 'Migration-history count for 0024 is not exactly one.';
+            end if;
+            if exists (select 1 from supabase_migrations.schema_migrations where version > '0024') then
+              raise exception 'A migration beyond 0024 exists.';
+            end if;
+            foreach object_name in array required_tables loop
+              if to_regclass('public.' || object_name) is null then
+                raise exception 'Required table % is absent.', object_name;
+              end if;
+            end loop;
+            foreach object_name in array required_functions loop
+              if not exists (
+                select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+                where n.nspname='public' and p.proname=object_name
+              ) then
+                raise exception 'Required RPC % is absent.', object_name;
+              end if;
+            end loop;
+
+            if exists (select 1 from auth.users where email like 'arrangement-%@example.test')
+              or exists (select 1 from public.manufacturers where company_name like 'arrangement-%')
+              or exists (select 1 from public.products where name like 'arrangement-%')
+              or exists (select 1 from public.rfqs where product_snapshot::text like '%arrangement-%')
+              or exists (select 1 from public.purchase_orders where product_snapshot::text like '%arrangement-%')
+              or exists (select 1 from public.contracts where product_snapshot::text like '%arrangement-%')
+              or exists (select 1 from public.invoices where billing_email like 'arrangement-%@example.test')
+              or exists (select 1 from public.logistics_provider_candidates where contact_email in ('private@example.test','private-updated@example.test','road-private@example.test','cross-private@example.test')) then
+              raise exception 'PH-010C staging smoke fixture residue was detected.';
+            end if;
+          end;
+          $$;
+
+          select
+            (select count(*) from supabase_migrations.schema_migrations where version='0024') as migration_0024_count,
+            (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('logistics_provider_candidates','logistics_provider_selections','logistics_arrangement_events') and c.relkind='r') as required_table_count,
+            (select count(distinct p.proname) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in (
+              'get_participant_logistics_provider_candidates','get_participant_logistics_provider_selections','get_participant_logistics_arrangement_events',
+              'admin_list_logistics_provider_candidates','admin_list_logistics_provider_selections','admin_list_logistics_arrangement_events',
+              'admin_create_logistics_provider_candidate','admin_update_logistics_provider_candidate','admin_withdraw_logistics_provider_candidate',
+              'admin_select_logistics_provider_candidate','admin_cancel_logistics_provider_selection','admin_mark_ready_for_external_booking'
+            )) as required_rpc_count,
+            0 as fixture_residue_count;
+          SQL
+
+          audit_output="$(supabase db query --linked --workdir "$workspace" --file "$audit_sql" 2>&1)"
+          printf '%s\n' "$audit_output"
+          audit_compact="$(printf '%s\n' "$audit_output" | sed 's/[`[:space:]]//g')"
+          if ! printf '%s\n' "$audit_compact" | grep -Fq '1|3|12|0'; then
+            echo "Post-apply schema or residue audit did not return the expected counts." >&2
+            exit 1
+          fi
+
+          applied_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          summary="$RUNNER_TEMP/ph010c-staging-apply-summary.txt"
+          {
+            echo "applied_at_utc=$applied_at"
+            echo "supabase_cli_version=$cli_version"
+            echo "remote_before=$(IFS=,; echo "${remote_before[*]}")"
+            echo "pending_before=${pending[0]}"
+            echo "applied_migration=$applied_migration"
+            echo "remote_after=$(IFS=,; echo "${remote_after[*]}")"
+            echo "migration_0024_count=1"
+            echo "rollback_smoke_assertions=$assertion_count"
+            echo "required_tables=3"
+            echo "required_rpcs=12"
+            echo "fixture_residue_count=0"
+            echo "production_ref_denied=true"
+          } > "$summary"
+          cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload sanitized staging verification summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ph010c-staging-apply-summary
+          path: ${{ runner.temp }}/ph010c-staging-apply-summary.txt
+          retention-days: 7
+          if-no-files-found: error
