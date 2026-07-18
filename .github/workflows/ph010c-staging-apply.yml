@@ -125,8 +125,9 @@ jobs:
             echo "Rollback-scoped staging smoke failed." >&2
             exit "$smoke_status"
           fi
-          assertion_count="$(printf '%s\n' "$smoke_output" | sed -nE 's/.*passed: ([0-9]+)\/\1 checks.*/\1/p' | tail -1)"
-          if [[ "$assertion_count" != "123" ]]; then
+          if printf '%s\n' "$smoke_output" | grep -Eq '│[[:space:]]*123[[:space:]]*│[[:space:]]*123[[:space:]]*│'; then
+            assertion_count="123"
+          else
             echo "Expected the expanded rollback suite to pass 123/123 checks." >&2
             exit 1
           fi
