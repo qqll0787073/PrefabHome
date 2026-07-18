@@ -1,0 +1,51 @@
+name: CI Verification
+
+on:
+  pull_request:
+  push:
+    branches:
+      - production-sprint-1
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Build, test, and audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VITE_ENABLE_MARKETPLACE_DEMO: "false"
+      VITE_DEPLOYMENT_ENV: local
+      VITE_APP_VERSION: ci
+      VITE_COMMIT_SHA: unknown
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.19.5"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=low
+
+      - name: Run Beta release gate
+        run: npm run verify:beta
