@@ -92,8 +92,14 @@ jobs:
 
           supabase link --project-ref "$PREFAB_STAGING_PROJECT_REF" --workdir "$workspace" >/dev/null
 
+          sanitize_migration_list() {
+            perl -pe 's/\e\[[0-9;?]*[ -\/]*[@-~]//g' "$1"
+          }
+
+          before_list_raw="$RUNNER_TEMP/ph010c-migration-list-before-raw.txt"
           before_list="$RUNNER_TEMP/ph010c-migration-list-before.txt"
-          supabase migration list --linked --workdir "$workspace" | tee "$before_list"
+          supabase migration list --linked --workdir "$workspace" 2>&1 | tee "$before_list_raw"
+          sanitize_migration_list "$before_list_raw" > "$before_list"
 
           mapfile -t remote_before < <(
             awk -F '|' '
@@ -105,10 +111,15 @@ jobs:
             ' "$before_list" | sort -u
           )
           mapfile -t expected_remote < <(seq 1 23 | xargs -I{} printf '%04d\n' {})
-          if ! diff -u <(printf '%s\n' "${expected_remote[@]}") <(printf '%s\n' "${remote_before[@]}"); then
+          if [[ ${#remote_before[@]} -eq 0 ]] || ! diff -u <(printf '%s\n' "${expected_remote[@]}") <(printf '%s\n' "${remote_before[@]}"); then
+            echo "Sanitized migration list captured before dry run:" >&2
+            cat "$before_list" >&2
             echo "Remote migrations are not exactly 0001 through 0023." >&2
             exit 1
           fi
+
+          echo "Sanitized migration list captured before dry run:"
+          cat "$before_list"
 
           set +e
           dry_run_output="$(supabase db push --linked --dry-run --workdir "$workspace" 2>&1)"
@@ -127,8 +138,10 @@ jobs:
             exit 1
           fi
 
+          after_list_raw="$RUNNER_TEMP/ph010c-migration-list-after-raw.txt"
           after_list="$RUNNER_TEMP/ph010c-migration-list-after.txt"
-          supabase migration list --linked --workdir "$workspace" > "$after_list"
+          supabase migration list --linked --workdir "$workspace" > "$after_list_raw" 2>&1
+          sanitize_migration_list "$after_list_raw" > "$after_list"
           mapfile -t remote_after < <(
             awk -F '|' '
               NF >= 2 {
@@ -138,10 +151,15 @@ jobs:
               }
             ' "$after_list" | sort -u
           )
-          if ! diff -u <(printf '%s\n' "${expected_remote[@]}") <(printf '%s\n' "${remote_after[@]}"); then
+          if [[ ${#remote_after[@]} -eq 0 ]] || ! diff -u <(printf '%s\n' "${expected_remote[@]}") <(printf '%s\n' "${remote_after[@]}"); then
+            echo "Sanitized migration list captured after dry run:" >&2
+            cat "$after_list" >&2
             echo "Remote migration history changed during dry run." >&2
             exit 1
           fi
+
+          echo "Sanitized migration list captured after dry run:"
+          cat "$after_list"
 
           summary="$RUNNER_TEMP/ph010c-linux-dry-run-summary.txt"
           {
