@@ -1,15 +1,14 @@
 import { roleLabels } from "../../app/constants";
 import type { AuthState } from "../../lib/auth";
-import type { Role, View } from "../../types";
+import type { Role } from "../../types";
 
 interface AppHeaderProps {
   auth: AuthState;
   role: Role;
   onRoleChange: (role: Role) => void;
-  onViewChange: (view: View) => void;
 }
 
-export function AppHeader({ auth, role, onRoleChange, onViewChange }: AppHeaderProps) {
+export function AppHeader({ auth, role, onRoleChange }: AppHeaderProps) {
   return (
     <header className="topbar">
       <div>
@@ -21,10 +20,7 @@ export function AppHeader({ auth, role, onRoleChange, onViewChange }: AppHeaderP
           <button
             key={item}
             className={role === item ? "active" : ""}
-            onClick={() => {
-              onRoleChange(item);
-              onViewChange("dashboard");
-            }}
+            onClick={() => onRoleChange(item)}
           >
             {roleLabels[item]}
           </button>

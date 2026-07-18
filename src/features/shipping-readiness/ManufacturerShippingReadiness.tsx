@@ -35,9 +35,10 @@ import { ShippingReadinessSummary } from "./ShippingReadinessSummary";
 
 interface ManufacturerShippingReadinessProps {
   authMode: "supabase" | "demo";
+  onContinueToLogistics?: (shippingReadinessId: string) => void;
 }
 
-export function ManufacturerShippingReadiness({ authMode }: ManufacturerShippingReadinessProps) {
+export function ManufacturerShippingReadiness({ authMode, onContinueToLogistics }: ManufacturerShippingReadinessProps) {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderWithItems[]>([]);
   const [contracts, setContracts] = useState<ContractRecord[]>([]);
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
@@ -155,6 +156,7 @@ export function ManufacturerShippingReadiness({ authMode }: ManufacturerShipping
       const ready = await markShippingReadinessReady(selectedRecord.id);
       setSelectedRecord(ready);
       await loadShippingReadiness();
+      onContinueToLogistics?.(ready.id);
     } catch (error) {
       setErrors([error instanceof Error ? error.message : "Unable to mark shipping readiness ready."]);
     } finally {
@@ -214,9 +216,10 @@ export function ManufacturerShippingReadiness({ authMode }: ManufacturerShipping
       <div className="review-list">
         {records.map((record) => (
           <div key={record.id}>
-            <button className="secondary-button" onClick={() => selectRecord(record)}>
-              Open {record.shipping_number}
-            </button>
+            <div className="actions">
+              <button type="button" className="secondary-button" onClick={() => selectRecord(record)}>Open {record.shipping_number}</button>
+              {record.status === "ready_for_logistics" && <button type="button" onClick={() => onContinueToLogistics?.(record.id)}>Continue to Logistics</button>}
+            </div>
             <ShippingReadinessSummary record={record} events={eventsByRecord[record.id] ?? []} />
           </div>
         ))}

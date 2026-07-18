@@ -26,9 +26,10 @@ import { RFQConversation } from "./RFQConversation";
 interface BuyerRFQDashboardProps {
   user: AuthUser;
   authMode: "supabase" | "demo";
+  showPurchaseOrders?: boolean;
 }
 
-export function BuyerRFQDashboard({ user, authMode }: BuyerRFQDashboardProps) {
+export function BuyerRFQDashboard({ user, authMode, showPurchaseOrders = true }: BuyerRFQDashboardProps) {
   const [rfqs, setRFQs] = useState<RFQWithDetails[]>([]);
   const [quotes, setQuotes] = useState<RFQQuoteWithItems[]>([]);
   const [decisions, setDecisions] = useState<RFQQuoteDecisionRecord[]>([]);
@@ -194,7 +195,7 @@ export function BuyerRFQDashboard({ user, authMode }: BuyerRFQDashboardProps) {
           />
         </>
       )}
-      <BuyerPurchaseOrders authMode={authMode} quotes={quotes} />
+      {showPurchaseOrders && <BuyerPurchaseOrders authMode={authMode} quotes={quotes} />}
     </section>
   );
 }
