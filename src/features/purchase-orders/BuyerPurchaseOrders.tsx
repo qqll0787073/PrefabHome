@@ -18,6 +18,7 @@ import {
   updatePurchaseOrderRevision,
   validatePurchaseOrderDraft,
 } from "../../lib/purchaseOrders";
+import { fetchBuyerQuotes } from "../../lib/quotes";
 import type {
   PurchaseOrderDecisionRecord,
   PurchaseOrderDraftValues,
@@ -28,10 +29,11 @@ import { PurchaseOrderSummary } from "./PurchaseOrderSummary";
 
 interface BuyerPurchaseOrdersProps {
   authMode: "supabase" | "demo";
-  quotes: RFQQuoteWithItems[];
+  quotes?: RFQQuoteWithItems[];
 }
 
 export function BuyerPurchaseOrders({ authMode, quotes }: BuyerPurchaseOrdersProps) {
+  const [workspaceQuotes, setWorkspaceQuotes] = useState<RFQQuoteWithItems[]>(quotes ?? []);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderWithItems[]>([]);
   const [decisionsByPO, setDecisionsByPO] = useState<Record<string, PurchaseOrderDecisionRecord[]>>({});
   const [selectedPO, setSelectedPO] = useState<PurchaseOrderWithItems | null>(null);
@@ -47,9 +49,14 @@ export function BuyerPurchaseOrders({ authMode, quotes }: BuyerPurchaseOrdersPro
     try {
       if (authMode === "demo") {
         setPurchaseOrders([]);
+        if (!quotes) setWorkspaceQuotes([]);
         setDecisionsByPO({});
       } else {
-        const items = await fetchBuyerPurchaseOrders();
+        const [items, quoteRows] = await Promise.all([
+          fetchBuyerPurchaseOrders(),
+          quotes ? Promise.resolve(quotes) : fetchBuyerQuotes(),
+        ]);
+        setWorkspaceQuotes(quoteRows);
         const decisionEntries = await Promise.all(
           items.map(async (po) => [po.id, await fetchPurchaseOrderDecisions(po.id)] as const)
         );
@@ -67,9 +74,13 @@ export function BuyerPurchaseOrders({ authMode, quotes }: BuyerPurchaseOrdersPro
     void loadPurchaseOrders();
   }, [authMode]);
 
+  useEffect(() => {
+    if (quotes) setWorkspaceQuotes(quotes);
+  }, [quotes]);
+
   const eligibleQuotes = useMemo(
-    () => quotes.filter((quote) => canCreatePurchaseOrderForQuote(quote, purchaseOrders)),
-    [quotes, purchaseOrders]
+    () => workspaceQuotes.filter((quote) => canCreatePurchaseOrderForQuote(quote, purchaseOrders)),
+    [workspaceQuotes, purchaseOrders]
   );
 
   async function createPO(quoteId: string) {
