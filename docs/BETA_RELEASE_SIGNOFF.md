@@ -1,4 +1,14 @@
-# Beta v1.0 Release Signoff
+# PrefabHome Beta v1.0.0 Release Signoff
+
+Baseline merge commit: `87f3e097dd1172cc3653f34680f0a839e9549355`
+
+Database migration level: `0001` through `0024`
+
+Verified merged baseline evidence: frontend `173/173`, infrastructure `23/23`, production build passed, dependency vulnerabilities `0`, console errors `0`, unsafe logs `0`, and staging fixture residue `0`. The candidate must rerun `npm run verify:beta`; newer passing counts are acceptable.
+
+Security evidence: database-controlled roles, RLS/trusted RPC lifecycle authority, private Storage with signed URLs, immutable transaction snapshots, participant-safe Logistics projections, a production-denying staging guard, and no tracked real secrets.
+
+Staging evidence: the role handoff passed on staging with migrations `0001` through `0024`; participant internal-field exposure and final fixture residue were zero. Production was untouched.
 
 Release candidate SHA: ______________________________
 
@@ -55,3 +65,14 @@ Reason/conditions: __________________________________
 Rollback owner and previous known-good SHA/artifact: __________________________________
 
 This signoff authorizes only the recorded release action. It does not authorize unreviewed migrations, production fixtures, or follow-on features.
+
+## Current Authorization Status
+
+- Product Owner: **Pending**
+- Technical Review: **Pending**
+- QA: **Pending**
+- Deployment Authorization: **NOT GRANTED**
+- Production deployment: **Not performed**
+- `main` branch: **Not modified or targeted by this task**
+
+Known limitations are listed in [Beta v1.0.0 release notes](BETA_V1_RELEASE_NOTES.md). Rollback readiness requires a known-good application artifact, confirmed Supabase backup/restore capability, a named rollback owner, and a staging rehearsal.

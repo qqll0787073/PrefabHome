@@ -6,6 +6,8 @@ This repository does not configure or prove automated Supabase backups, point-in
 
 Assign named owners for database recovery, Storage recovery, Auth recovery, application rollback, and customer communication.
 
+Auth identities live outside the ordinary `public` application-table graph. A recovery procedure must state whether it includes Supabase Auth users, identities, sessions, and profile alignment. Restoring application tables without matching Auth state can orphan ownership; restoring Auth without application rows can create unusable accounts.
+
 ## Backup Readiness Checklist
 
 - Confirm database backup frequency, retention, encryption, region, and restore target.
@@ -14,6 +16,7 @@ Assign named owners for database recovery, Storage recovery, Auth recovery, appl
 - Protect Auth user data and understand which recovery mechanisms include `auth` schemas.
 - Store migration files and release commits in Git; never store database passwords or backup credentials in the repository.
 - Perform a restore drill into an isolated non-production project and record recovery time and recovery point.
+- Create and verify a pre-release backup/checkpoint before an approved production migration or deployment.
 
 ## Application Rollback
 
@@ -41,6 +44,10 @@ For a faulty additive migration:
 5. Apply through the normal reviewed migration flow.
 
 For corruption or catastrophic loss, restore to a separate project first, validate row counts/constraints/RLS/Auth/Storage references, then execute the approved cutover procedure. Never overwrite production during an exploratory restore.
+
+Always rehearse backup restoration and rollback in staging first. A documented backup that has never been restored is not sufficient release evidence.
+
+Verify migration history before and after recovery with the normal Supabase migration list. The expected Beta baseline is one ordered history row for each migration `0001` through `0024`, with no repair or fabricated row.
 
 ## Data Integrity Validation
 

@@ -4,6 +4,10 @@ PrefabHome is a role-based marketplace Beta for Buyers, Manufacturers, and Admin
 
 `Product -> RFQ -> Quote -> Purchase Order -> Contract -> Invoice -> Shipping Readiness -> Logistics Booking Request -> Logistics Arrangement`
 
+Current status: **PrefabHome Beta v1.0.0 release candidate assets; not production deployed by this task.**
+
+Supported roles are Buyer, Manufacturer, and Admin. Buyer and Manufacturer registration is self-service; Admin authority is operator-controlled.
+
 ## Local Development
 
 Requirements: Node.js 20 or newer, npm, and a Supabase project with migrations `0001` through `0024` applied.
@@ -44,3 +48,7 @@ This runs the repository's frontend and infrastructure tests, production build, 
 The Beta does not provide payment processing, electronic signatures, generated PDFs, outbound email, carrier booking, shipment tracking, customs filing, production milestones, or production AI recommendations. Signature delivery, payment recording, and logistics arrangement are internal preparation/recording workflows only. See the release notes for the complete boundary.
 
 Production is not a test target. Use the repository staging safety guard and an isolated Supabase CLI workspace for approved staging operations.
+
+## Contribution And Branching
+
+Create focused feature branches from the current integration branch, keep applied migrations immutable, add rollback SQL and frontend tests with behavioral changes, and open review PRs back to the integration branch. Do not target `main`, apply remote migrations, or deploy without explicit approval for that operation and environment.

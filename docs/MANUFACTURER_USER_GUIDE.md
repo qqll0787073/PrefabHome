@@ -44,6 +44,8 @@ Buyer RFQ fields and snapshots are immutable to Manufacturers. Only the assigned
 3. Create a Logistics Booking Request, save a draft, submit it, or withdraw it when allowed.
 4. Review participant-safe provider options and Admin planning status.
 
+After successfully marking Shipping Readiness ready, use the contextual Logistics handoff to open the relevant Logistics workspace. URL state preserves a selected request across refresh and back/forward navigation.
+
 Manufacturers do not receive provider contacts, internal quote references, Admin notes, actor IDs, or event metadata. No external provider is contacted by the Beta.
 
 ## Troubleshooting

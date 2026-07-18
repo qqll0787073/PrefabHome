@@ -5,6 +5,7 @@ Complete this checklist at the exact release candidate SHA. Mark an item passed 
 ## Automated Gate
 
 - [ ] Working tree is clean before verification.
+- [ ] Branch and candidate SHA match the approved release record; the target is not `main`.
 - [ ] `npm ci` succeeds from the lockfile.
 - [ ] `npm run verify:beta` succeeds.
 - [ ] Frontend tests pass with the expected count or newer.
@@ -13,6 +14,7 @@ Complete this checklist at the exact release candidate SHA. Mark an item passed 
 - [ ] Dependency audit and tracked-secret scan pass.
 - [ ] Required Beta documentation exists and local links resolve.
 - [ ] Migrations are exactly `0001` through `0024`; no prior migration changed.
+- [ ] No generated artifacts, ignored local environment files, or fixture manifests are tracked.
 
 ## Security And Configuration
 
@@ -25,6 +27,7 @@ Complete this checklist at the exact release candidate SHA. Mark an item passed 
 - [ ] Private Storage buckets and signed URL behavior are verified.
 - [ ] Participant Logistics reads omit all internal fields.
 - [ ] Staging safety guard rejects the production ref.
+- [ ] Production has not been accessed or modified by QA.
 
 ## Buyer Browser
 
@@ -61,8 +64,12 @@ Complete this checklist at the exact release candidate SHA. Mark an item passed 
 
 - [ ] Desktop and 390 px layouts have no overlap or clipped controls.
 - [ ] Keyboard navigation, dialogs, Escape, focus restoration, and labels work.
+- [ ] Invalid role workspace and Logistics request URL values reconcile safely.
+- [ ] Refresh and browser back/forward restore valid workspace/request state.
 - [ ] Loading, empty, stale, error, and retry states are understandable.
+- [ ] A forced stale lifecycle action shows conflict/retry behavior without duplicate events.
 - [ ] Browser console errors: `0` for all roles.
+- [ ] Browser network review shows no unauthorized table read, private-media leak, or unexpected external provider call.
 - [ ] Unsafe logs: `0`; no credentials, tokens, or full signed URLs.
 - [ ] External-provider preparation states do not claim an action occurred.
 
@@ -73,3 +80,11 @@ Complete this checklist at the exact release candidate SHA. Mark an item passed 
 - [ ] Backup/restore capability and restore drill are approved.
 - [ ] Staging fixture residue audit returns zero.
 - [ ] Release signoff is complete; deployment has separate approval.
+
+## Signoff Record
+
+Candidate SHA: ____________________  QA owner/date: ____________________
+
+Security owner/date: ____________________  Database owner/date: ____________________
+
+Operations owner/date: ____________________  Final decision: `GO / NO-GO`

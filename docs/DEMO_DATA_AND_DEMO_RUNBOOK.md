@@ -60,6 +60,10 @@ Run cleanup in reverse dependency order using exact IDs: arrangement events/sele
 
 After cleanup, query every fixture category and confirm zero residue. Remove local temporary images, manifests, browser profiles, logs, and generated output. Do not delete permanent migrations or schema objects.
 
+## Partial Failure
+
+Stop creating records as soon as an assertion fails. Preserve the ignored exact-ID manifest, sanitize the error, and execute cleanup in `finally`/reverse dependency order. If cleanup is incomplete, do not rerun with the same prefix or use broad name-based deletion. Report remaining table/category counts, obtain operator review, and remove only recorded exact IDs. Delete temporary Auth users last. Production remains prohibited even during recovery.
+
 ## Demo Acceptance
 
 - All role logins succeed.

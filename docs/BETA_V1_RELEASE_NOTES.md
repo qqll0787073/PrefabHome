@@ -1,4 +1,4 @@
-# Beta v1.0 Release Notes
+# PrefabHome Beta v1.0.0 Release Notes
 
 ## Release Identity
 
@@ -6,6 +6,7 @@
 - Baseline merge commit: `87f3e097dd1172cc3653f34680f0a839e9549355`
 - Database baseline: migrations `0001` through `0024`
 - Intended audience: invited Beta Buyers, approved Manufacturers, and designated Admin operators
+- Release status: release assets and staging verification only; **not production deployed**
 
 ## What Is Included
 
@@ -69,6 +70,21 @@ The Beta does not perform:
 - AI-generated commercial recommendations
 - enterprise reporting or full operational audit export
 
+## System And Deployment Requirements
+
+- Node.js 20 or newer and npm with the tracked `package-lock.json`
+- A modern evergreen browser with JavaScript, `localStorage`, and `fetch`
+- A Supabase project with Auth, PostgreSQL, Storage, and migrations `0001` through `0024`
+- Vite build-time `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` values
+
+The repository produces a static Vite SPA in `dist/`. No platform-specific hosting manifest or automated production workflow is tracked, so the hosting platform must provide HTTPS, SPA fallback, caching, and reviewed security headers. See [Deployment and operations](DEPLOYMENT_AND_OPERATIONS_GUIDE.md).
+
+## Staging And Browser Verification
+
+The merged Beta baseline was verified on the staging project with the production project denylisted. Evidence records `173/173` frontend tests, `23/23` infrastructure tests, a passing build, zero dependency vulnerabilities, a complete Manufacturer -> Admin -> Buyer Logistics handoff, zero participant internal-field exposure, zero console errors, zero unsafe logs, and zero fixture residue.
+
+Desktop and 390-pixel viewport reviews found no incoherent overlap. Role workspace navigation, labelled dialogs, Escape handling, keyboard focus loops, initial focus, focus restoration, and button accessible names were inspected. Workspace and Logistics request query state survived refresh and browser back/forward navigation.
+
 Labels such as `Ready for external booking` describe internal readiness only.
 
 ## Known Operational Limitations
@@ -79,6 +95,14 @@ Labels such as `Ready for external booking` describe internal readiness only.
 - Admin user search/account administration is a truthful placeholder.
 - Demo marketplace inventory is opt-in local data and is not a substitute for Supabase connectivity.
 - The SPA uses query-string workspace state instead of a full route framework.
+
+## Rollback Overview
+
+Redeploy the previous known-good static artifact/commit for an application regression, provided it remains compatible with the current additive schema. Never edit applied migrations or improvise destructive down-migrations. For database incidents, stop affected writes, preserve data, test a forward fix or restore in staging, and follow [Backup, restore, and rollback](BACKUP_RESTORE_ROLLBACK_GUIDE.md).
+
+## Post-Beta Roadmap
+
+Potential work after separate approval includes production user administration, monitoring/alerting, verified backup automation, notification delivery, generated contract documents, electronic-signature providers, payment gateways and reconciliation, carrier integrations, shipment tracking, customs tooling, production milestones, reporting, and guarded AI assistance. None is part of Beta v1.0.0.
 
 ## Verification Baseline
 

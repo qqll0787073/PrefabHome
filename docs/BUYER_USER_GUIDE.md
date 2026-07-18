@@ -37,6 +37,19 @@ Snapshots and line-item copies preserve the commercial basis of each downstream 
 
 Provider contacts, internal quote references, Admin notes, actor IDs, and event metadata are not exposed to Buyer sessions. `Ready for external booking` is not a carrier booking confirmation.
 
+## Navigation And UI States
+
+Dashboard workspaces and selected Logistics requests are represented in the URL. Refresh and browser back/forward restore valid state; unauthorized or stale workspace/request identifiers are reconciled to an allowed view.
+
+- **Loading:** wait for the current workspace or selected detail request.
+- **Empty:** clear filters or complete the upstream lifecycle that creates the record.
+- **Stale/background refresh:** keep the currently readable result while the app refreshes; avoid duplicate actions.
+- **Conflict:** refetch authoritative state before deciding the next action.
+- **Partial failure:** retry the failed timeline/detail surface; safe loaded data may remain visible.
+- **Critical error:** use the offered retry and report the sanitized message if it persists.
+
+The Beta has no central notifications, payment checkout, electronic signature, carrier tracking, customs filing, or AI recommendation service.
+
 ## Troubleshooting
 
 - Refresh after a lifecycle conflict; another participant may have changed the record.

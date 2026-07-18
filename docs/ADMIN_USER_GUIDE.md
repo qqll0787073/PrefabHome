@@ -29,6 +29,8 @@ Create and ready signature packages and prepare/cancel delivery-request records 
 
 Admin read RPCs include internal contacts, quote references, notes, actor IDs, metadata, and versions. Treat these as confidential operational data. Participant-safe RPCs expose a fixed smaller projection.
 
+Candidate, selection, cancellation, and readiness actions use labelled confirmation dialogs with Escape handling, keyboard focus containment, initial focus, and focus restoration. A dialog improves accessibility but does not replace the trusted RPC authorization check.
+
 No Admin action contacts a provider, books capacity, schedules pickup, dispatches cargo, files customs documents, or tracks delivery.
 
 ## Operational Discipline

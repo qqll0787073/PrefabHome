@@ -16,6 +16,27 @@ Do not infer production readiness from `npm run build` alone.
 
 Keep each environment's URL and key in its platform secret store. Only `VITE_SUPABASE_URL` and a publishable/anon key may enter the browser build. Service-role and database credentials are server/operator-only.
 
+Known guarded-verification separation:
+
+- Staging: `bvzbkjpbnczquecwqvlm`
+- Production denylist: `eoyrfrjbjglfudfuwxdf`
+
+The production ref must never be used by fixture, bootstrap, or smoke tooling. A ref is not a credential; secret values still belong only in ignored local files or a platform secret store.
+
+Repository variable names are listed in `.env.example` and `.env.staging.example`. Staging variables include project URL/ref, publishable key, service-role key, database password, role smoke credentials, `PREFAB_TEST_ENVIRONMENT=staging`, and the explicit fixture-reset switch. Never prefix privileged values with `VITE_`.
+
+## Local Verification Commands
+
+```bash
+npm ci
+npm run test
+npm run build
+npm audit --audit-level=low
+npm run verify:beta
+```
+
+`npm run test` executes frontend tests followed by infrastructure tests. `verify:beta` is non-destructive and does not contact Supabase. No GitHub Actions workflow currently deploys this repository.
+
 ## Release Preflight
 
 1. Identify and record the exact candidate commit.
@@ -23,7 +44,7 @@ Keep each environment's URL and key in its platform secret store. Only `VITE_SUP
 3. Run `npm ci` and `npm run verify:beta`.
 4. Complete the role/browser and accessibility items in [Beta QA checklist](BETA_QA_CHECKLIST.md).
 5. Confirm the target Supabase project migration list before any approved push.
-6. Run `supabase db push --dry-run` from an isolated workspace and review the exact pending list.
+6. Run `supabase migration list --linked` and `supabase db push --dry-run` from an isolated workspace and review the exact remote/pending lists.
 7. Apply only separately approved migrations to staging, verify, and clean fixtures.
 8. Obtain release, security, database, and operations signoff.
 9. Build with production `VITE_SUPABASE_URL`, publishable key, and demo mode disabled.
@@ -61,3 +82,5 @@ For an incident: stop further release activity, preserve sanitized evidence, dis
 ## Post-Deploy Smoke
 
 Verify sign-in and one read-only path for each role first. Then perform only approved, uniquely named, cleanup-safe transactions. Confirm zero console errors, no unsafe logs, private media isolation, participant-safe Logistics data, and no demo inventory. Record evidence without credentials or signed URLs.
+
+This release-assets task does not authorize or perform a production deployment.
