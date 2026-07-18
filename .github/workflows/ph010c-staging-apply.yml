@@ -1,4 +1,4 @@
-name: PH-010C staging migration apply
+name: PH-010C staging post-apply verification
 
 on:
   push:
@@ -11,11 +11,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: ph010c-staging-migration-apply
+  group: ph010c-staging-post-apply-verification
   cancel-in-progress: false
 
 jobs:
-  apply-and-verify-staging:
+  verify-staging:
     if: github.ref_name == 'ph010c-logistics-workspace-foundation'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -61,7 +61,7 @@ jobs:
         with:
           version: 2.109.1
 
-      - name: Apply exactly migration 0024 and verify staging
+      - name: Verify applied migration and rollback smoke
         shell: bash
         run: |
           set -euo pipefail
@@ -79,67 +79,51 @@ jobs:
           cp supabase/migrations/[0-9][0-9][0-9][0-9]_*.sql "$workspace/supabase/migrations/"
 
           mapfile -t local_versions < <(find "$workspace/supabase/migrations" -maxdepth 1 -type f -printf '%f\n' | sed -nE 's/^([0-9]{4})_.+\.sql$/\1/p' | sort)
-          mapfile -t expected_local < <(seq 1 24 | xargs -I{} printf '%04d\n' {})
-          if ! diff -u <(printf '%s\n' "${expected_local[@]}") <(printf '%s\n' "${local_versions[@]}"); then
+          mapfile -t expected_versions < <(seq 1 24 | xargs -I{} printf '%04d\n' {})
+          if ! diff -u <(printf '%s\n' "${expected_versions[@]}") <(printf '%s\n' "${local_versions[@]}"); then
             echo "Isolated workspace must contain exactly migrations 0001 through 0024." >&2
             exit 1
           fi
 
           supabase link --project-ref "$PREFAB_STAGING_PROJECT_REF" --workdir "$workspace" >/dev/null
 
-          sanitize() {
-            perl -pe 's/\e\[[0-9;?]*[ -\/]*[@-~]//g' "$1"
-          }
-          parse_remote() {
+          migration_raw="$RUNNER_TEMP/ph010c-post-apply-migrations-raw.txt"
+          migration_list="$RUNNER_TEMP/ph010c-post-apply-migrations.txt"
+          supabase migration list --linked --workdir "$workspace" > "$migration_raw" 2>&1
+          perl -pe 's/\e\[[0-9;?]*[ -\/]*[@-~]//g' "$migration_raw" > "$migration_list"
+          mapfile -t remote_versions < <(
             awk -F '|' '
               NF >= 2 {
                 remote = $2
                 gsub(/[`[:space:]]/, "", remote)
                 if (remote ~ /^[0-9]{4}$/) print remote
               }
-            ' "$1" | sort -u
-          }
-
-          before_raw="$RUNNER_TEMP/ph010c-apply-before-raw.txt"
-          before="$RUNNER_TEMP/ph010c-apply-before.txt"
-          supabase migration list --linked --workdir "$workspace" > "$before_raw" 2>&1
-          sanitize "$before_raw" > "$before"
-          mapfile -t remote_before < <(parse_remote "$before")
-          mapfile -t expected_before < <(seq 1 23 | xargs -I{} printf '%04d\n' {})
-          if [[ ${#remote_before[@]} -eq 0 ]] || ! diff -u <(printf '%s\n' "${expected_before[@]}") <(printf '%s\n' "${remote_before[@]}"); then
-            echo "Sanitized migration list immediately before apply:" >&2
-            cat "$before" >&2
-            echo "Remote migrations must be exactly 0001 through 0023 before apply." >&2
+            ' "$migration_list" | sort -u
+          )
+          if [[ ${#remote_versions[@]} -eq 0 ]] || ! diff -u <(printf '%s\n' "${expected_versions[@]}") <(printf '%s\n' "${remote_versions[@]}"); then
+            echo "Sanitized post-apply migration list:" >&2
+            cat "$migration_list" >&2
+            echo "Remote migrations must be exactly 0001 through 0024." >&2
             exit 1
           fi
 
           dry_run_output="$(supabase db push --linked --dry-run --workdir "$workspace" 2>&1)"
           printf '%s\n' "$dry_run_output"
-          mapfile -t pending < <(printf '%s\n' "$dry_run_output" | grep -oE '[0-9]{4}_[[:alnum:]_]+\.sql' | sort -u)
-          expected_pending="0024_logistics_arrangement_workspace_foundation.sql"
-          if [[ ${#pending[@]} -ne 1 || "${pending[0]}" != "$expected_pending" ]]; then
-            echo "The pre-apply dry run must contain exactly migration 0024." >&2
+          mapfile -t pending < <(printf '%s\n' "$dry_run_output" | grep -oE '[0-9]{4}_[[:alnum:]_]+\.sql' | sort -u || true)
+          if [[ ${#pending[@]} -ne 0 ]]; then
+            echo "No migration may remain pending after the approved 0024 apply." >&2
             exit 1
           fi
 
-          apply_output="$(supabase db push --linked --yes --workdir "$workspace" 2>&1)"
-          printf '%s\n' "$apply_output"
-          applied_migration="$expected_pending"
-
-          after_raw="$RUNNER_TEMP/ph010c-apply-after-raw.txt"
-          after="$RUNNER_TEMP/ph010c-apply-after.txt"
-          supabase migration list --linked --workdir "$workspace" > "$after_raw" 2>&1
-          sanitize "$after_raw" > "$after"
-          mapfile -t remote_after < <(parse_remote "$after")
-          if [[ ${#remote_after[@]} -eq 0 ]] || ! diff -u <(printf '%s\n' "${expected_local[@]}") <(printf '%s\n' "${remote_after[@]}"); then
-            echo "Sanitized migration list immediately after apply:" >&2
-            cat "$after" >&2
-            echo "Remote migrations must be exactly 0001 through 0024 after apply." >&2
-            exit 1
-          fi
-
+          set +e
           smoke_output="$(supabase db query --linked --workdir "$workspace" --file "$GITHUB_WORKSPACE/supabase/tests/logistics_arrangement_workspace_foundation_security.sql" 2>&1)"
+          smoke_status=$?
+          set -e
           printf '%s\n' "$smoke_output"
+          if [[ $smoke_status -ne 0 ]]; then
+            echo "Rollback-scoped staging smoke failed." >&2
+            exit "$smoke_status"
+          fi
           assertion_count="$(printf '%s\n' "$smoke_output" | sed -nE 's/.*passed: ([0-9]+)\/\1 checks.*/\1/p' | tail -1)"
           if [[ "$assertion_count" != "123" ]]; then
             echo "Expected the expanded rollback suite to pass 123/123 checks." >&2
@@ -216,23 +200,27 @@ jobs:
             0 as fixture_residue_count;
           SQL
 
+          set +e
           audit_output="$(supabase db query --linked --workdir "$workspace" --file "$audit_sql" 2>&1)"
+          audit_status=$?
+          set -e
           printf '%s\n' "$audit_output"
+          if [[ $audit_status -ne 0 ]]; then
+            echo "Post-apply schema and residue audit failed." >&2
+            exit "$audit_status"
+          fi
           audit_compact="$(printf '%s\n' "$audit_output" | sed 's/[`[:space:]]//g')"
           if ! printf '%s\n' "$audit_compact" | grep -Fq '1|3|12|0'; then
             echo "Post-apply schema or residue audit did not return the expected counts." >&2
             exit 1
           fi
 
-          applied_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          summary="$RUNNER_TEMP/ph010c-staging-apply-summary.txt"
+          summary="$RUNNER_TEMP/ph010c-staging-post-apply-summary.txt"
           {
-            echo "applied_at_utc=$applied_at"
+            echo "verified_at_utc=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
             echo "supabase_cli_version=$cli_version"
-            echo "remote_before=$(IFS=,; echo "${remote_before[*]}")"
-            echo "pending_before=${pending[0]}"
-            echo "applied_migration=$applied_migration"
-            echo "remote_after=$(IFS=,; echo "${remote_after[*]}")"
+            echo "remote_migrations=$(IFS=,; echo "${remote_versions[*]}")"
+            echo "pending_migrations=none"
             echo "migration_0024_count=1"
             echo "rollback_smoke_assertions=$assertion_count"
             echo "required_tables=3"
@@ -242,10 +230,10 @@ jobs:
           } > "$summary"
           cat "$summary" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload sanitized staging verification summary
+      - name: Upload sanitized post-apply summary
         uses: actions/upload-artifact@v4
         with:
-          name: ph010c-staging-apply-summary
-          path: ${{ runner.temp }}/ph010c-staging-apply-summary.txt
+          name: ph010c-staging-post-apply-summary
+          path: ${{ runner.temp }}/ph010c-staging-post-apply-summary.txt
           retention-days: 7
           if-no-files-found: error
