@@ -476,9 +476,9 @@ begin
   perform pg_temp.set_arrangement_actor(cross_seed.manufacturer_owner_id);
   select id into cross_booking_uuid from public.create_logistics_booking_request(cross_seed.shipping_readiness_id);
   perform public.update_logistics_booking_request_draft(
-    cross_booking_uuid, 'trucking', 'FOB', current_date + 12, current_date + 15,
+    cross_booking_uuid, 'truck', 'FOB', current_date + 12, current_date + 15,
     pg_temp.arrangement_location('Cross Origin'), pg_temp.arrangement_location('Cross Destination'),
-    'flatbed', 'Keep dry', 'Crane required', 'Cross-request security verification'
+    'flat_rack', 'Keep dry', 'Crane required', 'Cross-request security verification'
   );
   select id into cross_booking_uuid from public.submit_logistics_booking_request(cross_booking_uuid);
 
