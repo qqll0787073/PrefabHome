@@ -42,6 +42,8 @@ This runs the repository's frontend and infrastructure tests, production build, 
 - [Demo data and runbook](docs/DEMO_DATA_AND_DEMO_RUNBOOK.md)
 - [Release signoff](docs/BETA_RELEASE_SIGNOFF.md)
 - [Verified Beta evidence](docs/BETA_MVP_RELEASE_VERIFICATION.md)
+- [Production Sprint 1 plan](docs/PRODUCTION_SPRINT_1_PLAN.md)
+- [Observability and runtime safety](docs/OBSERVABILITY_AND_RUNTIME_SAFETY.md)
 
 ## Release Boundary
 
