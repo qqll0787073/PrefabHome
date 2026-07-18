@@ -9,6 +9,8 @@ import { ManufacturerInvoices } from "../invoices/ManufacturerInvoices";
 import { AdminLogisticsBookingRequests } from "../logistics-booking/AdminLogisticsBookingRequests";
 import { BuyerLogisticsBookingRequests } from "../logistics-booking/BuyerLogisticsBookingRequests";
 import { ManufacturerLogisticsBookingRequests } from "../logistics-booking/ManufacturerLogisticsBookingRequests";
+import { AdminLogisticsArrangementWorkspace } from "../logistics-arrangement/AdminLogisticsArrangementWorkspace";
+import { LogisticsArrangementReadOnly } from "../logistics-arrangement/LogisticsArrangementReadOnly";
 import { AdminManufacturerReview } from "../manufacturers/AdminManufacturerReview";
 import { ManufacturerWorkspace } from "../manufacturers/ManufacturerWorkspace";
 import { AdminPayments } from "../payments/AdminPayments";
@@ -100,6 +102,7 @@ export function PortalDashboard({
               <BuyerPayments authMode={auth.mode} />
               <BuyerShippingReadiness authMode={auth.mode} />
               <BuyerLogisticsBookingRequests authMode={auth.mode} />
+              <LogisticsArrangementReadOnly authMode={auth.mode} role="buyer" />
             </>
           )}
 
@@ -113,6 +116,7 @@ export function PortalDashboard({
               <ManufacturerPayments authMode={auth.mode} />
               <ManufacturerShippingReadiness authMode={auth.mode} />
               <ManufacturerLogisticsBookingRequests authMode={auth.mode} />
+              <LogisticsArrangementReadOnly authMode={auth.mode} role="manufacturer" />
               <ManufacturerWorkspace user={auth.user} authMode={auth.mode} />
               <ManufacturerProductList user={auth.user} authMode={auth.mode} />
             </>
@@ -128,6 +132,7 @@ export function PortalDashboard({
               <AdminPayments authMode={auth.mode} />
               <AdminShippingReadiness authMode={auth.mode} />
               <AdminLogisticsBookingRequests authMode={auth.mode} />
+              <AdminLogisticsArrangementWorkspace authMode={auth.mode} />
               <AdminManufacturerReview authMode={auth.mode} />
               <AdminProductReview authMode={auth.mode} />
             </>

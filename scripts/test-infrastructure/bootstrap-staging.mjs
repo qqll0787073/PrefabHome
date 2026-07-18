@@ -13,23 +13,27 @@ export function listMigrationVersions(migrationsDir = "supabase/migrations") {
 }
 
 export function assertExpectedMigrations(versions) {
-  const expected = Array.from({ length: 23 }, (_, index) => String(index + 1).padStart(4, "0"));
+  const expected = Array.from({ length: 24 }, (_, index) => String(index + 1).padStart(4, "0"));
   const actual = [...versions].sort();
   if (actual.join(",") !== expected.join(",")) {
-    throw new Error(`Expected migrations 0001 through 0023, found ${actual.join(",") || "none"}.`);
-  }
-  if (actual.includes("0024")) {
-    throw new Error("Migration 0024 must not exist for this task.");
+    throw new Error(`Expected migrations 0001 through 0024, found ${actual.join(",") || "none"}.`);
   }
   return true;
 }
 
 export function assertMigrationsUnchangedFromAuthProfiles() {
+  const protectedMigrationPaths = Array.from(
+    { length: 23 },
+    (_, index) => `supabase/migrations/${String(index + 1).padStart(4, "0")}_`,
+  );
+  const migrationFiles = fs.readdirSync("supabase/migrations")
+    .filter((file) => protectedMigrationPaths.some((prefix) => `supabase/migrations/${file}`.startsWith(prefix)))
+    .map((file) => `supabase/migrations/${file}`);
   try {
-    execFileSync("git", ["diff", "--quiet", "auth-profiles", "--", "supabase/migrations"], { stdio: "pipe" });
+    execFileSync("git", ["diff", "--quiet", "auth-profiles", "--", ...migrationFiles], { stdio: "pipe" });
     return true;
   } catch {
-    throw new Error("Migration files differ from auth-profiles.");
+    throw new Error("Protected migrations 0001 through 0023 differ from auth-profiles.");
   }
 }
 
@@ -40,10 +44,8 @@ export function createIsolatedWorkspacePlan(projectRef, rootDir = process.cwd())
   const workspaceDir = path.join(os.tmpdir(), `prefab-staging-supabase-${projectRef}`);
   return {
     workspaceDir,
-    filesToCopy: [
-      "supabase/config.toml",
-      "supabase/migrations",
-    ],
+    initializeCommand: ["npx", "supabase", "init"],
+    filesToCopy: ["supabase/migrations"],
     linkCommand: ["npx", "supabase", "link", "--project-ref", projectRef],
     migrationListCommand: ["npx", "supabase", "migration", "list", "--linked"],
     dryRunCommand: ["npx", "supabase", "db", "push", "--dry-run"],
