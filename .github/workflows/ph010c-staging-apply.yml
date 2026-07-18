@@ -211,8 +211,7 @@ jobs:
             echo "Post-apply schema and residue audit failed." >&2
             exit "$audit_status"
           fi
-          audit_compact="$(printf '%s\n' "$audit_output" | sed 's/[`[:space:]]//g')"
-          if ! printf '%s\n' "$audit_compact" | grep -Fq '1|3|12|0'; then
+          if ! printf '%s\n' "$audit_output" | grep -Eq '│[[:space:]]*1[[:space:]]*│[[:space:]]*3[[:space:]]*│[[:space:]]*12[[:space:]]*│[[:space:]]*0[[:space:]]*│'; then
             echo "Post-apply schema or residue audit did not return the expected counts." >&2
             exit 1
           fi
