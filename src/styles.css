@@ -27,6 +27,82 @@ button {
   cursor: pointer;
 }
 
+.runtime-error-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  background: #f3f5f4;
+  color: #17211d;
+}
+
+.runtime-error-content {
+  width: min(100%, 680px);
+}
+
+.runtime-error-content h1 {
+  margin: 8px 0 12px;
+  font-size: 2.25rem;
+}
+
+.runtime-error-content h1:focus {
+  outline: none;
+}
+
+.runtime-error-reference {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 24px;
+  margin: 24px 0;
+  padding: 20px 0;
+  border-block: 1px solid #c8d0cc;
+}
+
+.runtime-error-reference div {
+  min-width: 0;
+}
+
+.runtime-error-reference dt {
+  color: #58645f;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.runtime-error-reference dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.runtime-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.runtime-error-actions button {
+  min-width: 112px;
+  padding: 10px 18px;
+  border: 1px solid #1d5b43;
+  background: #1d5b43;
+  color: #ffffff;
+}
+
+.runtime-error-actions button.secondary {
+  background: transparent;
+  color: #1d5b43;
+}
+
+@media (max-width: 520px) {
+  .runtime-error-content h1 {
+    font-size: 1.75rem;
+  }
+
+  .runtime-error-reference {
+    grid-template-columns: 1fr;
+  }
+}
+
 .app-shell {
   min-height: 100vh;
 }

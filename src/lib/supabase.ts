@@ -1,16 +1,10 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { runtimeConfig } from "./runtimeConfig";
 
-const env = (import.meta as ImportMeta & {
-  env?: Record<string, string | undefined>;
-}).env;
-
-const supabaseUrl = env?.VITE_SUPABASE_URL?.trim() ?? "";
-const supabaseAnonKey = env?.VITE_SUPABASE_ANON_KEY?.trim() ?? "";
-
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+export const isSupabaseConfigured = runtimeConfig.isSupabaseConnected;
 
 export const supabase: SupabaseClient | null = isSupabaseConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey, {
+  ? createClient(runtimeConfig.supabaseUrl!, runtimeConfig.supabaseAnonKey!, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
