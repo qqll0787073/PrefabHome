@@ -21,6 +21,23 @@ export function assertExpectedMigrations(versions) {
   return true;
 }
 
+export function resolveAuthProfilesMigrationBaseline() {
+  const candidates = [
+    "refs/heads/auth-profiles",
+    "refs/remotes/origin/auth-profiles",
+    "refs/tags/beta-v1.0.0",
+  ];
+  for (const candidate of candidates) {
+    try {
+      execFileSync("git", ["rev-parse", "--verify", "--quiet", candidate], { stdio: "pipe" });
+      return candidate;
+    } catch {
+      // Continue to the next immutable or tracked baseline reference.
+    }
+  }
+  throw new Error("The auth-profiles migration baseline is unavailable.");
+}
+
 export function assertMigrationsUnchangedFromAuthProfiles() {
   const protectedMigrationPaths = Array.from(
     { length: 23 },
@@ -29,8 +46,9 @@ export function assertMigrationsUnchangedFromAuthProfiles() {
   const migrationFiles = fs.readdirSync("supabase/migrations")
     .filter((file) => protectedMigrationPaths.some((prefix) => `supabase/migrations/${file}`.startsWith(prefix)))
     .map((file) => `supabase/migrations/${file}`);
+  const baseline = resolveAuthProfilesMigrationBaseline();
   try {
-    execFileSync("git", ["diff", "--quiet", "auth-profiles", "--", ...migrationFiles], { stdio: "pipe" });
+    execFileSync("git", ["diff", "--quiet", baseline, "--", ...migrationFiles], { stdio: "pipe" });
     return true;
   } catch {
     throw new Error("Protected migrations 0001 through 0023 differ from auth-profiles.");
