@@ -1,10 +1,11 @@
 # PH-010C Logistics Arrangement Workspace Verification
 
-## Phase A Status
+## Phase B Status
 
 - Branch: `ph010c-logistics-workspace-foundation`
 - Migration: `0024_logistics_arrangement_workspace_foundation.sql`
-- Migration state: local-only; not applied to staging or production
+- Staging application time: `2026-07-18T01:28:22Z`
+- Migration state: applied once to staging; not applied to production
 - Staging project ref: `bvzbkjpbnczquecwqvlm`
 - Production denylisted ref: `eoyrfrjbjglfudfuwxdf`
 - Protected baseline: migrations `0001` through `0023` unchanged
@@ -25,7 +26,7 @@ Participant exposure checks cover all three safe read RPCs. They prove that the 
 
 Provider modeling checks validate `provider_type` and `transport_mode` independently. A `freight_forwarder` with `ocean` mode and a `carrier` with `trucking` mode are accepted; an unsupported transport mode is rejected without creating a candidate.
 
-The pre-correction Phase A rollback execution passed `60/60` checks. After the participant-data and transport-mode corrections, the expanded suite passed `105/105` checks in an isolated staging transaction. The runner executed `BEGIN`, the local `0024` DDL, a legitimate upstream lifecycle fixture, all security assertions, and `ROLLBACK`. It did not run `db push` or insert a migration-history row.
+The pre-correction Phase A rollback execution passed `60/60` checks. After the participant-data and transport-mode corrections, the Phase A suite passed `105/105` checks in an isolated staging transaction. The Phase B suite adds live candidate update, initial selection, replacement, cancellation, reselection, readiness, cross-request denial, current-selection uniqueness, participant history, and event-vocabulary assertions. It passed `123/123` checks against the applied staging schema and rolled back every fixture write.
 
 A post-rollback read-only query confirmed:
 
@@ -39,7 +40,34 @@ A post-rollback read-only query confirmed:
 
 The fixture used existing trusted lifecycle paths through Product, RFQ, Quote, Purchase Order, Contract, Invoice, Shipping Readiness, and Logistics Booking Request records. All fixture writes and all `0024` schema objects were transaction-scoped. The post-rollback audit found no persistent schema object or fixture residue.
 
-The isolated `db push --dry-run` command could not complete because Supabase CLI `2.109.x` fails with `LegacyMigrationsReadError` when reading this repository's four-digit migration directory on Windows. Pinned CLI `2.67.1` and `2.89.0` can read remote history but predate local four-digit migration recognition. This is a Phase B CLI compatibility item, not migration divergence: the direct remote list and post-rollback query both confirmed remote `0001-0023`, while the local guard confirmed exact local `0001-0024` and no changes to `0001-0023`.
+Windows CLI verification remained unsuitable for this repository's four-digit migration history. The permanent apply therefore used an isolated Ubuntu 24.04 GitHub Actions workspace with Supabase CLI `2.109.1`. The linked Linux preflight confirmed remote migrations exactly `0001-0023` and the sole pending file exactly `0024_logistics_arrangement_workspace_foundation.sql` before running `supabase db push --linked --yes`.
+
+## Staging Application
+
+The staging safety guard verified the approved project ref and denied `eoyrfrjbjglfudfuwxdf` before linking. Only the isolated workspace was linked, and only migrations `0001-0024` were copied into it. No repair, reset, pull, schema reset, production credential, or production command was used.
+
+The apply log recorded `Applying migration 0024_logistics_arrangement_workspace_foundation.sql` at `2026-07-18T01:28:22Z`, followed by `Finished supabase db push`. Supabase CLI then returned a nonzero status from an unrelated pg-delta migration-catalog cache warning. No second apply was attempted. A separate read-only post-apply run confirmed:
+
+- remote migration history: exactly `0001-0024`
+- pending migrations: none
+- migration-history rows for `0024`: `1`
+- migrations beyond `0024`: `0`
+- required tables present: `3/3`
+- participant-safe read RPCs present: `3/3`
+- Admin full-read RPCs present: `3/3`
+- Admin mutation RPCs present: `6/6`
+
+The successful post-apply verification is GitHub Actions run `29625525012`. Its rollback-scoped staging smoke passed `123/123` assertions.
+
+## Live Smoke Results
+
+The transaction-scoped fixture created a legitimate chain through Manufacturer, Product, RFQ, Quote, Purchase Order, Contract, Invoice, Shipping Readiness, and Logistics Booking Request. Admin then created `freight_forwarder + ocean` and `carrier + trucking` candidates, updated a candidate, selected it, replaced it, cancelled the current selection, selected a complete candidate again, and marked the request `ready_for_external_booking`.
+
+The smoke verified that an unsupported candidate transport mode and cross-request selection are rejected. The partial unique index and runtime selection counts retained exactly one current selection after initial selection, replacement, and final selection. Events remained within the approved internal planning vocabulary and included trusted update, selection-change, cancellation, and readiness records.
+
+The owning Buyer and Manufacturer received only participant-safe rows. An unrelated Manufacturer received zero rows and Anonymous calls were denied. Participant candidate results excluded `contact_name`, `contact_email`, `contact_phone`, `quote_reference`, `notes`, and `version`; participant event results excluded `actor_profile_id` and `metadata`. Admin full-read RPCs retained the internal contact, quote-reference, notes, version, actor, and metadata fields.
+
+The fixture transaction ended with `ROLLBACK`. A separate post-rollback audit returned fixture residue `0`. It covered Auth users, profiles, Manufacturers, Products, RFQs, Quotes, Purchase Orders, Contracts, Invoices, Shipping Readiness, Logistics Booking Requests, provider candidates, selections, and arrangement events through the fixture identity prefix, relational chain, and internal contact markers. Permanent migration objects were retained.
 
 ## Frontend Verification
 
@@ -57,13 +85,18 @@ Validation results:
 
 ## Staging Harness
 
-`scripts/smoke/logistics-arrangement-live-smoke.mjs` is plan-only. It never applies migrations or creates fixtures, emits no credentials, and exits without remote writes. Its manifest model reserves exact ID arrays and dependent-first cleanup order for Phase B.
+`scripts/smoke/logistics-arrangement-live-smoke.mjs` remains plan-only and never applies migrations or emits credentials. Phase B used the rollback-scoped SQL fixture instead, so no long-lived fixture manifest or cleanup delete was required.
+
+The branch-only Linux dry-run and one-time staging apply workflows were removed after successful verification because their pre-apply assumptions no longer apply and they have no ongoing operational purpose.
 
 ## Safety Confirmation
 
-- No migration was applied remotely.
-- Staging remote migrations remain `0001` through `0023`.
+- Migration `0024` was applied exactly once to staging.
+- Staging remote migrations are exactly `0001` through `0024`.
+- Migration-history count for `0024` is exactly `1`.
+- No migration beyond `0024` exists and no migration remains pending.
+- The expanded rollback smoke passed `123/123`; the residue audit returned `0`.
 - No production data or configuration was modified.
 - No provider integration, carrier API, freight-forwarder API, tracking, customs, payment, or booking automation was added.
 - No deployment or merge occurred.
-- PH-010C Phase B remains deferred.
+- PH-010D was not started.
