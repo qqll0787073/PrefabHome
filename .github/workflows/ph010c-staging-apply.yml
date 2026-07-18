@@ -6,6 +6,7 @@ on:
       - ph010c-logistics-workspace-foundation
     paths:
       - .github/workflows/ph010c-staging-apply.yml
+      - supabase/tests/logistics_arrangement_workspace_foundation_security.sql
 
 permissions:
   contents: read
