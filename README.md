@@ -20,6 +20,10 @@ npm run dev
 
 Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the ignored `.env.local` file. Never put credentials or a service-role key in a `VITE_` variable. `VITE_ENABLE_MARKETPLACE_DEMO=true` is local-development-only and must remain disabled in deployed environments.
 
+Set `VITE_PUBLIC_SITE_URL` to the local public origin, normally `http://localhost:5173`. It controls canonical and sitemap output only and never grants portal access.
+
+Public informational pages are available at `/`, `/about`, `/contact`, and `/version`. The marketplace and existing query-driven portal workspaces remain under `/marketplace`.
+
 ## Verification
 
 ```bash
@@ -56,6 +60,8 @@ This runs the repository's frontend and infrastructure tests, production build, 
 - [Production hosting specification](docs/PRODUCTION_HOSTING_SPECIFICATION.md)
 - [Security headers policy](docs/SECURITY_HEADERS_POLICY.md)
 - [Production release checklist](docs/PRODUCTION_RELEASE_CHECKLIST.md)
+- [Production Sprint 2B plan](docs/PRODUCTION_SPRINT_2B_PLAN.md)
+- [SEO, PWA, and public pages](docs/SEO_PWA_AND_PUBLIC_PAGES.md)
 
 ## Release Boundary
 

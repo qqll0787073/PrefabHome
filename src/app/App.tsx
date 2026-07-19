@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { LoadingState } from "../components/common/LoadingState";
 import { AppHeader } from "../components/layout/AppHeader";
 import { PortalNavigation } from "../components/layout/PortalNavigation";
 import { AiAdvisorView } from "../features/advisor/AiAdvisorView";
@@ -8,6 +9,11 @@ import { CompareView } from "../features/marketplace/CompareView";
 import { MarketplacePage } from "../features/marketplace/MarketplacePage";
 import { useAuth } from "../lib/auth";
 import {
+  applyPortalMetadata,
+  readApplicationLocation,
+  type ApplicationLocation,
+} from "../lib/publicSite";
+import {
   buildPortalSearch,
   normalizePortalWorkspace,
   readPortalLocation,
@@ -15,7 +21,15 @@ import {
 } from "../lib/portalNavigation";
 import type { Role, View } from "../types";
 
-function App() {
+const PublicWebsite = lazy(() => import("../features/public/PublicWebsite").then((module) => ({
+  default: module.PublicWebsite,
+})));
+
+interface PortalApplicationProps {
+  onPublicHome: () => void;
+}
+
+function PortalApplication({ onPublicHome }: PortalApplicationProps) {
   const auth = useAuth();
   const initialLocation = readPortalLocation(window.location.search);
   const pendingRestoredWorkspace = useRef(initialLocation.workspace);
@@ -32,7 +46,7 @@ function App() {
     next: { view: View; workspace: PortalWorkspace; requestId: string | null },
     replace = false,
   ) {
-    const url = `${window.location.pathname}${buildPortalSearch(next)}${window.location.hash}`;
+    const url = `/marketplace${buildPortalSearch(next)}`;
     window.history[replace ? "replaceState" : "pushState"]({}, "", url);
   }
 
@@ -64,6 +78,10 @@ function App() {
   }
 
   useEffect(() => {
+    applyPortalMetadata();
+  }, []);
+
+  useEffect(() => {
     if (!auth.user) return;
     const nextRole = auth.user.role;
     const nextWorkspace = normalizePortalWorkspace(nextRole, pendingRestoredWorkspace.current ?? workspace);
@@ -86,7 +104,7 @@ function App() {
 
   return (
     <div className="app-shell">
-      <AppHeader auth={auth} role={role} onRoleChange={changeRole} />
+      <AppHeader auth={auth} role={role} onRoleChange={changeRole} onPublicHome={onPublicHome} />
       <PortalNavigation view={view} onViewChange={changeView} />
 
       <main>
@@ -111,6 +129,38 @@ function App() {
         )}
       </main>
     </div>
+  );
+}
+
+function currentApplicationLocation(): ApplicationLocation {
+  return readApplicationLocation(window.location.pathname, window.location.search);
+}
+
+function App() {
+  const [location, setLocation] = useState<ApplicationLocation>(currentApplicationLocation);
+
+  function navigate(path: string) {
+    window.history.pushState({}, "", path);
+    setLocation(currentApplicationLocation());
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
+  useEffect(() => {
+    function restoreLocation() {
+      setLocation(currentApplicationLocation());
+    }
+    window.addEventListener("popstate", restoreLocation);
+    return () => window.removeEventListener("popstate", restoreLocation);
+  }, []);
+
+  if (location.kind === "portal") {
+    return <PortalApplication onPublicHome={() => navigate("/")} />;
+  }
+
+  return (
+    <Suspense fallback={<main className="route-loading"><LoadingState message="Loading public page..." /></main>}>
+      <PublicWebsite page={location.page} onNavigate={navigate} />
+    </Suspense>
   );
 }
 
