@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - production-sprint-1
+      - production-sprint-2
 
 permissions:
   contents: read
