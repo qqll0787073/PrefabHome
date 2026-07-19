@@ -16,6 +16,7 @@ test("public paths and the query-driven portal resolve independently", () => {
   assert.deepEqual(readApplicationLocation("/", ""), { kind: "public", page: "home" });
   assert.deepEqual(readApplicationLocation("/about/", ""), { kind: "public", page: "about" });
   assert.deepEqual(readApplicationLocation("/marketplace", "?view=dashboard"), { kind: "portal" });
+  assert.deepEqual(readApplicationLocation("/products/example-model", ""), { kind: "portal" });
   assert.deepEqual(readApplicationLocation("/", "?view=dashboard&workspace=rfqs"), { kind: "portal" });
   assert.deepEqual(readApplicationLocation("/unsupported", ""), { kind: "public", page: "not-found" });
 });

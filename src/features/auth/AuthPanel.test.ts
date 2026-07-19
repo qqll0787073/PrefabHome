@@ -25,6 +25,28 @@ test("login shows a read-only portal entry and database role authority copy", ()
   assert.match(markup, /actual access is determined by your approved account role/);
   assert.doesNotMatch(markup, /Portal role/);
   assert.doesNotMatch(markup, /<select/);
+  assert.match(markup, /id="auth-email"/);
+  assert.match(markup, /autoComplete="email"/);
+  assert.match(markup, /id="auth-password"/);
+  assert.match(markup, /autoComplete="current-password"/);
+  assert.match(markup, /aria-busy="false"/);
+});
+
+test("auth failures are announced, associated with credentials, and expose invalid state", () => {
+  const markup = renderToStaticMarkup(createElement(AuthPanel, {
+    activeRole: "buyer",
+    authError: "Sign-in failed.",
+    authMode: "supabase",
+    isLoading: false,
+    onLogin: noopAuthAction,
+    onRegister: noopAuthAction,
+  }));
+
+  assert.match(markup, /role="alert"/);
+  assert.match(markup, /tabindex="-1"/);
+  assert.match(markup, /aria-invalid="true"/);
+  assert.match(markup, /aria-describedby=/);
+  assert.match(markup, /Sign-in failed/);
 });
 
 test("registration role field offers Buyer and Manufacturer but never Admin", () => {
