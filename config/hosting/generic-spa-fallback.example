@@ -1,0 +1,18 @@
+# Provider-neutral routing contract. Translate this ordering into the selected host.
+# Query strings are preserved by every rule.
+
+1. IF request path matches an existing file:
+   SERVE that file with its real content type and status 200.
+
+2. ELSE IF request path begins with /assets/ OR looks like a file request:
+   RETURN status 404. Never return index.html for a missing asset or file.
+
+3. ELSE IF request is an HTML navigation request for an application path:
+   SERVE /index.html with status 200.
+
+4. ELSE:
+   RETURN status 404.
+
+# Cache contract:
+# /index.html -> Cache-Control: no-cache, max-age=0, must-revalidate
+# /assets/*   -> Cache-Control: public, max-age=31536000, immutable

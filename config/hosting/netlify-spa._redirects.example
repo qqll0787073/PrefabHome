@@ -1,0 +1,13 @@
+# NETLIFY-STYLE REVIEW TEMPLATE ONLY. Do not publish without provider review.
+# Existing files are expected to win through default shadowing. Keep this last.
+
+/*  /index.html  200
+
+# Verify before approval:
+# - existing /assets/* files are served directly
+# - missing /assets/* files return 404 instead of index.html
+# - query strings survive the rewrite
+# - index.html and hashed assets receive different cache policies
+#
+# Reference:
+# https://docs.netlify.com/manage/routing/redirects/rewrites-proxies/

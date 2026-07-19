@@ -26,6 +26,14 @@ Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the ignored `.env.local`
 npm run verify:beta
 ```
 
+Production-candidate artifact checks are local and non-deploying. They require explicit
+production environment metadata; see the release checklist before running them.
+
+```bash
+npm run verify:production-artifact
+npm run verify:production-readiness
+```
+
 This runs the repository's frontend and infrastructure tests, production build, dependency audit, tracked-secret scan, and required-document audit. It performs no remote Supabase operation.
 
 ## Beta Documentation
@@ -44,6 +52,10 @@ This runs the repository's frontend and infrastructure tests, production build, 
 - [Verified Beta evidence](docs/BETA_MVP_RELEASE_VERIFICATION.md)
 - [Production Sprint 1 plan](docs/PRODUCTION_SPRINT_1_PLAN.md)
 - [Observability and runtime safety](docs/OBSERVABILITY_AND_RUNTIME_SAFETY.md)
+- [Production Sprint 2 plan](docs/PRODUCTION_SPRINT_2_PLAN.md)
+- [Production hosting specification](docs/PRODUCTION_HOSTING_SPECIFICATION.md)
+- [Security headers policy](docs/SECURITY_HEADERS_POLICY.md)
+- [Production release checklist](docs/PRODUCTION_RELEASE_CHECKLIST.md)
 
 ## Release Boundary
 

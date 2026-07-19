@@ -1,0 +1,19 @@
+# CLOUDFLARE PAGES REVIEW NOTES ONLY. This is not a deployable configuration.
+
+Build command: npm run build
+Output directory: dist
+
+# Pages treats a project without a top-level 404.html as an SPA and serves the
+# root application shell for unknown paths. Keep real asset matching ahead of
+# fallback and verify that a missing /assets/*.js request remains a true 404.
+#
+# Do not add a catch-all _redirects rewrite for this application without a new
+# review. Cloudflare Pages documents that _redirects rules are followed even
+# when a static asset matches, so a broad rule can shadow hashed assets.
+#
+# Adapt config/security-headers.example through the provider's reviewed header
+# mechanism only after replacing Supabase origin placeholders in preview.
+#
+# Documentation reviewed for this template:
+# https://developers.cloudflare.com/pages/configuration/serving-pages/
+# https://developers.cloudflare.com/pages/configuration/redirects/
