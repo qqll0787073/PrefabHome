@@ -11,6 +11,8 @@
     "verify:beta:docs": "node scripts/release/check-beta-docs.mjs",
     "verify:beta:secrets": "node scripts/release/scan-tracked-secrets.mjs",
     "verify:beta": "npm run build && npm run test && npm audit --audit-level=low && npm run verify:beta:secrets && npm run verify:beta:docs",
+    "verify:production-artifact": "node scripts/release/verify-production-artifact.mjs",
+    "verify:production-readiness": "node scripts/release/verify-production-readiness.mjs",
     "test:staging:safety": "node --test \"scripts/test-infrastructure/staging-safety.test.mjs\"",
     "test:staging:bootstrap": "node --test \"scripts/test-infrastructure/bootstrap-staging.test.mjs\"",
     "test:staging:smoke": "node scripts/smoke/logistics-booking-live-smoke.mjs",
