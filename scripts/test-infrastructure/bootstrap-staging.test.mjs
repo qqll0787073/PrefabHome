@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assertExpectedMigrations, buildBootstrapPlan, createIsolatedWorkspacePlan, listMigrationVersions } from "./bootstrap-staging.mjs";
+import {
+  assertExpectedMigrations,
+  buildBootstrapPlan,
+  createIsolatedWorkspacePlan,
+  listMigrationVersions,
+  resolveAuthProfilesMigrationBaseline,
+} from "./bootstrap-staging.mjs";
 
 const validEnv = {
   PREFAB_TEST_ENVIRONMENT: "staging",
@@ -21,6 +27,13 @@ test("local migrations are exactly 0001 through 0024", () => {
 
 test("migration assertion rejects missing versions or 0025", () => {
   assert.throws(() => assertExpectedMigrations(["0001", "0025"]), /Expected migrations/);
+});
+
+test("migration integrity resolves a baseline in local and detached CI checkouts", () => {
+  assert.match(
+    resolveAuthProfilesMigrationBaseline(),
+    /^refs\/(?:heads\/auth-profiles|remotes\/origin\/auth-profiles|tags\/beta-v1\.0\.0)$/,
+  );
 });
 
 test("isolated workspace plan passes staging ref explicitly", () => {

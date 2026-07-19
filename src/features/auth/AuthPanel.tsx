@@ -1,15 +1,70 @@
-import { useEffect, useState, type FormEvent } from "react";
+import React, { useEffect, useState, type FormEvent } from "react";
 import { roleLabels } from "../../app/constants";
-import type { AuthCredentials } from "../../lib/auth";
+import type { LoginCredentials, RegistrationCredentials } from "../../lib/auth";
 import type { Role } from "../../types";
+
+type RegistrationRole = Exclude<Role, "admin">;
+
+export function buildLoginCredentials(
+  email: string,
+  password: string,
+  intendedPortal: Role,
+): LoginCredentials {
+  return { email, password, intendedPortal };
+}
+
+export function buildRegistrationCredentials(
+  email: string,
+  password: string,
+  fullName: string,
+  role: RegistrationRole,
+): RegistrationCredentials {
+  return { email, password, fullName, role };
+}
 
 interface AuthPanelProps {
   activeRole: Role;
   authError: string | null;
   authMode: "supabase" | "demo";
   isLoading: boolean;
-  onLogin: (credentials: AuthCredentials) => Promise<void>;
-  onRegister: (credentials: AuthCredentials) => Promise<void>;
+  onLogin: (credentials: LoginCredentials) => Promise<void>;
+  onRegister: (credentials: RegistrationCredentials) => Promise<void>;
+}
+
+interface LoginPortalEntryProps {
+  activeRole: Role;
+}
+
+export function LoginPortalEntry({ activeRole }: LoginPortalEntryProps) {
+  return (
+    <div className="auth-portal-entry" role="status" aria-live="polite">
+      <strong>Signing in to: {roleLabels[activeRole]}</strong>
+      <span>Your actual access is determined by your approved account role.</span>
+    </div>
+  );
+}
+
+interface RegistrationRoleFieldProps {
+  value: RegistrationRole;
+  onChange: (role: RegistrationRole) => void;
+}
+
+export function RegistrationRoleField({ value, onChange }: RegistrationRoleFieldProps) {
+  return (
+    <label>
+      Account role
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as RegistrationRole)}
+      >
+        <option value="buyer">{roleLabels.buyer}</option>
+        <option value="manufacturer">{roleLabels.manufacturer}</option>
+      </select>
+      <span className="auth-field-help">
+        Admin access is granted only through an operator-controlled process.
+      </span>
+    </label>
+  );
 }
 
 export function AuthPanel({
@@ -24,35 +79,26 @@ export function AuthPanel({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [selectedRole, setSelectedRole] = useState<Role>(activeRole);
+  const [registrationRole, setRegistrationRole] = useState<RegistrationRole>(
+    activeRole === "manufacturer" ? "manufacturer" : "buyer",
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const registrationRoles: Role[] = ["buyer", "manufacturer"];
-
   useEffect(() => {
-    if (formMode === "register" && selectedRole === "admin") {
-      setSelectedRole("buyer");
-    } else if (formMode === "login") {
-      setSelectedRole(activeRole);
+    if (formMode === "register") {
+      setRegistrationRole(activeRole === "manufacturer" ? "manufacturer" : "buyer");
     }
-  }, [activeRole, formMode, selectedRole]);
+  }, [activeRole, formMode]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
 
-    const credentials: AuthCredentials = {
-      email,
-      password,
-      fullName,
-      role: selectedRole,
-    };
-
     try {
       if (formMode === "login") {
-        await onLogin(credentials);
+        await onLogin(buildLoginCredentials(email, password, activeRole));
       } else {
-        await onRegister(credentials);
+        await onRegister(buildRegistrationCredentials(email, password, fullName, registrationRole));
       }
     } finally {
       setIsSubmitting(false);
@@ -64,10 +110,11 @@ export function AuthPanel({
       <div>
         <p className="eyebrow">{authMode === "supabase" ? "Supabase Auth" : "Demo Auth"}</p>
         <h2>{formMode === "login" ? "Sign in to continue" : "Create a portal account"}</h2>
-        <p>
-          Buyer and manufacturer registration is ready for Supabase. Admin access is supported as
-          a role, but should be granted through an operator-controlled process.
-        </p>
+        {formMode === "login" ? (
+          <p>Use your existing account credentials to continue to the selected portal.</p>
+        ) : (
+          <p>Create a Buyer or Manufacturer account. Account approval and access remain database-controlled.</p>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="auth-form">
@@ -126,21 +173,11 @@ export function AuthPanel({
           />
         </label>
 
-        <label>
-          Portal role
-          <select
-            value={selectedRole}
-            onChange={(event) => setSelectedRole(event.target.value as Role)}
-          >
-            {(formMode === "register" ? registrationRoles : (Object.keys(roleLabels) as Role[])).map(
-              (item) => (
-                <option key={item} value={item}>
-                  {roleLabels[item]}
-                </option>
-              )
-            )}
-          </select>
-        </label>
+        {formMode === "login" ? (
+          <LoginPortalEntry activeRole={activeRole} />
+        ) : (
+          <RegistrationRoleField value={registrationRole} onChange={setRegistrationRole} />
+        )}
 
         {authError && <p className="form-error">{authError}</p>}
 

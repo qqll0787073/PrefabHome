@@ -10,6 +10,7 @@ import type {
   PublicProductMediaRecord,
 } from "../types";
 import { createSignedPublicImageUrl, productImageBucket } from "./productMedia";
+import { parseRuntimeConfig, readRuntimeConfig } from "./runtimeConfig";
 import { isSupabaseConfigured, supabase } from "./supabase";
 
 type MarketplaceProductRow = {
@@ -88,22 +89,10 @@ export const marketplaceSortLabels: Record<MarketplaceSort, string> = {
   area_desc: "Floor area high to low",
 };
 
-const marketplaceEnv = (import.meta as ImportMeta & {
-  env?: Record<string, string | undefined>;
-}).env;
-
-function nodeEnvValue(name: string): string | undefined {
-  return typeof process !== "undefined"
-    ? (process.env as Record<string, string | undefined>)[name]
-    : undefined;
-}
-
 export function isMarketplaceDemoModeEnabled(
-  env: Record<string, string | undefined> | undefined = marketplaceEnv
+  env?: Record<string, string | undefined>
 ): boolean {
-  return (env?.VITE_ENABLE_MARKETPLACE_DEMO ?? nodeEnvValue("VITE_ENABLE_MARKETPLACE_DEMO") ?? "")
-    .trim()
-    .toLowerCase() === "true";
+  return (env ? parseRuntimeConfig(env) : readRuntimeConfig()).marketplaceDemoEnabled;
 }
 
 export function isMarketplaceDemoActive(): boolean {

@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { isSupabaseConfigured, supabase } from "./supabase";
+import {
+  isDemoFallbackAllowed,
+  runtimeConfig,
+  runtimeConfigMessages,
+} from "./runtimeConfig";
 import { isRole, sanitizeRegistrationRole } from "./authRoles";
 import type { Role } from "../types";
 
@@ -10,11 +15,17 @@ export interface AuthUser {
   role: Role;
 }
 
-export interface AuthCredentials {
+export interface LoginCredentials {
+  email: string;
+  password: string;
+  intendedPortal: Role;
+}
+
+export interface RegistrationCredentials {
   email: string;
   password: string;
   fullName?: string;
-  role: Role;
+  role: Exclude<Role, "admin">;
 }
 
 export interface AuthState {
@@ -22,12 +33,16 @@ export interface AuthState {
   isLoading: boolean;
   error: string | null;
   mode: "supabase" | "demo";
-  login: (credentials: AuthCredentials) => Promise<void>;
-  register: (credentials: AuthCredentials) => Promise<void>;
+  login: (credentials: LoginCredentials) => Promise<void>;
+  register: (credentials: RegistrationCredentials) => Promise<void>;
   logout: () => Promise<void>;
 }
 
 const demoStorageKey = "prefab_demo_auth_user";
+const demoAuthAllowed = isDemoFallbackAllowed(runtimeConfig);
+const unavailableAuthMessage =
+  runtimeConfigMessages(runtimeConfig).join(" ") ||
+  "Supabase authentication is unavailable for this production deployment.";
 
 function getDemoUser(): AuthUser | null {
   try {
@@ -71,7 +86,10 @@ async function loadSupabaseProfile(userId: string, email: string): Promise<AuthU
 }
 
 export function useAuth(): AuthState {
-  const mode = useMemo(() => (isSupabaseConfigured ? "supabase" : "demo"), []);
+  const mode = useMemo(
+    () => (isSupabaseConfigured || !demoAuthAllowed ? "supabase" : "demo"),
+    []
+  );
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +103,10 @@ export function useAuth(): AuthState {
 
       try {
         if (!supabase) {
-          if (isMounted) setUser(getDemoUser());
+          if (isMounted) {
+            setUser(demoAuthAllowed ? getDemoUser() : null);
+            if (!demoAuthAllowed) setError(unavailableAuthMessage);
+          }
           return;
         }
 
@@ -139,15 +160,20 @@ export function useAuth(): AuthState {
     };
   }, []);
 
-  async function login({ email, password, role }: AuthCredentials) {
+  async function login({ email, password, intendedPortal }: LoginCredentials) {
     setError(null);
 
     if (!supabase) {
+      if (!demoAuthAllowed) {
+        const configurationError = new Error(unavailableAuthMessage);
+        setError(configurationError.message);
+        throw configurationError;
+      }
       const demoUser: AuthUser = {
-        id: `demo-${role}`,
+        id: `demo-${intendedPortal}`,
         email,
         fullName: email.split("@")[0],
-        role,
+        role: intendedPortal,
       };
       setDemoUser(demoUser);
       setUser(demoUser);
@@ -169,11 +195,16 @@ export function useAuth(): AuthState {
     }
   }
 
-  async function register({ email, password, fullName, role }: AuthCredentials) {
+  async function register({ email, password, fullName, role }: RegistrationCredentials) {
     setError(null);
     const registrationRole = sanitizeRegistrationRole(role);
 
     if (!supabase) {
+      if (!demoAuthAllowed) {
+        const configurationError = new Error(unavailableAuthMessage);
+        setError(configurationError.message);
+        throw configurationError;
+      }
       const demoUser: AuthUser = {
         id: `demo-${Date.now()}`,
         email,
