@@ -68,4 +68,22 @@ test("release metadata uses safe local fallbacks", () => {
     appVersion: "development",
     commitSha: "unknown",
   });
+  assert.equal(config.publicSiteUrl, "http://localhost:5173");
+});
+
+test("runtime public site URL follows local and production safety rules", () => {
+  const local = parseRuntimeConfig({ VITE_PUBLIC_SITE_URL: "http://localhost:5173" });
+  assert.equal(local.publicSiteUrl, "http://localhost:5173");
+  const production = parseRuntimeConfig({
+    VITE_DEPLOYMENT_ENV: "production",
+    VITE_PUBLIC_SITE_URL: "https://www.example.test",
+  });
+  assert.equal(production.publicSiteUrl, "https://www.example.test");
+  const unsafe = parseRuntimeConfig({
+    VITE_DEPLOYMENT_ENV: "production",
+    VITE_PUBLIC_SITE_URL: "https://user:password@example.test/private?role=admin",
+  });
+  assert.equal(unsafe.publicSiteUrl, null);
+  assert.ok(unsafe.issues.some((issue) => issue.code === "PUBLIC_SITE_URL_INVALID"));
+  assert.ok(unsafe.issues.every((issue) => !issue.message.includes("password")));
 });

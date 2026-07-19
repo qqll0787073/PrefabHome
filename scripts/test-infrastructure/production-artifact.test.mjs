@@ -91,6 +91,21 @@ test("production artifact verifier rejects bundled environment files and secret 
     }),
     /obvious Supabase secret key signature/i,
   );
+
+  const manifestFixture = createArtifactFixture(t);
+  writeFileSync(
+    join(manifestFixture.dist, "manifest.webmanifest"),
+    JSON.stringify({ token: ["sb", "secret", "fixturevalue1234567890"].join("_") }),
+  );
+  assert.throws(
+    () => verifyProductionArtifact({
+      root: manifestFixture.root,
+      distDirectory: manifestFixture.dist,
+      manifestDirectory: manifestFixture.manifests,
+      checkTrackedRepository: false,
+    }),
+    /obvious Supabase secret key signature/i,
+  );
 });
 
 test("production artifact verifier rejects missing and non-hashed entry assets", (t) => {

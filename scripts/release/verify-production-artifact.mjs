@@ -6,7 +6,7 @@ import { join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { auditTrackedSecrets } from "./scan-tracked-secrets.mjs";
 
-const TEXT_FILE = /\.(?:css|html|js|json|svg|txt|xml)$/i;
+const TEXT_FILE = /\.(?:css|html|js|json|svg|txt|xml|webmanifest)$/i;
 const HASHED_ASSET = /^assets\/.+-[A-Za-z0-9_-]{6,}\.(?:css|js)$/;
 const LOCAL_ENV_FILE = /(^|\/)\.env(?:$|\.)|\.local$/i;
 const ALLOWED_TRACKED_ENV_EXAMPLE = /(^|\/)\.env(?:\.[^/]+)?\.example$/i;
