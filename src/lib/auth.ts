@@ -15,11 +15,17 @@ export interface AuthUser {
   role: Role;
 }
 
-export interface AuthCredentials {
+export interface LoginCredentials {
+  email: string;
+  password: string;
+  intendedPortal: Role;
+}
+
+export interface RegistrationCredentials {
   email: string;
   password: string;
   fullName?: string;
-  role: Role;
+  role: Exclude<Role, "admin">;
 }
 
 export interface AuthState {
@@ -27,8 +33,8 @@ export interface AuthState {
   isLoading: boolean;
   error: string | null;
   mode: "supabase" | "demo";
-  login: (credentials: AuthCredentials) => Promise<void>;
-  register: (credentials: AuthCredentials) => Promise<void>;
+  login: (credentials: LoginCredentials) => Promise<void>;
+  register: (credentials: RegistrationCredentials) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -154,7 +160,7 @@ export function useAuth(): AuthState {
     };
   }, []);
 
-  async function login({ email, password, role }: AuthCredentials) {
+  async function login({ email, password, intendedPortal }: LoginCredentials) {
     setError(null);
 
     if (!supabase) {
@@ -164,10 +170,10 @@ export function useAuth(): AuthState {
         throw configurationError;
       }
       const demoUser: AuthUser = {
-        id: `demo-${role}`,
+        id: `demo-${intendedPortal}`,
         email,
         fullName: email.split("@")[0],
-        role,
+        role: intendedPortal,
       };
       setDemoUser(demoUser);
       setUser(demoUser);
@@ -189,7 +195,7 @@ export function useAuth(): AuthState {
     }
   }
 
-  async function register({ email, password, fullName, role }: AuthCredentials) {
+  async function register({ email, password, fullName, role }: RegistrationCredentials) {
     setError(null);
     const registrationRole = sanitizeRegistrationRole(role);
 

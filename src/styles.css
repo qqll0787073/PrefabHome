@@ -589,6 +589,27 @@ main {
   opacity: 0.62;
 }
 
+.auth-portal-entry {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-left: 3px solid #2f6f58;
+  background: #f3f7f5;
+  color: #344054;
+}
+
+.auth-portal-entry strong {
+  color: #17211d;
+}
+
+.auth-portal-entry span,
+.auth-field-help {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
 .application-form input:disabled,
 .application-form textarea:disabled {
   color: #667085;
