@@ -10,9 +10,11 @@ export function MarketplaceSearch({ value, onChange, onAdvisorClick }: Marketpla
       <label htmlFor="listing-search">Search models</label>
       <input
         id="listing-search"
+        type="search"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder="Search models, categories, descriptions..."
+        autoComplete="off"
       />
       <button type="button" onClick={onAdvisorClick}>
         Ask AI Advisor

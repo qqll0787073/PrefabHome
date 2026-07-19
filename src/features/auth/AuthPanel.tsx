@@ -1,4 +1,4 @@
-import React, { useEffect, useState, type FormEvent } from "react";
+import React, { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { roleLabels } from "../../app/constants";
 import type { LoginCredentials, RegistrationCredentials } from "../../lib/auth";
 import type { Role } from "../../types";
@@ -51,9 +51,10 @@ interface RegistrationRoleFieldProps {
 
 export function RegistrationRoleField({ value, onChange }: RegistrationRoleFieldProps) {
   return (
-    <label>
+    <label htmlFor="registration-account-role">
       Account role
       <select
+        id="registration-account-role"
         value={value}
         onChange={(event) => onChange(event.target.value as RegistrationRole)}
       >
@@ -83,12 +84,18 @@ export function AuthPanel({
     activeRole === "manufacturer" ? "manufacturer" : "buyer",
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const authErrorId = useId();
+  const authErrorRef = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
     if (formMode === "register") {
       setRegistrationRole(activeRole === "manufacturer" ? "manufacturer" : "buyer");
     }
   }, [activeRole, formMode]);
+
+  useEffect(() => {
+    if (authError) authErrorRef.current?.focus();
+  }, [authError]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -117,11 +124,12 @@ export function AuthPanel({
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="auth-form">
+      <form onSubmit={handleSubmit} className="auth-form" aria-busy={isLoading || isSubmitting}>
         <div className="segmented-control">
           <button
             type="button"
             className={formMode === "login" ? "active" : ""}
+            aria-pressed={formMode === "login"}
             onClick={() => setFormMode("login")}
           >
             Login
@@ -129,6 +137,7 @@ export function AuthPanel({
           <button
             type="button"
             className={formMode === "register" ? "active" : ""}
+            aria-pressed={formMode === "register"}
             onClick={() => setFormMode("register")}
           >
             Register
@@ -136,9 +145,10 @@ export function AuthPanel({
         </div>
 
         {formMode === "register" && (
-          <label>
+          <label htmlFor="auth-full-name">
             Full name
             <input
+              id="auth-full-name"
               value={fullName}
               onChange={(event) => setFullName(event.target.value)}
               placeholder="Jane Smith"
@@ -148,27 +158,33 @@ export function AuthPanel({
           </label>
         )}
 
-        <label>
+        <label htmlFor="auth-email">
           Email
           <input
+            id="auth-email"
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="name@example.com"
             autoComplete="email"
+            aria-invalid={Boolean(authError)}
+            aria-describedby={authError ? authErrorId : undefined}
             required
           />
         </label>
 
-        <label>
+        <label htmlFor="auth-password">
           Password
           <input
+            id="auth-password"
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             placeholder="At least 6 characters"
             minLength={6}
             autoComplete={formMode === "login" ? "current-password" : "new-password"}
+            aria-invalid={Boolean(authError)}
+            aria-describedby={authError ? authErrorId : undefined}
             required
           />
         </label>
@@ -179,7 +195,11 @@ export function AuthPanel({
           <RegistrationRoleField value={registrationRole} onChange={setRegistrationRole} />
         )}
 
-        {authError && <p className="form-error">{authError}</p>}
+        {authError && (
+          <p id={authErrorId} ref={authErrorRef} className="form-error" role="alert" tabIndex={-1}>
+            {authError}
+          </p>
+        )}
 
         <button type="submit" disabled={isLoading || isSubmitting}>
           {isSubmitting ? "Working..." : formMode === "login" ? "Login" : "Register"}

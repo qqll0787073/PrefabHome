@@ -23,7 +23,7 @@ export function PublicHeader({ activePage, onNavigate }: PublicHeaderProps) {
         }}
         aria-label="PrefabHome Marketplace home"
       >
-        <img src="/favicon.svg" alt="" width="40" height="40" />
+        <img src="/favicon.svg" alt="" width="40" height="40" decoding="async" />
         <span>PrefabHome</span>
       </a>
       <nav className="public-navigation" aria-label="Public website">

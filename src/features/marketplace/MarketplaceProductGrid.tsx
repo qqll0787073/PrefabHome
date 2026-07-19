@@ -12,10 +12,11 @@ export function MarketplaceProductGrid({
 }: MarketplaceProductGridProps) {
   return (
     <div className="product-grid">
-      {products.map((product) => (
+      {products.map((product, index) => (
         <MarketplaceProductCard
           key={product.id}
           product={product}
+          priority={index === 0}
           onSelect={onSelectProduct}
         />
       ))}

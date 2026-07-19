@@ -55,6 +55,10 @@ select:focus-visible {
   place-items: center;
 }
 
+main[id] {
+  scroll-margin-top: 16px;
+}
+
 .skip-link {
   position: fixed;
   top: 8px;
@@ -391,6 +395,31 @@ select:focus-visible {
   }
 }
 
+@media (forced-colors: active) {
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 3px solid CanvasText;
+  }
+
+  .skip-link,
+  button,
+  input,
+  textarea,
+  select {
+    border: 1px solid ButtonText;
+  }
+
+  .public-navigation a[aria-current="page"],
+  .nav-tabs button.active,
+  .segmented-control button.active,
+  .portal-workspace-nav button.active {
+    outline: 2px solid Highlight;
+  }
+}
+
 .runtime-error-shell {
   min-height: 100vh;
   display: grid;
@@ -407,10 +436,6 @@ select:focus-visible {
 .runtime-error-content h1 {
   margin: 8px 0 12px;
   font-size: 2.25rem;
-}
-
-.runtime-error-content h1:focus {
-  outline: none;
 }
 
 .runtime-error-reference {

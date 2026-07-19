@@ -120,7 +120,7 @@ export function MarketplacePage({ user, onViewChange }: MarketplacePageProps) {
 
   function closeProduct() {
     setSelectedProduct(null);
-    window.history.pushState({}, "", "/");
+    window.history.pushState({}, "", "/marketplace?view=browse");
   }
 
   if (selectedProduct) {
@@ -152,7 +152,7 @@ export function MarketplacePage({ user, onViewChange }: MarketplacePageProps) {
           onChange={setFilters}
           onReset={resetFilters}
         />
-        <div className="marketplace-results">
+        <div className="marketplace-results" aria-busy={isLoading}>
           {isDemo && (
             <section className="panel marketplace-demo-banner" role="status">
               <p className="eyebrow">Demo data</p>
@@ -169,7 +169,7 @@ export function MarketplacePage({ user, onViewChange }: MarketplacePageProps) {
           </div>
 
           {isLoading && (
-            <section className="panel marketplace-state" aria-live="polite">
+            <section className="panel marketplace-state" role="status" aria-live="polite">
               <p>Loading published products...</p>
             </section>
           )}
