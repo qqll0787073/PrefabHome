@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">PrefabHome</title>
+  <rect width="64" height="64" rx="12" fill="#172033"/>
+  <path d="M13 31 32 15l19 16v20H13Z" fill="#f8faf9"/>
+  <path d="M23 51V34h18v17" fill="#176b57"/>
+  <path d="M29 51V39h7v12" fill="#f6c85f"/>
+</svg>

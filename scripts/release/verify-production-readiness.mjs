@@ -8,7 +8,27 @@ const APPROVED_BROWSER_VARIABLES = new Set([
   "VITE_DEPLOYMENT_ENV",
   "VITE_APP_VERSION",
   "VITE_COMMIT_SHA",
+  "VITE_PUBLIC_SITE_URL",
 ]);
+
+function assertPublicSiteUrl(value) {
+  let url;
+  try {
+    url = new URL(value ?? "");
+  } catch {
+    throw new Error("Production readiness requires a valid absolute VITE_PUBLIC_SITE_URL.");
+  }
+  if (url.protocol !== "https:") {
+    throw new Error("Production readiness requires VITE_PUBLIC_SITE_URL to use HTTPS.");
+  }
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error("Production readiness rejects credentials, query strings, and fragments in VITE_PUBLIC_SITE_URL.");
+  }
+  if (["localhost", "127.0.0.1", "::1"].includes(url.hostname)) {
+    throw new Error("Production readiness rejects localhost in VITE_PUBLIC_SITE_URL.");
+  }
+  return url.toString().replace(/\/$/, "");
+}
 
 export function assertProductionReadinessEnvironment(env, expectedCommitSha) {
   if (env.VITE_DEPLOYMENT_ENV?.trim().toLowerCase() !== "production") {
@@ -34,12 +54,14 @@ export function assertProductionReadinessEnvironment(env, expectedCommitSha) {
   if (!/^[0-9a-f]{40}$/.test(commitSha) || commitSha !== expectedCommitSha.toLowerCase()) {
     throw new Error("Production readiness requires VITE_COMMIT_SHA to equal the full candidate commit SHA.");
   }
+  const publicSiteUrl = assertPublicSiteUrl(env.VITE_PUBLIC_SITE_URL);
 
   return {
     deploymentEnvironment: "production",
     marketplaceDemoEnabled: false,
     appVersion,
     commitSha,
+    publicSiteUrl,
     approvedBrowserVariables: Object.keys(env).filter((name) => name.startsWith("VITE_")).sort(),
   };
 }

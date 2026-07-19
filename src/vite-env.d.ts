@@ -7,6 +7,7 @@ interface ImportMetaEnv {
   readonly VITE_DEPLOYMENT_ENV?: "local" | "staging" | "production";
   readonly VITE_APP_VERSION?: string;
   readonly VITE_COMMIT_SHA?: string;
+  readonly VITE_PUBLIC_SITE_URL?: string;
 }
 
 interface ImportMeta {
