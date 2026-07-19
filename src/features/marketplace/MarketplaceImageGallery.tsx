@@ -22,11 +22,14 @@ export function MarketplaceImageGallery({ product, images }: MarketplaceImageGal
 
   return (
     <div className="marketplace-gallery">
-      {visibleImages.map((image) => (
+      {visibleImages.map((image, index) => (
         <img
           key={image.id}
           src={image.signed_url ?? ""}
           alt={image.alt_text || image.title || product.model_name || product.name}
+          loading={index === 0 ? "eager" : "lazy"}
+          decoding="async"
+          fetchPriority={index === 0 ? "high" : "auto"}
           onError={(event) => {
             event.currentTarget.style.display = "none";
           }}

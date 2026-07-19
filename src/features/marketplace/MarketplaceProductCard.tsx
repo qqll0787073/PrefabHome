@@ -2,10 +2,11 @@ import type { MarketplaceProduct } from "../../types";
 
 interface MarketplaceProductCardProps {
   product: MarketplaceProduct;
+  priority?: boolean;
   onSelect: (product: MarketplaceProduct) => void;
 }
 
-export function MarketplaceProductCard({ product, onSelect }: MarketplaceProductCardProps) {
+export function MarketplaceProductCard({ product, priority = false, onSelect }: MarketplaceProductCardProps) {
   const title = product.model_name || product.name;
   const imageAlt = product.primary_image?.alt_text || title;
 
@@ -15,6 +16,9 @@ export function MarketplaceProductCard({ product, onSelect }: MarketplaceProduct
         <img
           src={product.image_url}
           alt={imageAlt}
+          loading={priority ? "eager" : "lazy"}
+          decoding="async"
+          fetchPriority={priority ? "high" : "auto"}
           onError={(event) => {
             event.currentTarget.style.display = "none";
           }}

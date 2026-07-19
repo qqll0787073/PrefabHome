@@ -45,7 +45,12 @@ export function ProductMediaGallery({ media }: ProductMediaGalleryProps) {
       {images.map((item) => (
         <figure key={item.id}>
           {signedUrls[item.id] ? (
-            <img src={signedUrls[item.id]} alt={item.alt_text || item.title || "Product media"} />
+            <img
+              src={signedUrls[item.id]}
+              alt={item.alt_text || item.title || "Product media"}
+              loading="lazy"
+              decoding="async"
+            />
           ) : (
             <div className="media-thumb">
               {item.is_primary ? "Primary" : item.media_type.replace(/_/g, " ")}

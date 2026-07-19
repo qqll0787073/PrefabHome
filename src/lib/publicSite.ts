@@ -50,7 +50,11 @@ const publicPageByPath = new Map(publicPages.map((page) => [page.path, page.id])
 export function readApplicationLocation(pathname: string, search: string): ApplicationLocation {
   const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, "") : "/";
   const hasLegacyPortalView = new URLSearchParams(search).has("view");
-  if (normalizedPath === "/marketplace" || (normalizedPath === "/" && hasLegacyPortalView)) {
+  if (
+    normalizedPath === "/marketplace" ||
+    normalizedPath.startsWith("/products/") ||
+    (normalizedPath === "/" && hasLegacyPortalView)
+  ) {
     return { kind: "portal" };
   }
   return {

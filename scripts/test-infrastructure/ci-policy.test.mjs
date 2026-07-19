@@ -12,19 +12,19 @@ test("infrastructure test glob remains portable to the Linux CI shell", () => {
   assert.doesNotMatch(packageManifest.scripts.test, /node --test ["']scripts\/test-infrastructure/);
 });
 
-test("CI runs required verification for PRs and production-sprint-1", () => {
+test("CI runs the deterministic quality gate and dependency audit for PRs and production branches", () => {
   assert.match(workflow, /^\s*pull_request:\s*$/m);
   assert.match(workflow, /^\s*push:\s*$/m);
   assert.match(workflow, /^\s*- production-sprint-1\s*$/m);
   for (const command of [
     "npm ci",
-    "npm run test",
-    "npm run build",
+    "npm run verify:quality",
     "npm audit --audit-level=low",
-    "npm run verify:beta",
   ]) {
     assert.ok(workflow.includes(command), `Missing CI command: ${command}`);
   }
+  assert.match(workflow, /^\s*- production-sprint-2c\s*$/m);
+  assert.match(workflow, /VITE_PUBLIC_SITE_URL:\s*https:\/\/example\.invalid/);
 });
 
 test("CI permissions are read-only and superseded runs are cancelled", () => {

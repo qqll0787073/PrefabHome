@@ -36,9 +36,15 @@ production environment metadata; see the release checklist before running them.
 ```bash
 npm run verify:production-artifact
 npm run verify:production-readiness
+npm run verify:quality
+npm run quality:bundle
 ```
 
 This runs the repository's frontend and infrastructure tests, production build, dependency audit, tracked-secret scan, and required-document audit. It performs no remote Supabase operation.
+
+`npm run verify:quality` is a deterministic, non-networking build/test/artifact/bundle/documentation gate. `npm run quality:bundle` reports and enforces the reviewed artifact budgets. After building locally, `npm run quality:browser` can run the optional Chrome/Edge viewport, focus, reflow, reduced-motion, and console smoke; it is intentionally excluded from mandatory CI.
+
+Accessibility engineering targets and remaining manual assistive-technology checks are documented in [ACCESSIBILITY_GUIDE.md](docs/ACCESSIBILITY_GUIDE.md). Current targets are Lighthouse Performance 90+, Accessibility 95+, Best Practices 95+, and SEO 95+, but no score is claimed when Lighthouse is unavailable.
 
 ## Beta Documentation
 
@@ -62,12 +68,18 @@ This runs the repository's frontend and infrastructure tests, production build, 
 - [Production release checklist](docs/PRODUCTION_RELEASE_CHECKLIST.md)
 - [Production Sprint 2B plan](docs/PRODUCTION_SPRINT_2B_PLAN.md)
 - [SEO, PWA, and public pages](docs/SEO_PWA_AND_PUBLIC_PAGES.md)
+- [Production Sprint 2C plan](docs/PRODUCTION_SPRINT_2C_PLAN.md)
+- [Performance baseline and budgets](docs/PERFORMANCE_BASELINE_AND_BUDGETS.md)
+- [Accessibility guide](docs/ACCESSIBILITY_GUIDE.md)
+- [Lighthouse and manual QA baseline](docs/LIGHTHOUSE_AND_MANUAL_QA_BASELINE.md)
 
 ## Release Boundary
 
 The Beta does not provide payment processing, electronic signatures, generated PDFs, outbound email, carrier booking, shipment tracking, customs filing, production milestones, or production AI recommendations. Signature delivery, payment recording, and logistics arrangement are internal preparation/recording workflows only. See the release notes for the complete boundary.
 
 Production is not a test target. Use the repository staging safety guard and an isolated Supabase CLI workspace for approved staging operations.
+
+Passing local performance or accessibility quality gates is not Production Deployment Authorization.
 
 ## Contribution And Branching
 

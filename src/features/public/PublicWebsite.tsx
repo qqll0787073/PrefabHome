@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { PublicHeader } from "../../components/layout/PublicHeader";
 import { runtimeConfig } from "../../lib/runtimeConfig";
 import {
@@ -33,7 +33,7 @@ function PublicLink({ path, onNavigate, children }: {
 
 function HomePage({ onNavigate }: Pick<PublicWebsiteProps, "onNavigate">) {
   return (
-    <main id="public-content" className="public-main">
+    <main id="public-content" className="public-main" tabIndex={-1}>
       <section className="public-home-hero" aria-labelledby="home-title">
         <div className="public-home-copy">
           <p className="eyebrow">Public marketplace foundation</p>
@@ -52,6 +52,9 @@ function HomePage({ onNavigate }: Pick<PublicWebsiteProps, "onNavigate">) {
           width="1200"
           height="630"
           alt="PrefabHome modular home mark and marketplace name"
+          loading="eager"
+          decoding="async"
+          fetchPriority="high"
         />
       </section>
       <section className="public-content-band" aria-labelledby="public-path-title">
@@ -69,7 +72,7 @@ function HomePage({ onNavigate }: Pick<PublicWebsiteProps, "onNavigate">) {
 
 function AboutPage() {
   return (
-    <main id="public-content" className="public-main public-document-page">
+    <main id="public-content" className="public-main public-document-page" tabIndex={-1}>
       <p className="eyebrow">About</p>
       <h1>Structured prefab home discovery</h1>
       <p>PrefabHome is a marketplace application for public product discovery and role-controlled trade preparation.</p>
@@ -81,7 +84,7 @@ function AboutPage() {
 
 function ContactPage() {
   return (
-    <main id="public-content" className="public-main public-document-page">
+    <main id="public-content" className="public-main public-document-page" tabIndex={-1}>
       <p className="eyebrow">Contact</p>
       <h1>Contact PrefabHome</h1>
       <p>Contact details will be published before production launch.</p>
@@ -93,7 +96,7 @@ function ContactPage() {
 function VersionPage() {
   const release = safeReleaseDisplay(runtimeConfig.release);
   return (
-    <main id="public-content" className="public-main public-document-page">
+    <main id="public-content" className="public-main public-document-page" tabIndex={-1}>
       <p className="eyebrow">Version</p>
       <h1>Application release information</h1>
       <dl className="public-release-metadata">
@@ -108,7 +111,7 @@ function VersionPage() {
 
 function NotFoundPage({ onNavigate }: Pick<PublicWebsiteProps, "onNavigate">) {
   return (
-    <main id="public-content" className="public-main public-document-page public-not-found">
+    <main id="public-content" className="public-main public-document-page public-not-found" tabIndex={-1}>
       <p className="eyebrow">404</p>
       <h1>Public page not found</h1>
       <p>The requested public page is not available. No portal or account information was exposed.</p>
@@ -118,13 +121,19 @@ function NotFoundPage({ onNavigate }: Pick<PublicWebsiteProps, "onNavigate">) {
 }
 
 export function PublicWebsite({ page, onNavigate }: PublicWebsiteProps) {
+  const previousPage = useRef(page);
+
   useEffect(() => {
     applyPublicPageMetadata(page, runtimeConfig.publicSiteUrl ?? "https://example.invalid");
+    if (previousPage.current !== page) {
+      document.getElementById("public-content")?.focus({ preventScroll: true });
+    }
+    previousPage.current = page;
   }, [page]);
 
   return (
     <div className="public-shell">
-      <a className="skip-link" href="#public-content">Skip to content</a>
+      <a className="skip-link" href="#public-content">Skip to main content</a>
       <PublicHeader activePage={page} onNavigate={onNavigate} />
       {page === "home" && <HomePage onNavigate={onNavigate} />}
       {page === "about" && <AboutPage />}

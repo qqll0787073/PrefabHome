@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ErrorList } from "../../components/common/ErrorList";
 import {
   createDraftRFQ,
@@ -21,8 +21,21 @@ export function RFQRequestDialog({ product, user, onClose }: RFQRequestDialogPro
   const [errors, setErrors] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const titleId = useId();
+  const dialogRef = useRef<HTMLElement>(null);
+  const firstFieldRef = useRef<HTMLInputElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
 
   const canRequest = Boolean(user && user.role === "buyer");
+
+  useEffect(() => {
+    returnFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    (canRequest ? firstFieldRef.current : closeButtonRef.current)?.focus();
+    return () => returnFocusRef.current?.focus();
+  }, []);
 
   function updateField(field: keyof RFQFormValues, value: string) {
     setValues((current) => ({ ...current, [field]: value }));
@@ -51,14 +64,37 @@ export function RFQRequestDialog({ product, user, onClose }: RFQRequestDialogPro
   }
 
   return (
-    <section className="rfq-dialog" role="dialog" aria-modal="true" aria-label="Request quote">
+    <section
+      ref={dialogRef}
+      className="rfq-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && !isSaving) onClose();
+        if (event.key !== "Tab") return;
+        const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+          "button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])",
+        ) ?? []);
+        if (controls.length === 0) return;
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }}
+    >
       <div className="rfq-dialog-panel">
         <div className="dialog-header">
           <div>
             <p className="eyebrow">Request Quote</p>
-            <h3>{product.model_name || product.name}</h3>
+            <h3 id={titleId}>{product.model_name || product.name}</h3>
           </div>
-          <button type="button" className="close-button" onClick={onClose}>
+          <button ref={closeButtonRef} type="button" className="close-button" onClick={onClose}>
             Close
           </button>
         </div>
@@ -76,6 +112,7 @@ export function RFQRequestDialog({ product, user, onClose }: RFQRequestDialogPro
           <label>
             Quantity
             <input
+              ref={firstFieldRef}
               type="number"
               min="1"
               value={values.requestedQuantity}
