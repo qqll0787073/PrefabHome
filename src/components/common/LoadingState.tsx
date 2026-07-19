@@ -3,5 +3,5 @@ interface LoadingStateProps {
 }
 
 export function LoadingState({ message }: LoadingStateProps) {
-  return <p>{message}</p>;
+  return <p className="loading-state" role="status" aria-live="polite">{message}</p>;
 }

@@ -10,6 +10,7 @@ const validEnvironment = {
   VITE_DEPLOYMENT_ENV: "production",
   VITE_APP_VERSION: "production-verification",
   VITE_COMMIT_SHA: commitSha,
+  VITE_PUBLIC_SITE_URL: "https://www.example.invalid",
 };
 
 test("production readiness accepts only explicit production metadata and disabled demo mode", () => {
@@ -20,6 +21,7 @@ test("production readiness accepts only explicit production metadata and disable
       marketplaceDemoEnabled: false,
       appVersion: "production-verification",
       commitSha,
+      publicSiteUrl: "https://www.example.invalid",
       approvedBrowserVariables: Object.keys(validEnvironment).sort(),
     },
   );
@@ -54,4 +56,20 @@ test("production readiness rejects missing metadata and a commit mismatch", () =
     () => assertProductionReadinessEnvironment({ ...validEnvironment, VITE_COMMIT_SHA: "b".repeat(40) }, commitSha),
     /full candidate commit SHA/,
   );
+});
+
+test("production readiness requires a clean HTTPS public site URL", () => {
+  for (const value of [
+    undefined,
+    "http://example.invalid",
+    "https://localhost",
+    "https://user:password@example.invalid",
+    "https://example.invalid?view=dashboard",
+    "https://example.invalid#portal",
+  ]) {
+    assert.throws(
+      () => assertProductionReadinessEnvironment({ ...validEnvironment, VITE_PUBLIC_SITE_URL: value }, commitSha),
+      /VITE_PUBLIC_SITE_URL|public site URL/i,
+    );
+  }
 });

@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /marketplace
+Disallow: /*?view=
+Disallow: /*?workspace=
+Disallow: /*?request=
+
+Sitemap: https://example.invalid/sitemap.xml
+
+# This file guides indexing only. It is not an access-control mechanism.

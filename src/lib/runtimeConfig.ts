@@ -1,3 +1,5 @@
+import { normalizePublicSiteUrl } from "./publicSite";
+
 export type DeploymentEnvironment = "local" | "staging" | "production";
 
 export type RuntimeConfigIssueCode =
@@ -6,7 +8,8 @@ export type RuntimeConfigIssueCode =
   | "PRODUCTION_DEMO_BLOCKED"
   | "SUPABASE_CONFIGURATION_MISSING"
   | "SUPABASE_CONFIGURATION_INCOMPLETE"
-  | "SUPABASE_URL_INVALID";
+  | "SUPABASE_URL_INVALID"
+  | "PUBLIC_SITE_URL_INVALID";
 
 export interface RuntimeConfigIssue {
   code: RuntimeConfigIssueCode;
@@ -25,6 +28,7 @@ export interface RuntimeConfig {
   supabaseUrl: string | null;
   supabaseAnonKey: string | null;
   isSupabaseConnected: boolean;
+  publicSiteUrl: string | null;
   release: ReleaseMetadata;
   issues: RuntimeConfigIssue[];
 }
@@ -123,6 +127,16 @@ export function parseRuntimeConfig(env: Record<string, string | undefined>): Run
   }
 
   const isSupabaseConnected = urlIsValid && hasKey;
+  const publicSiteResult = normalizePublicSiteUrl(
+    envValue(env, "VITE_PUBLIC_SITE_URL"),
+    deploymentEnvironment === "production",
+  );
+  if (publicSiteResult.error) {
+    issues.push({
+      code: "PUBLIC_SITE_URL_INVALID",
+      message: publicSiteResult.error,
+    });
+  }
   const appVersion = normalizeReleaseValue(envValue(env, "VITE_APP_VERSION"), "development");
   const commitSha = normalizeReleaseValue(envValue(env, "VITE_COMMIT_SHA"), "unknown");
 
@@ -132,6 +146,7 @@ export function parseRuntimeConfig(env: Record<string, string | undefined>): Run
     supabaseUrl: isSupabaseConnected ? rawSupabaseUrl : null,
     supabaseAnonKey: isSupabaseConnected ? rawSupabaseAnonKey : null,
     isSupabaseConnected,
+    publicSiteUrl: publicSiteResult.value,
     release: {
       environment: deploymentEnvironment,
       appVersion,

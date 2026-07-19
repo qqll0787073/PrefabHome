@@ -6,14 +6,16 @@ interface AppHeaderProps {
   auth: AuthState;
   role: Role;
   onRoleChange: (role: Role) => void;
+  onPublicHome: () => void;
 }
 
-export function AppHeader({ auth, role, onRoleChange }: AppHeaderProps) {
+export function AppHeader({ auth, role, onRoleChange, onPublicHome }: AppHeaderProps) {
   return (
     <header className="topbar">
       <div>
         <p className="eyebrow">China Factories x U.S. Buyers</p>
         <h1>PrefabHome Marketplace</h1>
+        <button className="public-home-button" type="button" onClick={onPublicHome}>Public site</button>
       </div>
       <div className="role-switcher" aria-label="Portal role">
         {(Object.keys(roleLabels) as Role[]).map((item) => (

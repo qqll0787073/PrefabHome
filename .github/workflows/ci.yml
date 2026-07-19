@@ -6,6 +6,7 @@ on:
     branches:
       - production-sprint-1
       - production-sprint-2
+      - production-sprint-2b
 
 permissions:
   contents: read
