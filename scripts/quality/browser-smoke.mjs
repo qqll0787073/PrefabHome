@@ -13,6 +13,16 @@ const viewports = [
   { width: 768, height: 1024 },
   { width: 1280, height: 800 },
 ];
+const legalAndOperationsPaths = [
+  "/contact",
+  "/version",
+  "/privacy",
+  "/terms",
+  "/cookies",
+  "/accessibility",
+  "/acceptable-use",
+  "/copyright-trademark",
+];
 
 const sleep = (milliseconds) => new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
 
@@ -79,6 +89,7 @@ async function run() {
   const vite = spawn(process.execPath, [
     resolve("node_modules/vite/bin/vite.js"),
     "preview",
+    "--configLoader", "runner",
     "--host", "127.0.0.1",
     "--port", String(previewPort),
     "--strictPort",
@@ -91,6 +102,8 @@ async function run() {
     chrome = spawn(chromeExecutable(), [
       "--headless=new",
       "--disable-gpu",
+      "--no-sandbox",
+      "--remote-allow-origins=*",
       `--remote-debugging-port=${debuggingPort}`,
       `--user-data-dir=${profile}`,
       "--no-first-run",
@@ -104,13 +117,26 @@ async function run() {
       socket.addEventListener("open", resolvePromise, { once: true });
       socket.addEventListener("error", reject, { once: true });
     });
+    socket.addEventListener("close", (event) => {
+      if (pending.size > 0) {
+        console.error(`Chrome DevTools socket closed unexpectedly (${event.code || "no code"}).`);
+      }
+    });
 
     let nextId = 1;
     const pending = new Map();
     const consoleErrors = [];
     const unsafeLogs = [];
-    socket.addEventListener("message", (event) => {
-      const message = JSON.parse(event.data);
+    socket.addEventListener("message", async (event) => {
+      let rawMessage = event.data;
+      if (typeof rawMessage !== "string" && typeof rawMessage?.text === "function") {
+        rawMessage = await rawMessage.text();
+      } else if (rawMessage instanceof ArrayBuffer) {
+        rawMessage = new TextDecoder().decode(rawMessage);
+      } else if (ArrayBuffer.isView(rawMessage)) {
+        rawMessage = new TextDecoder().decode(rawMessage);
+      }
+      const message = JSON.parse(String(rawMessage));
       if (message.id && pending.has(message.id)) {
         const request = pending.get(message.id);
         pending.delete(message.id);
@@ -129,8 +155,23 @@ async function run() {
 
     function send(method, params = {}) {
       const id = nextId++;
-      socket.send(JSON.stringify({ id, method, params }));
-      return new Promise((resolvePromise, reject) => pending.set(id, { resolve: resolvePromise, reject }));
+      return new Promise((resolvePromise, reject) => {
+        const timeout = setTimeout(() => {
+          pending.delete(id);
+          reject(new Error(`Chrome DevTools command timed out: ${method} (socket state ${socket.readyState}).`));
+        }, 10_000);
+        pending.set(id, {
+          resolve: (value) => {
+            clearTimeout(timeout);
+            resolvePromise(value);
+          },
+          reject: (error) => {
+            clearTimeout(timeout);
+            reject(error);
+          },
+        });
+        socket.send(JSON.stringify({ id, method, params }));
+      });
     }
 
     async function evaluate(expression) {
@@ -176,6 +217,7 @@ async function run() {
     await send("Log.enable");
 
     const viewportResults = [];
+    const legalPageResults = [];
     for (const viewport of viewports) {
       await navigate("/", viewport);
       await waitFor(
@@ -190,6 +232,27 @@ async function run() {
         mainCount: document.querySelectorAll('main').length,
         navigation: Boolean(document.querySelector('nav[aria-label="Public website"]')),
       }))()`));
+      for (const path of legalAndOperationsPaths) {
+        await evaluate(`(() => {
+          history.pushState({}, "", ${JSON.stringify(path)});
+          dispatchEvent(new PopStateEvent("popstate"));
+        })()`);
+        await waitFor(`location.pathname === ${JSON.stringify(path)}`, `${path} client navigation`);
+        await waitFor("document.querySelector('main#public-content h1')", `${path} heading`);
+        await sleep(50);
+        legalPageResults.push(await evaluate(`(() => ({
+          path: location.pathname,
+          width: ${viewport.width},
+          height: ${viewport.height},
+          overflow: document.documentElement.scrollWidth > window.innerWidth,
+          h1Count: document.querySelectorAll('h1').length,
+          mainCount: document.querySelectorAll('main').length,
+          footer: Boolean(document.querySelector('footer nav[aria-label="Public information and legal documents"]')),
+          draftWarning: location.pathname === '/contact' || location.pathname === '/version'
+            ? true
+            : Boolean(document.querySelector('.legal-draft-banner')),
+        }))()`));
+      }
     }
 
     await navigate("/", viewports[2]);
@@ -230,6 +293,12 @@ async function run() {
     await waitFor("location.pathname === '/'", "browser Back");
     await evaluate("history.forward()");
     await waitFor("location.pathname === '/about'", "browser Forward");
+    await evaluate(`document.querySelector('footer a[href="/privacy"]').click()`);
+    await waitFor("location.pathname === '/privacy'", "Privacy navigation");
+    await evaluate("history.back()");
+    await waitFor("location.pathname === '/about'", "legal route browser Back");
+    await evaluate("history.forward()");
+    await waitFor("location.pathname === '/privacy'", "legal route browser Forward");
 
     await navigate("/not-a-public-page", viewports[3]);
     await waitFor("document.querySelector('h1')?.textContent === 'Public page not found'", "Not Found content");
@@ -269,6 +338,10 @@ async function run() {
       matches: matchMedia('(prefers-reduced-motion: reduce)').matches,
       duration: getComputedStyle(document.querySelector('.skip-link')).transitionDuration,
     })`);
+    await send("Emulation.setEmulatedMedia", {
+      features: [{ name: "forced-colors", value: "active" }],
+    });
+    const forcedColors = await evaluate("matchMedia('(forced-colors: active)').matches");
 
     const zoomResults = [];
     for (const width of [640, 320]) {
@@ -282,6 +355,8 @@ async function run() {
 
     const failedViewports = viewportResults.filter((item) => item.overflow || item.h1Count !== 1 || item.mainCount !== 1 || !item.navigation);
     if (failedViewports.length > 0) throw new Error("One or more viewport checks failed.");
+    const failedLegalPages = legalPageResults.filter((item) => item.overflow || item.h1Count !== 1 || item.mainCount !== 1 || !item.footer || !item.draftWarning);
+    if (failedLegalPages.length > 0) throw new Error(`One or more legal/operations page checks failed: ${JSON.stringify(failedLegalPages)}.`);
     if (!skipLink.visibleOnFocus || !skipLink.targetFocused) {
       throw new Error(`Skip-link focus behavior failed: ${JSON.stringify(skipLinkFocus)}.`);
     }
@@ -296,17 +371,20 @@ async function run() {
     if (!reducedMotion.matches || !Number.isFinite(reducedDurationSeconds) || reducedDurationSeconds > 0.001) {
       throw new Error(`Reduced-motion behavior failed: ${JSON.stringify(reducedMotion)}.`);
     }
+    if (!forcedColors) throw new Error("Forced-colors emulation did not activate.");
     if (zoomResults.some((item) => item.homeOverflow || item.loginOverflow)) throw new Error("Zoom/reflow proxy failed.");
     if (consoleErrors.length > 0 || unsafeLogs.length > 0) throw new Error("Browser console safety check failed.");
 
     console.log(JSON.stringify({
       passed: true,
       viewports: viewportResults.map(({ width, height }) => `${width}x${height}`),
+      legalAndOperationsPages: legalAndOperationsPaths.length,
       publicNavigation: true,
       notFound: true,
       marketplaceLogin: true,
       skipLink: true,
       reducedMotion: true,
+      forcedColors: true,
       zoomReflow: zoomResults,
       consoleErrors: consoleErrors.length,
       unsafeLogs: unsafeLogs.length,

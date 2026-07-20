@@ -8,6 +8,7 @@ on:
       - production-sprint-2
       - production-sprint-2b
       - production-sprint-2c
+      - production-sprint-2d
 
 permissions:
   contents: read

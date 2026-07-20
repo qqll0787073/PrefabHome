@@ -15,6 +15,7 @@ import {
 test("public paths and the query-driven portal resolve independently", () => {
   assert.deepEqual(readApplicationLocation("/", ""), { kind: "public", page: "home" });
   assert.deepEqual(readApplicationLocation("/about/", ""), { kind: "public", page: "about" });
+  assert.deepEqual(readApplicationLocation("/privacy", ""), { kind: "public", page: "privacy" });
   assert.deepEqual(readApplicationLocation("/marketplace", "?view=dashboard"), { kind: "portal" });
   assert.deepEqual(readApplicationLocation("/products/example-model", ""), { kind: "portal" });
   assert.deepEqual(readApplicationLocation("/", "?view=dashboard&workspace=rfqs"), { kind: "portal" });
@@ -40,6 +41,7 @@ test("public metadata remains route-specific and contains no authenticated state
   assert.equal(metadata.robots, "index, follow");
   assert.doesNotMatch(JSON.stringify(metadata), /workspace|request=|access_token|buyer_id|manufacturer_id/i);
   assert.equal(publicPageMetadata("not-found", "https://example.test").robots, "noindex, nofollow");
+  assert.equal(publicPageMetadata("privacy", "https://example.test").robots, "noindex, nofollow");
 });
 
 test("every public page renders one h1, landmarks, and safe navigation", () => {
@@ -65,5 +67,12 @@ test("Not Found returns safely home and version labels expose only normalized re
     appVersion: "beta-1.0.0",
     commitSha: "a".repeat(40),
   });
-  assert.deepEqual(release, { environment: "staging", version: "beta-1.0.0", commit: "a".repeat(12) });
+  assert.deepEqual(release, {
+    environment: "staging",
+    version: "beta-1.0.0",
+    commit: "a".repeat(12),
+    releaseCandidate: "Not designated",
+    buildTimestamp: "Not supplied",
+    artifactChecksum: "Not supplied",
+  });
 });

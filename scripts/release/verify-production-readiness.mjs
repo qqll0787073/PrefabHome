@@ -79,6 +79,27 @@ function runNpmScript(script, env = process.env) {
   if (result.status !== 0) throw new Error(`npm run ${script} failed with exit code ${result.status}.`);
 }
 
+function reportLegalPublicationStatus(env = process.env) {
+  const npmCliPath = process.env.npm_execpath;
+  if (!npmCliPath) throw new Error("npm_execpath is unavailable; run readiness through npm.");
+  const result = spawnSync(process.execPath, [npmCliPath, "run", "verify:legal-publication"], {
+    cwd: process.cwd(),
+    env,
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  if (result.error) throw result.error;
+  if (result.status === 0) {
+    console.log("Legal publication gate passed. Deployment authorization remains separate.");
+    return;
+  }
+  const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+  if (!output.includes("Legal publication authorization is not granted.")) {
+    throw new Error("Legal publication check failed unexpectedly.");
+  }
+  console.warn("Legal publication authorization is not granted. Publication remains an unresolved approval gate.");
+}
+
 export function main() {
   try {
     const headSha = execFileSync("git", ["rev-parse", "HEAD"], {
@@ -97,10 +118,12 @@ export function main() {
     delete betaEnvironment.VITE_SUPABASE_ANON_KEY;
 
     // Beta gates are deliberately disconnected; the separately verified artifact uses production metadata.
+    runNpmScript("verify:legal-structure", productionEnvironment);
+    reportLegalPublicationStatus(productionEnvironment);
     runNpmScript("verify:beta", betaEnvironment);
     runNpmScript("build", productionEnvironment);
     runNpmScript("verify:production-artifact", productionEnvironment);
-    console.log("Production readiness verification passed. No release action was performed.");
+    console.log("Technical production readiness verification passed. No publication, release, or deployment action was performed.");
   } catch (error) {
     console.error(`Production readiness verification failed: ${error.message}`);
     process.exitCode = 1;
