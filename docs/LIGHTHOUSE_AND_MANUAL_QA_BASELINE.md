@@ -25,7 +25,7 @@ Targets for a future reproducible local or approved preview-host run remain:
 
 - Bundle baseline and budgets are documented in `PERFORMANCE_BASELINE_AND_BUDGETS.md`.
 - Static accessibility tests cover main targets, skip links, focus rules, image behavior, auth labels/errors, reduced motion, forced colors, lazy boundaries, and source safety.
-- `npm run quality:browser` exercises six viewport sizes, public navigation, Not Found, unauthenticated marketplace login, skip-link focus, Back/Forward, reduced motion, zoom/reflow proxies, console errors, and unsafe logs.
+- `npm run quality:browser` exercises six viewport sizes, all legal and public-operations routes, public navigation, Not Found, unauthenticated marketplace login, skip-link focus, Back/Forward, reduced motion, forced colors, zoom/reflow proxies, console errors, and unsafe logs.
 
 ## Local Chrome Smoke Result
 
@@ -34,6 +34,8 @@ Run on 2026-07-19 against the local Vite production preview with no credentials 
 - Passed at `320x568`, `375x667`, `390x844`, `414x896`, `768x1024`, and `1280x800`.
 - Public navigation, browser Back/Forward, Not Found, marketplace login semantics, and keyboard skip-link behavior passed.
 - Reduced-motion emulation passed.
+- Forced-colors emulation passed.
+- Contact, Version, and all six draft legal routes rendered with one `h1`, the shared footer, required draft warnings, and no page-level overflow at all six viewports.
 - 200% and 400% CSS-width reflow proxies showed no page-level horizontal overflow on the public home or login surfaces.
 - Browser console errors: `0`.
 - Unsafe log matches: `0`.
