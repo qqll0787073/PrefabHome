@@ -2,7 +2,7 @@
 
 ## Scope
 
-Production Sprint 2B adds a public website shell and installability metadata without selecting a host or deploying. It does not add analytics, cookies, legal policies, a service worker, or offline support.
+Production Sprint 2B adds a public website shell and installability metadata without selecting a host or deploying. Production Sprint 2D adds draft legal/public-operations structure without legal publication approval. Neither sprint adds analytics, tracking vendors, consent storage, a service worker, offline support, or deployment.
 
 ## Metadata Model
 
@@ -30,6 +30,8 @@ Publicly indexable paths are:
 - `/about`
 - `/contact`
 - `/version`
+
+The draft legal paths `/privacy`, `/terms`, `/cookies`, `/accessibility`, `/acceptable-use`, and `/copyright-trademark` are stable and deep-linkable, but receive `noindex, nofollow` and remain outside `public/sitemap.xml`. Approval requires final text, operator identity, contacts, dates, legal publication status, and an explicit indexing decision. `robots.txt` does not disallow these pages because crawlers must be able to observe their page-level noindex directive; robots guidance is not publication authorization or access control.
 
 `/marketplace` hosts public marketplace browsing and private role-controlled workspaces, using existing query state such as `?view=dashboard`. It is excluded from the sitemap and disallowed in `robots.txt`; portal pages also receive a runtime `noindex, nofollow` directive. Unknown paths render a noindex Not Found page.
 
@@ -60,7 +62,8 @@ Public pages use clean paths and native links enhanced with History API navigati
 - Home introduces the public/private boundary and links to marketplace discovery.
 - About describes the current product and authorization boundary without unsupported claims.
 - Contact publishes no personal contact data before launch.
-- Version shows normalized non-sensitive version, short commit, and environment metadata.
+- Version shows normalized non-sensitive version, short commit, environment, release-candidate, legal-publication, and operator-publication metadata with safe unavailable values for unsupplied build timestamp and checksum.
+- The six legal routes render centralized draft metadata and plain-language sections with a prominent pending-review warning.
 - Not Found returns visitors safely to Home and exposes no raw route error.
 
 ## Accessibility Expectations
@@ -74,7 +77,7 @@ Public pages use clean paths and native links enhanced with History API navigati
 
 ## Mobile Verification
 
-CSS constrains public assets, wraps text, stacks the hero and content grids, and provides a horizontally scrollable public navigation strip on smaller widths. Automated source tests cover the responsive and reduced-motion rules. Manual browser verification must confirm no page-level overflow at 320px, 375px, and 390px and check browser focus, zoom, contrast, and actual device safe areas.
+CSS constrains public assets, wraps long legal text, stacks hero/contact/metadata grids, wraps the footer, and provides a horizontally scrollable public navigation strip on smaller widths. The local browser smoke covers all legal and operations pages at 320x568, 375x667, 390x844, 414x896, 768x1024, and 1280x800, plus reduced motion, forced colors, Back/Forward, and 200%/400% reflow proxies. Manual screen-reader, actual browser zoom, contrast, text-spacing, and real-device review remain required.
 
 ## Hosting And CSP
 
@@ -84,8 +87,10 @@ All new runtime assets are same-origin, so the Sprint 2 CSP template already per
 
 - No service worker or offline support
 - No analytics, pixels, session replay, cookie consent, or tracking
-- No Privacy Policy or Terms text
+- Draft legal text is not legal advice, approved policy, or effective terms
 - No claim of production readiness, legal compliance, or launch approval
 - No hosting connection or production deployment
 
 **Production Deployment Authorization is NOT GRANTED.**
+
+**Legal Publication Authorization is NOT GRANTED.**

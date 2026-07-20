@@ -23,6 +23,20 @@
 - [ ] Artifact manifest is immutable and its root SHA-256 matches the candidate bytes.
 - [ ] Secret scan found no tracked or bundled credential.
 - [ ] Migrations remain the reviewed ordered set and the production dry-run has separate Database approval.
+- [ ] `npm run verify:legal-structure` passed.
+- [ ] `npm run verify:legal-publication` passed with approved operator data and legal documents; an expected placeholder-state failure is not a release pass.
+
+## Legal And Public Operations Review
+
+- [ ] Legal Counsel approved the exact text and version of all six required public legal documents.
+- [ ] Product Owner approved the public description of implemented and deferred workflows.
+- [ ] Approved operator identity, legal entity, jurisdiction, and business address replaced every placeholder.
+- [ ] General, Buyer Support, Manufacturer Onboarding, Sales, Partnerships, Accessibility, Privacy, Legal, and Press channels are organization-controlled, monitored, and approved for publication.
+- [ ] Effective and last-reviewed dates are final and consistent across the page, repository record, and approval evidence.
+- [ ] Privacy, cookie/tracking, retention, minors, cross-border, governing-law, accessibility, and intellectual-property language received the required specialist review.
+- [ ] Approved legal routes use `index, follow` only after final publication authorization and appear in the approved sitemap.
+- [ ] The Contact page makes only approved support ownership and service-level statements.
+- [ ] Final Publication Authorization names the exact commit and is recorded as granted.
 
 ## Environment Review
 
@@ -77,6 +91,7 @@
 | Database | Migrations, dry-run, compatibility | | |
 | Operations | Domain, TLS, cache, monitoring, rollback | | |
 | Backup/Restore | Backup evidence and staging restore drill | | |
+| Legal Publication | Operator identity, contacts, final text, dates, indexing | **NOT GRANTED** | |
 | Deployment Authorization | Explicit environment/window authorization | **NOT GRANTED** | |
 
 ## Decision
@@ -88,6 +103,7 @@
 - Database: **PENDING**
 - Operations: **PENDING**
 - Backup/Restore: **PENDING**
+- Legal Publication Authorization: **NOT GRANTED**
 - Deployment Authorization: **NOT GRANTED**
 
 This checklist does not itself grant deployment permission. Authorization must name the exact commit, immutable artifact checksum, target environment, operator, and release window.

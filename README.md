@@ -22,7 +22,7 @@ Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the ignored `.env.local`
 
 Set `VITE_PUBLIC_SITE_URL` to the local public origin, normally `http://localhost:5173`. It controls canonical and sitemap output only and never grants portal access.
 
-Public informational pages are available at `/`, `/about`, `/contact`, and `/version`. The marketplace and existing query-driven portal workspaces remain under `/marketplace`.
+Public informational pages are available at `/`, `/about`, `/contact`, and `/version`. Draft legal pages are available at `/privacy`, `/terms`, `/cookies`, `/accessibility`, `/acceptable-use`, and `/copyright-trademark`; they are pending review, not effective, excluded from the sitemap, and marked `noindex, nofollow`. The marketplace and existing query-driven portal workspaces remain under `/marketplace`.
 
 ## Verification
 
@@ -38,11 +38,12 @@ npm run verify:production-artifact
 npm run verify:production-readiness
 npm run verify:quality
 npm run quality:bundle
+npm run verify:legal-structure
 ```
 
 This runs the repository's frontend and infrastructure tests, production build, dependency audit, tracked-secret scan, and required-document audit. It performs no remote Supabase operation.
 
-`npm run verify:quality` is a deterministic, non-networking build/test/artifact/bundle/documentation gate. `npm run quality:bundle` reports and enforces the reviewed artifact budgets. After building locally, `npm run quality:browser` can run the optional Chrome/Edge viewport, focus, reflow, reduced-motion, and console smoke; it is intentionally excluded from mandatory CI.
+`npm run verify:quality` is a deterministic, non-networking build/test/artifact/bundle/documentation/legal-structure gate. `npm run verify:legal-publication` is a separate publication gate and intentionally fails while operator identity, contacts, dates, approvals, and final legal text remain unresolved. `npm run quality:bundle` reports and enforces the reviewed artifact budgets. After building locally, `npm run quality:browser` can run the optional Chrome/Edge viewport, focus, reflow, reduced-motion, forced-colors, legal-route, and console smoke; it is intentionally excluded from mandatory CI.
 
 Accessibility engineering targets and remaining manual assistive-technology checks are documented in [ACCESSIBILITY_GUIDE.md](docs/ACCESSIBILITY_GUIDE.md). Current targets are Lighthouse Performance 90+, Accessibility 95+, Best Practices 95+, and SEO 95+, but no score is claimed when Lighthouse is unavailable.
 
@@ -72,6 +73,10 @@ Accessibility engineering targets and remaining manual assistive-technology chec
 - [Performance baseline and budgets](docs/PERFORMANCE_BASELINE_AND_BUDGETS.md)
 - [Accessibility guide](docs/ACCESSIBILITY_GUIDE.md)
 - [Lighthouse and manual QA baseline](docs/LIGHTHOUSE_AND_MANUAL_QA_BASELINE.md)
+- [Production Sprint 2D plan](docs/PRODUCTION_SPRINT_2D_PLAN.md)
+- [Legal and public operations guide](docs/LEGAL_AND_PUBLIC_OPERATIONS_GUIDE.md)
+- [Legal review checklist](docs/LEGAL_REVIEW_CHECKLIST.md)
+- [Public contact and support model](docs/PUBLIC_CONTACT_AND_SUPPORT_MODEL.md)
 
 ## Release Boundary
 

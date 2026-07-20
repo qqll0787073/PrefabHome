@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import React from "react";
+import { publicStatusPage } from "../../lib/publicStatusPages";
 import { runtimeConfig, type ReleaseMetadata } from "../../lib/runtimeConfig";
 import { redactString, safeLogger, type SafeLogger } from "../../lib/observability/safeLogger";
 
@@ -30,6 +31,7 @@ export function AppErrorFallback({
   onReload,
 }: AppErrorFallbackProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const statusPage = publicStatusPage(500);
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -45,14 +47,11 @@ export function AppErrorFallback({
       aria-labelledby="runtime-error-title"
     >
       <div className="runtime-error-content">
-        <p className="eyebrow">Application safety response</p>
+        <p className="eyebrow">{statusPage.eyebrow}</p>
         <h1 id="runtime-error-title" ref={headingRef} tabIndex={-1}>
-          PrefabHome could not continue
+          {statusPage.heading}
         </h1>
-        <p>
-          The current view stopped safely. Retry the application or reload this page. No technical
-          error details are shown here.
-        </p>
+        <p>{statusPage.summary} {statusPage.detail}</p>
         <dl className="runtime-error-reference">
           <div>
             <dt>Reference</dt>

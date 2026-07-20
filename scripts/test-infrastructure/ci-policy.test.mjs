@@ -24,6 +24,7 @@ test("CI runs the deterministic quality gate and dependency audit for PRs and pr
     assert.ok(workflow.includes(command), `Missing CI command: ${command}`);
   }
   assert.match(workflow, /^\s*- production-sprint-2c\s*$/m);
+  assert.match(workflow, /^\s*- production-sprint-2d\s*$/m);
   assert.match(workflow, /VITE_PUBLIC_SITE_URL:\s*https:\/\/example\.invalid/);
 });
 

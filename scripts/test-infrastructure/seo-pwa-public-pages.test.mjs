@@ -89,13 +89,18 @@ test("sitemap lists only clean public informational paths", () => {
 test("public route model includes navigation and safe Not Found behavior", () => {
   const model = readFileSync("src/lib/publicSite.ts", "utf8");
   const website = readFileSync("src/features/public/PublicWebsite.tsx", "utf8");
+  const legalDocuments = readFileSync("src/lib/legalDocuments.ts", "utf8");
   for (const path of ['path: "/"', 'path: "/about"', 'path: "/contact"', 'path: "/version"']) {
     assert.ok(model.includes(path), `Missing ${path}`);
   }
+  for (const path of ["/privacy", "/terms", "/cookies", "/accessibility", "/acceptable-use", "/copyright-trademark"]) {
+    assert.ok(legalDocuments.includes(`path: "${path}"`), `Missing legal route ${path}`);
+  }
   assert.match(model, /page: publicPageByPath\.get\(normalizedPath\) \?\? "not-found"/);
-  assert.match(website, /Return to Home/);
-  assert.match(website, /Contact details will be published before production launch/);
-  assert.doesNotMatch(website, /Privacy Policy|Terms of Service|legal compliance/i);
+  assert.match(website, /PublicStatusPage status=\{404\}/);
+  assert.match(website, /Public contact channels will be activated before production launch/);
+  assert.match(website, /LegalDocumentPage/);
+  assert.doesNotMatch(`${website}\n${legalDocuments}`, /legally sufficient|fully compliant|certified accessible/i);
 });
 
 test("public UI has responsive accessibility rules and no service worker or analytics", () => {
@@ -122,7 +127,7 @@ test("build-time public URL replacement is deterministic and non-networking", ()
 
 test("CI stays read-only and migrations remain exactly 0001 through 0024 unchanged", () => {
   const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
-  assert.match(workflow, /^\s*- production-sprint-2b\s*$/m);
+  assert.match(workflow, /^\s*- production-sprint-2d\s*$/m);
   assert.match(workflow, /permissions:\s*\n\s+contents: read/);
   const executableLines = workflow.split(/\r?\n/).filter((line) => /^\s*run:/.test(line)).join("\n");
   assert.doesNotMatch(executableLines, /\bdeploy\b|supabase\s+db|migration\s+(?:apply|repair)|git\s+tag|create[- ]release/i);
