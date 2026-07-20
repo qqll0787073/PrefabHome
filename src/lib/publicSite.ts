@@ -1,6 +1,11 @@
+import {
+  legalDocumentForPage,
+  legalDocuments,
+  type LegalPageId,
+} from "./legalDocuments";
 import type { ReleaseMetadata } from "./runtimeConfig";
 
-export type PublicPage = "home" | "about" | "contact" | "version" | "not-found";
+export type PublicPage = "home" | "about" | "contact" | "version" | LegalPageId | "not-found";
 
 export interface PublicPageDefinition {
   id: Exclude<PublicPage, "not-found">;
@@ -8,6 +13,7 @@ export interface PublicPageDefinition {
   path: string;
   title: string;
   description: string;
+  navigation: "header" | "footer";
 }
 
 export type ApplicationLocation =
@@ -21,6 +27,7 @@ export const publicPages: PublicPageDefinition[] = [
     path: "/",
     title: "PrefabHome Marketplace",
     description: "Explore PrefabHome's public marketplace foundation and enter the Buyer, Manufacturer, or Admin portal.",
+    navigation: "header",
   },
   {
     id: "about",
@@ -28,13 +35,15 @@ export const publicPages: PublicPageDefinition[] = [
     path: "/about",
     title: "About | PrefabHome Marketplace",
     description: "Learn how PrefabHome connects public product discovery with role-controlled marketplace workflows.",
+    navigation: "header",
   },
   {
     id: "contact",
     label: "Contact",
     path: "/contact",
     title: "Contact | PrefabHome Marketplace",
-    description: "Find the current public contact status for PrefabHome Marketplace.",
+    description: "Review public PrefabHome contact categories and their current pre-launch activation status.",
+    navigation: "header",
   },
   {
     id: "version",
@@ -42,8 +51,37 @@ export const publicPages: PublicPageDefinition[] = [
     path: "/version",
     title: "Version | PrefabHome Marketplace",
     description: "View non-sensitive PrefabHome application release metadata and repository-defined release notes.",
+    navigation: "header",
   },
+  ...legalDocuments.map((document): PublicPageDefinition => ({
+    id: document.pageId,
+    label: document.navigationLabel,
+    path: document.path,
+    title: `${document.documentTitle} | PrefabHome Marketplace`,
+    description: document.description,
+    navigation: "footer",
+  })),
 ];
+
+export const publicHeaderPages = publicPages.filter((page) => page.navigation === "header");
+
+const footerPageOrder: Exclude<PublicPage, "home" | "not-found">[] = [
+  "about",
+  "contact",
+  "privacy",
+  "terms",
+  "cookies",
+  "accessibility",
+  "acceptable-use",
+  "copyright-trademark",
+  "version",
+];
+
+export const publicFooterPages = footerPageOrder.map((pageId) => {
+  const page = publicPages.find((candidate) => candidate.id === pageId);
+  if (!page) throw new Error(`Missing public footer page: ${pageId}`);
+  return page;
+});
 
 const publicPageByPath = new Map(publicPages.map((page) => [page.path, page.id]));
 
@@ -103,6 +141,7 @@ export function publicPageDefinition(page: PublicPage): PublicPageDefinition | n
 
 export function publicPageMetadata(page: PublicPage, publicSiteUrl: string) {
   const definition = publicPageDefinition(page);
+  const legalDocument = legalDocumentForPage(page);
   const base = publicSiteUrl.replace(/\/$/, "");
   const path = definition?.path ?? "/not-found";
   return {
@@ -110,7 +149,9 @@ export function publicPageMetadata(page: PublicPage, publicSiteUrl: string) {
     description: definition?.description ?? "The requested PrefabHome public page could not be found.",
     canonicalUrl: `${base}${path === "/" ? "/" : path}`,
     imageUrl: `${base}/og-image.svg`,
-    robots: page === "not-found" ? "noindex, nofollow" : "index, follow",
+    robots: page === "not-found" || (legalDocument && legalDocument.reviewStatus !== "approved-for-publication")
+      ? "noindex, nofollow"
+      : "index, follow",
   };
 }
 
@@ -148,5 +189,11 @@ export function safeReleaseDisplay(release: ReleaseMetadata) {
     version: release.appVersion === "development" ? "Development build" : release.appVersion,
     commit,
     environment: release.environment,
+    releaseCandidate: /(?:^|[._+-])rc\d*(?:$|[._+-])/i.test(release.appVersion)
+      || /release-candidate/i.test(release.appVersion)
+      ? "Release candidate"
+      : "Not designated",
+    buildTimestamp: "Not supplied",
+    artifactChecksum: "Not supplied",
   };
 }

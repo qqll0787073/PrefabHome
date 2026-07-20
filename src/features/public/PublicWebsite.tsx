@@ -1,5 +1,15 @@
 import React, { useEffect, useRef } from "react";
 import { PublicHeader } from "../../components/layout/PublicHeader";
+import { LegalDocumentPage } from "../../components/public/LegalDocumentPage";
+import { PublicFooter } from "../../components/public/PublicFooter";
+import { PublicLink } from "../../components/public/PublicLink";
+import { PublicStatusPage } from "../../components/public/PublicStatusPage";
+import { legalDocumentForPage, legalPublicationLabel } from "../../lib/legalDocuments";
+import {
+  operatorPublicationLabel,
+  publicContactCategories,
+  publicOperator,
+} from "../../lib/publicOperator";
 import { runtimeConfig } from "../../lib/runtimeConfig";
 import {
   applyPublicPageMetadata,
@@ -12,32 +22,13 @@ interface PublicWebsiteProps {
   onNavigate: (path: string) => void;
 }
 
-function PublicLink({ path, onNavigate, children }: {
-  path: string;
-  onNavigate: (path: string) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <a
-      href={path}
-      onClick={(event) => {
-        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-        event.preventDefault();
-        onNavigate(path);
-      }}
-    >
-      {children}
-    </a>
-  );
-}
-
 function HomePage({ onNavigate }: Pick<PublicWebsiteProps, "onNavigate">) {
   return (
     <main id="public-content" className="public-main" tabIndex={-1}>
       <section className="public-home-hero" aria-labelledby="home-title">
         <div className="public-home-copy">
           <p className="eyebrow">Public marketplace foundation</p>
-          <h1 id="home-title">PrefabHome Marketplace</h1>
+          <h1 id="home-title">{publicOperator.operatorDisplayName}</h1>
           <p>
             Discover prefab home products and enter structured Buyer, Manufacturer, and Admin
             workflows through role-controlled portals.
@@ -86,9 +77,25 @@ function ContactPage() {
   return (
     <main id="public-content" className="public-main public-document-page" tabIndex={-1}>
       <p className="eyebrow">Contact</p>
-      <h1>Contact PrefabHome</h1>
-      <p>Contact details will be published before production launch.</p>
-      <section aria-labelledby="contact-safety"><h2 id="contact-safety">Account and transaction support</h2><p>No private email, phone number, address, account identifier, or support credential is published by this release candidate.</p></section>
+      <h1>Contact {publicOperator.operatorDisplayName}</h1>
+      <p>Public contact channels will be activated before production launch after operator, ownership, monitoring, privacy, accessibility, and legal review.</p>
+      <section aria-labelledby="contact-categories-title">
+        <h2 id="contact-categories-title">Contact categories</h2>
+        <div className="public-contact-grid">
+          {publicContactCategories.map((contact) => (
+            <article key={contact.category}>
+              <h3>{contact.label}</h3>
+              <p><strong>Intended owner:</strong> {contact.owner}</p>
+              <p><strong>Channel:</strong> {contact.displayValue}</p>
+              <p>{contact.note}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+      <section aria-labelledby="contact-safety">
+        <h2 id="contact-safety">Pre-launch safety boundary</h2>
+        <p>No public form sends data, no placeholder is a monitored channel, and no response time is promised. Do not send account, transaction, legal, privacy, accessibility, or security-incident information to an unapproved channel.</p>
+      </section>
     </main>
   );
 }
@@ -103,25 +110,21 @@ function VersionPage() {
         <div><dt>Version</dt><dd>{release.version}</dd></div>
         <div><dt>Commit</dt><dd>{release.commit}</dd></div>
         <div><dt>Environment</dt><dd>{release.environment}</dd></div>
+        <div><dt>Release candidate</dt><dd>{release.releaseCandidate}</dd></div>
+        <div><dt>Build timestamp</dt><dd>{release.buildTimestamp}</dd></div>
+        <div><dt>Artifact checksum</dt><dd>{release.artifactChecksum}</dd></div>
+        <div><dt>Legal publication</dt><dd>{legalPublicationLabel()}</dd></div>
+        <div><dt>Operator publication</dt><dd>{operatorPublicationLabel()}</dd></div>
+        <div><dt>Deployment authorization</dt><dd>Not granted</dd></div>
       </dl>
-      <section aria-labelledby="release-notes-title"><h2 id="release-notes-title">Release notes</h2><p>Repository-defined release history is maintained in the project changelog and release documentation. This page exposes only non-sensitive build metadata.</p></section>
-    </main>
-  );
-}
-
-function NotFoundPage({ onNavigate }: Pick<PublicWebsiteProps, "onNavigate">) {
-  return (
-    <main id="public-content" className="public-main public-document-page public-not-found" tabIndex={-1}>
-      <p className="eyebrow">404</p>
-      <h1>Public page not found</h1>
-      <p>The requested public page is not available. No portal or account information was exposed.</p>
-      <PublicLink path="/" onNavigate={onNavigate}>Return to Home</PublicLink>
+      <section aria-labelledby="release-notes-title"><h2 id="release-notes-title">Release notes</h2><p>Repository-defined release history is maintained in the project changelog and release documentation. This page exposes only allowlisted non-sensitive build and publication metadata. Build status does not grant legal publication or production deployment.</p></section>
     </main>
   );
 }
 
 export function PublicWebsite({ page, onNavigate }: PublicWebsiteProps) {
   const previousPage = useRef(page);
+  const legalDocument = legalDocumentForPage(page);
 
   useEffect(() => {
     applyPublicPageMetadata(page, runtimeConfig.publicSiteUrl ?? "https://example.invalid");
@@ -139,11 +142,9 @@ export function PublicWebsite({ page, onNavigate }: PublicWebsiteProps) {
       {page === "about" && <AboutPage />}
       {page === "contact" && <ContactPage />}
       {page === "version" && <VersionPage />}
-      {page === "not-found" && <NotFoundPage onNavigate={onNavigate} />}
-      <footer className="public-footer">
-        <p>PrefabHome Marketplace public website foundation.</p>
-        <PublicLink path="/version" onNavigate={onNavigate}>Version information</PublicLink>
-      </footer>
+      {legalDocument && <LegalDocumentPage document={legalDocument} />}
+      {page === "not-found" && <PublicStatusPage status={404} onNavigate={onNavigate} />}
+      <PublicFooter activePage={page} onNavigate={onNavigate} />
     </div>
   );
 }
