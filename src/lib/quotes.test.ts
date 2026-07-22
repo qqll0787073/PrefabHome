@@ -3,12 +3,14 @@ import { describe, it } from "node:test";
 import {
   calculateQuoteItemAmount,
   calculateQuoteSubtotal,
+  calculateQuoteSubtotalPreview,
   emptyQuoteForm,
   emptyQuoteItemForm,
   formatMoney,
   isQuoteEditableByManufacturer,
   isQuoteVisibleToBuyer,
   quoteStatusLabels,
+  quoteFormAfterRefresh,
   sortQuotesByVersion,
   validateQuoteDraftForm,
   validateQuoteForSubmission,
@@ -112,6 +114,43 @@ describe("quote helpers", () => {
       250.5
     );
     assert.equal(formatMoney(250.5, "USD"), "$250.50");
+  });
+
+  it("calculates decimal-safe draft subtotals from current line-item state", () => {
+    const items = [
+      { ...quote.items[0], id: "item-a", amount: 0.1 },
+      { ...quote.items[0], id: "item-b", amount: 0.2 },
+    ];
+    assert.equal(calculateQuoteSubtotal(items), 0.3);
+    assert.equal(calculateQuoteSubtotalPreview(
+      items,
+      { ...emptyQuoteItemForm(), quantity: "2", unitPrice: "77.005" },
+      null,
+      true
+    ), 154.31);
+    assert.equal(calculateQuoteSubtotalPreview(
+      items,
+      { ...emptyQuoteItemForm(), quantity: "3", unitPrice: "10" },
+      "item-a",
+      true
+    ), 30.2);
+  });
+
+  it("preserves every unsaved quote metadata field across line-item refreshes", () => {
+    const unsaved = {
+      currency: "CAD",
+      incoterm: "CIF",
+      originPort: "Shanghai",
+      destinationPort: "Vancouver",
+      productionLeadDays: "45",
+      shippingLeadDays: "21",
+      validUntil: "2027-08-21",
+      manufacturerNote: "Unsaved commercial note",
+    };
+    const refreshed = { ...quote, currency: "USD", manufacturer_note: null };
+
+    assert.deepEqual(quoteFormAfterRefresh(refreshed, unsaved, true), unsaved);
+    assert.equal(quoteFormAfterRefresh(refreshed, unsaved, false).currency, "USD");
   });
 
   it("keeps quote version ordering newest first", () => {

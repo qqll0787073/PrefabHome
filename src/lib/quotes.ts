@@ -166,7 +166,34 @@ export function calculateQuoteItemAmount(
 }
 
 export function calculateQuoteSubtotal(items: RFQQuoteItemRecord[]): number {
-  return Number(items.reduce((total, item) => total + item.amount, 0).toFixed(2));
+  const cents = items.reduce((total, item) => total + Math.round(Number(item.amount) * 100), 0);
+  return cents / 100;
+}
+
+export function calculateQuoteSubtotalPreview(
+  items: RFQQuoteItemRecord[],
+  itemValues: RFQQuoteItemFormValues,
+  editingItemId: string | null,
+  itemEditorDirty: boolean
+): number {
+  if (!itemEditorDirty) return calculateQuoteSubtotal(items);
+  const previewAmount = calculateQuoteItemAmount(itemValues);
+  if (!Number.isFinite(previewAmount)) return calculateQuoteSubtotal(items);
+
+  const previewItems = editingItemId
+    ? items.map((item) => item.id === editingItemId ? { ...item, amount: previewAmount } : item)
+    : [...items, { amount: previewAmount } as RFQQuoteItemRecord];
+  return calculateQuoteSubtotal(previewItems);
+}
+
+export function quoteFormAfterRefresh(
+  refreshedQuote: RFQQuoteRecord | null,
+  currentValues: RFQQuoteFormValues,
+  preserveUnsavedValues: boolean,
+  fallbackCurrency = "USD"
+): RFQQuoteFormValues {
+  if (preserveUnsavedValues) return currentValues;
+  return refreshedQuote ? quoteToFormValues(refreshedQuote) : emptyQuoteForm(fallbackCurrency);
 }
 
 export function formatMoney(amount: number | null | undefined, currency: string): string {

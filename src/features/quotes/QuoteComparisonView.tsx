@@ -1,4 +1,5 @@
 import React from "react";
+import { formatDateOnly } from "../../lib/format";
 import { buildQuoteComparison } from "../../lib/rfqQuoteWorkflow";
 import { formatMoney, quoteStatusLabels } from "../../lib/quotes";
 import type { RFQQuoteWithItems, RFQWithDetails } from "../../types";
@@ -62,7 +63,7 @@ export function QuoteComparisonView({ rfq, quotes }: QuoteComparisonViewProps) {
                     {quote.production_lead_days ?? "TBD"} production days
                     {quote.shipping_lead_days !== null ? `; ${quote.shipping_lead_days} shipping days` : ""}
                   </td>
-                  <td>{quote.valid_until ? new Date(`${quote.valid_until}T00:00:00Z`).toLocaleDateString() : "Unspecified"}</td>
+                  <td>{quote.valid_until ? formatDateOnly(quote.valid_until) : "Unspecified"}</td>
                   <td>{freightScope(quote)}</td>
                   <td>{quote.manufacturer_note || "None"}</td>
                 </tr>

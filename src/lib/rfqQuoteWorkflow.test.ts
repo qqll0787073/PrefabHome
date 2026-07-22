@@ -143,6 +143,8 @@ describe("RFQ service participant boundary", () => {
     assert.match(source, /export async function fetchManufacturerRFQs\(\)/);
     assert.match(source, /client\.auth\.getUser\(\)/);
     assert.match(source, /participantRFQDetailSelect = "\*, product:products/);
+    assert.match(source, /\.neq\("status", "draft"\)/);
+    assert.match(source, /\.filter\(\(rfq\) => isRFQVisibleToManufacturer\(rfq\.status\)\)/);
     assert.doesNotMatch(source.match(/const participantRFQDetailSelect[^;]+;/)?.[0] ?? "", /profiles|manufacturers/);
     assert.doesNotMatch(source, /console\.(?:log|error|warn)/);
   });

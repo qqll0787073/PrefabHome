@@ -32,3 +32,12 @@ test("renders a semantic participant-safe comparison without private manufacture
   assert.doesNotMatch(html, /Private Legal Name|Private Join/);
   assert.doesNotMatch(html, /Accept|order|payment/i);
 });
+
+test("renders SQL date-only validity without a timezone day shift", () => {
+  const html = renderToStaticMarkup(React.createElement(QuoteComparisonView, {
+    rfq,
+    quotes: [{ ...quote, valid_until: "2026-08-21" }],
+  }));
+  assert.match(html, /8\/21\/2026/);
+  assert.doesNotMatch(html, /8\/20\/2026/);
+});

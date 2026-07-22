@@ -238,6 +238,10 @@ export function toReadableRFQError(error: { code?: string; message?: string }): 
   return new Error("Unable to manage RFQ. Refresh and try again.");
 }
 
+export function isRFQVisibleToManufacturer(status: RFQStatus): boolean {
+  return status !== "draft";
+}
+
 export function rfqToFormValues(rfq: RFQRecord): RFQFormValues {
   return {
     requestedQuantity: String(rfq.requested_quantity),
@@ -303,6 +307,33 @@ export async function submitRFQ(rfqId: string, values?: RFQFormValues): Promise<
   return data as RFQRecord;
 }
 
+interface RFQRequestOperations {
+  createDraft: typeof createDraftRFQ;
+  updateDraft: typeof updateDraftRFQ;
+  submit: typeof submitRFQ;
+}
+
+export async function persistProductRFQ(
+  product: Pick<MarketplaceProduct, "id" | "manufacturer_id" | "currency">,
+  values: RFQFormValues,
+  action: "draft" | "submit",
+  existingDraftId: string | null,
+  operations: RFQRequestOperations = {
+    createDraft: createDraftRFQ,
+    updateDraft: updateDraftRFQ,
+    submit: submitRFQ,
+  }
+): Promise<RFQRecord> {
+  if (existingDraftId) {
+    return action === "submit"
+      ? operations.submit(existingDraftId, values)
+      : operations.updateDraft(existingDraftId, values);
+  }
+
+  const draft = await operations.createDraft(product, values);
+  return action === "submit" ? operations.submit(draft.id, values) : draft;
+}
+
 async function authenticatedProfileId(): Promise<string> {
   const client = ensureSupabase();
   const { data, error } = await client.auth.getUser();
@@ -357,10 +388,11 @@ export async function fetchManufacturerRFQs(): Promise<RFQWithDetails[]> {
     .from("rfqs")
     .select(participantRFQDetailSelect)
     .in("manufacturer_id", manufacturerIds)
+    .neq("status", "draft")
     .order("created_at", { ascending: true });
 
   if (error) throw toReadableRFQError(error);
-  return (data ?? []) as RFQWithDetails[];
+  return ((data ?? []) as RFQWithDetails[]).filter((rfq) => isRFQVisibleToManufacturer(rfq.status));
 }
 
 export async function fetchAdminRFQs(): Promise<RFQWithDetails[]> {

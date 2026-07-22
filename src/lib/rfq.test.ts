@@ -6,7 +6,9 @@ import {
   canTransitionRFQ,
   emptyRFQForm,
   isRFQStatus,
+  isRFQVisibleToManufacturer,
   manufacturerRFQDashboardGroup,
+  persistProductRFQ,
   rfqSnapshotTitle,
   rfqStatusLabels,
   rfqToFormValues,
@@ -15,7 +17,7 @@ import {
   toRFQPayload,
   validateRFQForm,
 } from "./rfq";
-import type { MarketplaceProduct, RFQEventRecord, RFQMessageRecord, RFQStatus } from "../types";
+import type { MarketplaceProduct, RFQEventRecord, RFQMessageRecord, RFQRecord, RFQStatus } from "../types";
 
 const product = {
   id: "product-1",
@@ -203,6 +205,57 @@ describe("rfq helpers", () => {
       "Snapshot Model"
     );
     assert.equal(rfqSnapshotTitle({ name: "Snapshot Name" }), "Snapshot Name");
+  });
+
+  it("submits a previously saved product RFQ without creating a second record", async () => {
+    const records = new Map<string, RFQRecord>();
+    let createCount = 0;
+    const values = { ...emptyRFQForm(), destinationCountry: "Canada" };
+    const baseRecord = {
+      id: "11111111-1111-4111-8111-111111111111",
+      buyer_id: "buyer-1",
+      manufacturer_id: product.manufacturer_id,
+      product_id: product.id,
+      product_snapshot: {},
+      status: "draft",
+      requested_quantity: 1,
+      requested_currency: "USD",
+      incoterm: null,
+      destination_country: "Canada",
+      destination_port: null,
+      target_delivery_date: null,
+      buyer_message: null,
+      created_at: "2026-07-22T00:00:00Z",
+      updated_at: "2026-07-22T00:00:00Z",
+    } satisfies RFQRecord;
+    const operations = {
+      createDraft: async () => {
+        createCount += 1;
+        records.set(baseRecord.id, baseRecord);
+        return baseRecord;
+      },
+      updateDraft: async (id: string) => records.get(id)!,
+      submit: async (id: string) => {
+        const submitted = { ...records.get(id)!, status: "submitted" as const };
+        records.set(id, submitted);
+        return submitted;
+      },
+    };
+
+    const draft = await persistProductRFQ(product, values, "draft", null, operations);
+    const submitted = await persistProductRFQ(product, values, "submit", draft.id, operations);
+
+    assert.equal(createCount, 1);
+    assert.equal(records.size, 1);
+    assert.equal(submitted.id, draft.id);
+    assert.equal(submitted.status, "submitted");
+  });
+
+  it("keeps Buyer drafts outside Manufacturer-visible RFQ results", () => {
+    assert.equal(isRFQVisibleToManufacturer("draft"), false);
+    assert.equal(isRFQVisibleToManufacturer("submitted"), true);
+    assert.equal(isRFQVisibleToManufacturer("manufacturer_review"), true);
+    assert.equal(isRFQVisibleToManufacturer("quoted"), true);
   });
 
   it("uses permission-safe role mapping for RFQ conversations", () => {

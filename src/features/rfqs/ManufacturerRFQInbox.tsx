@@ -43,7 +43,11 @@ export function ManufacturerRFQInbox({ user, authMode, selectedRFQId = null, onS
     setIsLoading(true);
     setErrors([]);
     try {
-      setRFQs(authMode === "demo" ? [] : await fetchManufacturerRFQs());
+      const nextRFQs = authMode === "demo" ? [] : await fetchManufacturerRFQs();
+      setRFQs(nextRFQs);
+      setSelectedRFQ((current) => current
+        ? nextRFQs.find((rfq) => rfq.id === current.id) ?? null
+        : current);
     } catch (error) {
       setErrors([error instanceof Error ? error.message : "Unable to load manufacturer RFQs."]);
     } finally {

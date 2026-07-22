@@ -1,10 +1,9 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ErrorList } from "../../components/common/ErrorList";
 import {
-  createDraftRFQ,
   emptyRFQForm,
+  persistProductRFQ,
   rfqIncoterms,
-  submitRFQ,
   validateRFQForm,
 } from "../../lib/rfq";
 import type { AuthUser } from "../../lib/auth";
@@ -21,6 +20,7 @@ export function RFQRequestDialog({ product, user, onClose }: RFQRequestDialogPro
   const [errors, setErrors] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [draftId, setDraftId] = useState<string | null>(null);
   const titleId = useId();
   const dialogRef = useRef<HTMLElement>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
@@ -49,11 +49,11 @@ export function RFQRequestDialog({ product, user, onClose }: RFQRequestDialogPro
 
     setIsSaving(true);
     try {
-      const draft = await createDraftRFQ(product, values);
+      const saved = await persistProductRFQ(product, values, action, draftId);
       if (action === "submit") {
-        await submitRFQ(draft.id, values);
         setMessage("RFQ submitted to the manufacturer.");
       } else {
+        setDraftId(saved.id);
         setMessage("RFQ draft saved.");
       }
     } catch (error) {
