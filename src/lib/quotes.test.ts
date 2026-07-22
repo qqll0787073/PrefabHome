@@ -13,6 +13,7 @@ import {
   validateQuoteDraftForm,
   validateQuoteForSubmission,
   validateQuoteItemForm,
+  toReadableQuoteError,
 } from "./quotes";
 import type { RFQQuoteWithItems } from "../types";
 
@@ -161,5 +162,27 @@ describe("quote helpers", () => {
       }),
       []
     );
+  });
+
+  it("requires a future validity date at submission but permits blank drafts", () => {
+    const item = {
+      id: "item-1", quote_id: quote.id, line_order: 1, item_type: "product" as const,
+      description: "Base model", quantity: 1, unit: "unit", unit_price: 100, amount: 100,
+      created_at: quote.created_at, updated_at: quote.updated_at,
+    };
+    const today = new Date().toISOString().slice(0, 10);
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    assert.deepEqual(validateQuoteDraftForm(emptyQuoteForm()), []);
+    assert.equal(validateQuoteForSubmission({ ...quote, valid_until: today, items: [item] }).includes("Valid until date must be in the future."), true);
+    assert.deepEqual(validateQuoteForSubmission({ ...quote, valid_until: tomorrow, items: [item] }), []);
+  });
+
+  it("validates bounded ports and sanitizes unknown database failures", () => {
+    assert.deepEqual(validateQuoteDraftForm({ ...emptyQuoteForm(), originPort: "x".repeat(161), destinationPort: "y".repeat(161) }), [
+      "Origin port must be 160 characters or fewer.",
+      "Destination port must be 160 characters or fewer.",
+    ]);
+    assert.equal(toReadableQuoteError({ message: "private postgres detail" }).message, "Unable to manage quote. Refresh and try again.");
+    assert.equal(toReadableQuoteError({ message: "row-level security violation" }).message, "You are not authorized to access this quote.");
   });
 });

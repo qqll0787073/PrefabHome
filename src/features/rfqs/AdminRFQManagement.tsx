@@ -4,18 +4,19 @@ import { LoadingState } from "../../components/common/LoadingState";
 import { fetchAdminRFQs, rfqSnapshotTitle, rfqStatusLabels } from "../../lib/rfq";
 import { fetchAdminQuotes } from "../../lib/quotes";
 import { fetchQuoteDecisionsForRFQ } from "../../lib/quoteDecisions";
-import type { AuthUser } from "../../lib/auth";
 import type { RFQQuoteDecisionRecord, RFQQuoteWithItems, RFQWithDetails } from "../../types";
 import { QuoteSummaryList } from "../quotes/QuoteSummaryList";
 import { AdminPurchaseOrderManagement } from "../purchase-orders/AdminPurchaseOrderManagement";
 import { RFQConversation } from "./RFQConversation";
+import { RFQActivityTimeline } from "./RFQActivityTimeline";
 
 interface AdminRFQManagementProps {
-  user: AuthUser;
   authMode: "supabase" | "demo";
+  selectedRFQId?: string | null;
+  onSelectedRFQChange?: (rfqId: string | null) => void;
 }
 
-export function AdminRFQManagement({ user, authMode }: AdminRFQManagementProps) {
+export function AdminRFQManagement({ authMode, selectedRFQId = null, onSelectedRFQChange }: AdminRFQManagementProps) {
   const [rfqs, setRFQs] = useState<RFQWithDetails[]>([]);
   const [quotes, setQuotes] = useState<RFQQuoteWithItems[]>([]);
   const [decisions, setDecisions] = useState<RFQQuoteDecisionRecord[]>([]);
@@ -59,6 +60,7 @@ export function AdminRFQManagement({ user, authMode }: AdminRFQManagementProps) 
 
   async function openRFQ(rfq: RFQWithDetails) {
     setSelectedRFQ(rfq);
+    onSelectedRFQChange?.(rfq.id);
     setDecisions([]);
     if (authMode === "demo") return;
     try {
@@ -68,11 +70,25 @@ export function AdminRFQManagement({ user, authMode }: AdminRFQManagementProps) 
     }
   }
 
+  useEffect(() => {
+    if (!selectedRFQId) {
+      if (selectedRFQ) setSelectedRFQ(null);
+      return;
+    }
+    if (isLoading || selectedRFQ?.id === selectedRFQId) return;
+    const routedRFQ = rfqs.find((rfq) => rfq.id === selectedRFQId);
+    if (routedRFQ) void openRFQ(routedRFQ);
+    else {
+      setErrors(["This RFQ is unavailable under the current Admin session."]);
+      onSelectedRFQChange?.(null);
+    }
+  }, [isLoading, rfqs, selectedRFQ?.id, selectedRFQId]);
+
   return (
     <section className="workspace-section">
       <section className="panel">
         <p className="eyebrow">RFQ Management</p>
-        <h2>All RFQs</h2>
+        <h1>RFQ Management</h1>
         <p className="form-notice">Admin RFQ management is read-only in PH-006A.</p>
         {isLoading && <LoadingState message="Loading RFQs..." />}
         <ErrorList errors={errors} />
@@ -107,7 +123,8 @@ export function AdminRFQManagement({ user, authMode }: AdminRFQManagementProps) 
           ))}
         </div>
       </section>
-      <RFQConversation rfq={selectedRFQ} user={user} readOnly />
+      <RFQConversation rfq={selectedRFQ} readOnly />
+      <RFQActivityTimeline rfq={selectedRFQ} authMode={authMode} />
       {selectedRFQ && (
         <QuoteSummaryList
           quotes={quotes.filter((quote) => quote.rfq_id === selectedRFQ.id)}

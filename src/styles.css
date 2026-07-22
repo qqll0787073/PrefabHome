@@ -1526,6 +1526,67 @@ main {
   justify-content: flex-end;
 }
 
+.quote-comparison {
+  min-width: 0;
+}
+
+.quote-comparison-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+}
+
+.quote-comparison table {
+  width: 100%;
+  min-width: 940px;
+  border-collapse: collapse;
+  color: #263246;
+  font-size: 13px;
+}
+
+.quote-comparison caption {
+  padding: 12px;
+  color: #344054;
+  font-weight: 800;
+  text-align: left;
+}
+
+.quote-comparison th,
+.quote-comparison td {
+  padding: 12px;
+  border-top: 1px solid #e3e7ee;
+  text-align: left;
+  vertical-align: top;
+}
+
+.quote-comparison thead th {
+  background: #f2f4f7;
+  white-space: nowrap;
+}
+
+.activity-timeline {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activity-timeline li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid #e3e7ee;
+}
+
+.activity-timeline time {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .comparison-table article,
 .list-item,
 .message {
@@ -1635,6 +1696,15 @@ main {
 
   .product-grid {
     grid-template-columns: 1fr;
+  }
+
+  .rfq-status-filter {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .activity-timeline li {
+    grid-template-columns: 1fr;
+    gap: 4px;
   }
 }
 
@@ -2037,5 +2107,14 @@ button.workspace-card:focus-visible {
   .admin-timeline-item code {
     grid-template-columns: 1fr;
     grid-column: 1;
+  }
+}
+
+@media (forced-colors: active) {
+  .quote-comparison-scroll,
+  .quote-comparison th,
+  .quote-comparison td,
+  .activity-timeline li {
+    border-color: CanvasText;
   }
 }

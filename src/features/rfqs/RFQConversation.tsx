@@ -2,17 +2,15 @@ import { useEffect, useState } from "react";
 import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
 import { fetchRFQMessages, postRFQMessage, rfqSnapshotTitle, rfqStatusLabels } from "../../lib/rfq";
-import type { AuthUser } from "../../lib/auth";
 import type { RFQMessageRecord, RFQWithDetails } from "../../types";
 
 interface RFQConversationProps {
   rfq: RFQWithDetails | null;
-  user: AuthUser;
   readOnly?: boolean;
   onMessagePosted?: () => void;
 }
 
-export function RFQConversation({ rfq, user, readOnly = false, onMessagePosted }: RFQConversationProps) {
+export function RFQConversation({ rfq, readOnly = false, onMessagePosted }: RFQConversationProps) {
   const [messages, setMessages] = useState<RFQMessageRecord[]>([]);
   const [reply, setReply] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -43,7 +41,7 @@ export function RFQConversation({ rfq, user, readOnly = false, onMessagePosted }
     setIsPosting(true);
     setErrors([]);
     try {
-      await postRFQMessage(rfq.id, user.id, reply);
+      await postRFQMessage(rfq.id, reply);
       setReply("");
       await loadMessages();
       onMessagePosted?.();

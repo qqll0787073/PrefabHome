@@ -57,7 +57,11 @@ The current RFQ stores product/manufacturer references, immutable product snapsh
 - Target delivery: optional valid ISO date that is not in the past when submitted.
 - Buyer message: plain text, maximum 2,000 characters.
 
+The quantity, currency, Incoterm, and Buyer-message limits have database constraints. Destination length and future target-date checks are Sprint 3A client validation only; database enforcement is a documented migration gap.
+
 Quote drafts support currency, Incoterm, origin/destination ports, production/shipping lead days, validity date, Manufacturer note, and line items. Submission requires at least one line item and a future validity date when one is supplied. Amounts cannot be negative, item quantities must be positive, and text fields have bounded lengths. No tax, customs, permit, code-compliance, payment, or delivery guarantee is inferred from a line item label.
+
+The current database does not enforce future quote validity or port-length limits. The UI rejects them for feedback, but an authorized future migration is required for database-level integrity.
 
 ## Comparison
 
@@ -90,4 +94,3 @@ Deferred pending migration authorization:
 - Any payment, order, contract, email, e-signature, freight, customs, analytics, tracking, monitoring, or AI integration.
 
 Migration 0025 is NOT AUTHORIZED and was NOT created. No production deployment was performed.
-

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ConfirmationDialog } from "../../components/common/ConfirmationDialog";
 import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
 import {
@@ -57,6 +58,9 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
+  const [pendingDelete, setPendingDelete] = useState<{ kind: "draft" | "item"; item?: RFQQuoteItemRecord } | null>(null);
+  const deleteReturnFocus = useRef<HTMLElement | null>(null);
+  const submitLock = useRef(false);
 
   const submittedQuotes = useMemo(
     () => quotes.filter((quote) => quote.status !== "draft"),
@@ -180,13 +184,25 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
   }
 
   async function submitDraft() {
-    if (!activeQuote) return;
-    const validationErrors = validateQuoteForSubmission(activeQuote);
+    if (!activeQuote || submitLock.current) return;
+    const candidateQuote: RFQQuoteWithItems = {
+      ...activeQuote,
+      currency: quoteValues.currency.trim().toUpperCase(),
+      incoterm: quoteValues.incoterm.trim().toUpperCase() as RFQQuoteWithItems["incoterm"] || null,
+      origin_port: quoteValues.originPort.trim() || null,
+      destination_port: quoteValues.destinationPort.trim() || null,
+      production_lead_days: quoteValues.productionLeadDays ? Number(quoteValues.productionLeadDays) : null,
+      shipping_lead_days: quoteValues.shippingLeadDays ? Number(quoteValues.shippingLeadDays) : null,
+      valid_until: quoteValues.validUntil || null,
+      manufacturer_note: quoteValues.manufacturerNote.trim() || null,
+    };
+    const validationErrors = validateQuoteForSubmission(candidateQuote);
     if (validationErrors.length > 0) {
       setErrors(validationErrors);
       return;
     }
 
+    submitLock.current = true;
     setIsSaving(true);
     setErrors([]);
     setMessage("");
@@ -199,6 +215,7 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
     } catch (error) {
       setErrors([error instanceof Error ? error.message : "Unable to submit quote."]);
     } finally {
+      submitLock.current = false;
       setIsSaving(false);
     }
   }
@@ -217,6 +234,19 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  async function confirmDelete() {
+    const pending = pendingDelete;
+    if (!pending) return;
+    setPendingDelete(null);
+    if (pending.kind === "item" && pending.item) await removeLineItem(pending.item);
+    else await deleteDraft();
+  }
+
+  function requestDelete(kind: "draft" | "item", trigger: HTMLElement, item?: RFQQuoteItemRecord) {
+    deleteReturnFocus.current = trigger;
+    setPendingDelete({ kind, item });
   }
 
   async function reviseQuote(quote: RFQQuoteWithItems) {
@@ -256,7 +286,7 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
         Requested: {rfq.requested_quantity} units - {rfq.requested_currency}
       </p>
       <ErrorList errors={errors} />
-      {message && <p className="form-notice">{message}</p>}
+      {message && <p className="form-notice" role="status">{message}</p>}
       {isLoading && <LoadingState message="Loading quotes..." />}
       {!draftQuote && canCreateDraft && (
         <div className="actions">
@@ -307,6 +337,7 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
               <input
                 value={quoteValues.originPort}
                 disabled={!isDraftEditable}
+                maxLength={160}
                 onChange={(event) => setQuoteValues({ ...quoteValues, originPort: event.target.value })}
               />
             </label>
@@ -315,6 +346,7 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
               <input
                 value={quoteValues.destinationPort}
                 disabled={!isDraftEditable}
+                maxLength={160}
                 onChange={(event) => setQuoteValues({ ...quoteValues, destinationPort: event.target.value })}
               />
             </label>
@@ -382,7 +414,7 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
                     >
                       Edit
                     </button>
-                    <button type="button" onClick={() => void removeLineItem(item)}>
+                    <button type="button" onClick={(event) => requestDelete("item", event.currentTarget, item)}>
                       Delete
                     </button>
                   </span>
@@ -481,7 +513,7 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
                 <button type="button" disabled={isSaving} onClick={() => void submitDraft()}>
                   Submit Quote
                 </button>
-                <button type="button" disabled={isSaving} onClick={() => void deleteDraft()}>
+                <button type="button" disabled={isSaving} onClick={(event) => requestDelete("draft", event.currentTarget)}>
                   Delete Draft
                 </button>
               </>
@@ -500,6 +532,16 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
         title="Submitted Quote Versions"
         readOnlyNote="Submitted quote versions preserve the negotiation history."
         decisions={decisions}
+      />
+      <ConfirmationDialog
+        open={Boolean(pendingDelete)}
+        title={pendingDelete?.kind === "item" ? "Delete quote line item?" : "Delete quote draft?"}
+        description={pendingDelete?.kind === "item" ? "The line item will be removed and the database will recalculate the subtotal." : "This permanently removes the draft quote. Submitted quote history is not affected."}
+        confirmLabel={pendingDelete?.kind === "item" ? "Delete Line" : "Delete Draft"}
+        isBusy={isSaving}
+        returnFocusTo={deleteReturnFocus.current}
+        onConfirm={() => void confirmDelete()}
+        onClose={() => setPendingDelete(null)}
       />
     </section>
   );

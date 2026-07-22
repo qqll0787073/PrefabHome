@@ -34,6 +34,7 @@ Function grants restrict internal helpers to trigger/security-definer execution.
 | Cross-Manufacturer quote comparison | Unsupported | Current RFQ has one `manufacturer_id` and no distribution/bid table |
 | Browser-safe trusted RFQ create/duplicate | Partial | RLS validates ownership, but insert payload includes relationship IDs |
 | Additional RFQ business fields | Unsupported | No columns or safe payload validation for size, rooms, region, or budgets |
+| Date and location length constraints | UI validation only | Existing schema does not enforce future delivery/validity dates or bounded country/port text |
 | RFQ attachments | Unsupported end to end | `attachment_path` exists on messages, but no approved RFQ upload/download surface |
 | Quote warranty/shipping scope | Unsupported | No persisted fields; line items cannot safely substitute for explicit scope |
 | Manufacturer decline/quote withdrawal | Unsupported action | Status vocabulary is not an executable authority boundary |
@@ -52,6 +53,7 @@ The following is analysis only. A future authorized migration would need to be r
 7. Add narrowly scoped Manufacturer decline and quote withdrawal RPCs with row locks, legal transition checks, database timestamps, and trusted events.
 8. Add a server-side expiry operation with deterministic clock semantics and a controlled scheduler/operator boundary; never browser-derived expiry.
 9. Add dedicated lifecycle timestamps only where they are audit requirements and make them database-managed.
+10. Add database constraints or trusted validators for RFQ destination lengths, target delivery date semantics, quote port lengths, and quote validity-date semantics. Sprint 3A client checks improve feedback but are not an authorization or database-integrity boundary.
 
 ## Security Implications
 
@@ -62,4 +64,3 @@ The following is analysis only. A future authorized migration would need to be r
 - New business fields must be validated in the database as well as the UI; browser-only budget or scope data cannot be authoritative.
 
 Migration 0025 is NOT AUTHORIZED and was NOT created. Migrations `0001` through `0024` remain unchanged. No staging, production, or preview environment was accessed or modified.
-

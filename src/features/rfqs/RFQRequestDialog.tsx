@@ -49,7 +49,7 @@ export function RFQRequestDialog({ product, user, onClose }: RFQRequestDialogPro
 
     setIsSaving(true);
     try {
-      const draft = await createDraftRFQ(user.id, product, values);
+      const draft = await createDraftRFQ(product, values);
       if (action === "submit") {
         await submitRFQ(draft.id, values);
         setMessage("RFQ submitted to the manufacturer.");
@@ -148,6 +148,7 @@ export function RFQRequestDialog({ product, user, onClose }: RFQRequestDialogPro
             Destination Country
             <input
               value={values.destinationCountry}
+              maxLength={120}
               onChange={(event) => updateField("destinationCountry", event.target.value)}
               disabled={!canRequest || isSaving}
             />
@@ -156,6 +157,7 @@ export function RFQRequestDialog({ product, user, onClose }: RFQRequestDialogPro
             Destination Port
             <input
               value={values.destinationPort}
+              maxLength={160}
               onChange={(event) => updateField("destinationPort", event.target.value)}
               disabled={!canRequest || isSaving}
             />

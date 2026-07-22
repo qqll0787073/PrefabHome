@@ -9,6 +9,7 @@ import type {
   RFQQuoteStatus,
   RFQQuoteWithItems,
 } from "../types";
+import { assertLiveRecordId } from "./rfqQuoteWorkflow";
 
 export const quoteStatuses: RFQQuoteStatus[] = [
   "draft",
@@ -56,6 +57,7 @@ export const quoteItemTypeLabels: Record<RFQQuoteItemType, string> = {
 
 export const quoteIncoterms: RFQIncoterm[] = ["FOB", "CIF", "EXW", "DDP", "DAP"];
 export const quoteNoteMaxLength = 4000;
+export const quotePortMaxLength = 160;
 
 const quoteSelect = "*, items:rfq_quote_items(*)";
 
@@ -197,6 +199,18 @@ export function validateQuoteDraftForm(values: RFQQuoteFormValues): string[] {
     errors.push("Shipping lead days must be zero or more.");
   }
 
+  if (values.originPort.trim().length > quotePortMaxLength) {
+    errors.push(`Origin port must be ${quotePortMaxLength} characters or fewer.`);
+  }
+
+  if (values.destinationPort.trim().length > quotePortMaxLength) {
+    errors.push(`Destination port must be ${quotePortMaxLength} characters or fewer.`);
+  }
+
+  if (values.validUntil && Number.isNaN(Date.parse(`${values.validUntil}T00:00:00Z`))) {
+    errors.push("Valid until date must be valid.");
+  }
+
   if (values.manufacturerNote.length > quoteNoteMaxLength) {
     errors.push(`Manufacturer note must be ${quoteNoteMaxLength} characters or fewer.`);
   }
@@ -244,6 +258,9 @@ export function validateQuoteForSubmission(quote: RFQQuoteWithItems): string[] {
   if (quote.items.length === 0) {
     errors.push("Quote must include at least one line item.");
   }
+  if (quote.valid_until && quote.valid_until <= new Date().toISOString().slice(0, 10)) {
+    errors.push("Valid until date must be in the future.");
+  }
   return errors;
 }
 
@@ -271,7 +288,7 @@ function toQuoteItemPayload(values: RFQQuoteItemFormValues) {
   };
 }
 
-function toReadableQuoteError(error: { message?: string }): Error {
+export function toReadableQuoteError(error: { message?: string }): Error {
   const message = error.message?.toLowerCase() ?? "";
 
   if (message.includes("row-level security") || message.includes("permission denied")) {
@@ -286,11 +303,16 @@ function toReadableQuoteError(error: { message?: string }): Error {
     return new Error("Quote must include at least one line item.");
   }
 
-  return new Error(error.message ?? "Unable to manage quote.");
+  if (message.includes("valid") && message.includes("future")) {
+    return new Error("Valid until date must be in the future.");
+  }
+
+  return new Error("Unable to manage quote. Refresh and try again.");
 }
 
 export async function createQuoteDraft(rfqId: string): Promise<RFQQuoteRecord> {
   const client = ensureSupabase();
+  assertLiveRecordId(rfqId, "RFQ");
   const { data, error } = await client.rpc("create_rfq_quote_draft", { rfq_uuid: rfqId });
   if (error) throw toReadableQuoteError(error);
   return data as RFQQuoteRecord;
@@ -298,6 +320,7 @@ export async function createQuoteDraft(rfqId: string): Promise<RFQQuoteRecord> {
 
 export async function submitQuote(quoteId: string): Promise<RFQQuoteRecord> {
   const client = ensureSupabase();
+  assertLiveRecordId(quoteId, "Quote");
   const { data, error } = await client.rpc("submit_rfq_quote", { quote_uuid: quoteId });
   if (error) throw toReadableQuoteError(error);
   return data as RFQQuoteRecord;
@@ -305,6 +328,7 @@ export async function submitQuote(quoteId: string): Promise<RFQQuoteRecord> {
 
 export async function createQuoteRevision(quoteId: string): Promise<RFQQuoteRecord> {
   const client = ensureSupabase();
+  assertLiveRecordId(quoteId, "Quote");
   const { data, error } = await client.rpc("create_rfq_quote_revision", { quote_uuid: quoteId });
   if (error) throw toReadableQuoteError(error);
   return data as RFQQuoteRecord;
@@ -312,12 +336,14 @@ export async function createQuoteRevision(quoteId: string): Promise<RFQQuoteReco
 
 export async function deleteQuoteDraft(quoteId: string): Promise<void> {
   const client = ensureSupabase();
+  assertLiveRecordId(quoteId, "Quote");
   const { error } = await client.rpc("delete_rfq_quote_draft", { quote_uuid: quoteId });
   if (error) throw toReadableQuoteError(error);
 }
 
 export async function fetchQuote(quoteId: string): Promise<RFQQuoteWithItems | null> {
   if (!supabase) return null;
+  assertLiveRecordId(quoteId, "Quote");
   const { data, error } = await supabase
     .from("rfq_quotes")
     .select(quoteSelect)
@@ -330,6 +356,7 @@ export async function fetchQuote(quoteId: string): Promise<RFQQuoteWithItems | n
 
 export async function fetchQuotesForRFQ(rfqId: string): Promise<RFQQuoteWithItems[]> {
   if (!supabase) return [];
+  assertLiveRecordId(rfqId, "RFQ");
   const { data, error } = await supabase
     .from("rfq_quotes")
     .select(quoteSelect)
@@ -379,6 +406,7 @@ export async function updateQuoteDraft(
   values: RFQQuoteFormValues
 ): Promise<RFQQuoteRecord> {
   const client = ensureSupabase();
+  assertLiveRecordId(quoteId, "Quote");
   const { data, error } = await client
     .from("rfq_quotes")
     .update(toQuoteUpdatePayload(values))
@@ -395,6 +423,7 @@ export async function addQuoteItem(
   values: RFQQuoteItemFormValues
 ): Promise<RFQQuoteItemRecord> {
   const client = ensureSupabase();
+  assertLiveRecordId(quoteId, "Quote");
   const { data, error } = await client
     .from("rfq_quote_items")
     .insert({ quote_id: quoteId, ...toQuoteItemPayload(values) })
@@ -410,6 +439,7 @@ export async function updateQuoteItem(
   values: RFQQuoteItemFormValues
 ): Promise<RFQQuoteItemRecord> {
   const client = ensureSupabase();
+  assertLiveRecordId(itemId, "Quote line item");
   const { data, error } = await client
     .from("rfq_quote_items")
     .update(toQuoteItemPayload(values))
@@ -423,6 +453,7 @@ export async function updateQuoteItem(
 
 export async function deleteQuoteItem(itemId: string): Promise<void> {
   const client = ensureSupabase();
+  assertLiveRecordId(itemId, "Quote line item");
   const { error } = await client.from("rfq_quote_items").delete().eq("id", itemId);
   if (error) throw toReadableQuoteError(error);
 }

@@ -9,7 +9,9 @@ import {
   manufacturerRFQDashboardGroup,
   rfqSnapshotTitle,
   rfqStatusLabels,
+  rfqToFormValues,
   rfqTimeline,
+  toReadableRFQError,
   toRFQPayload,
   validateRFQForm,
 } from "./rfq";
@@ -59,6 +61,41 @@ describe("rfq helpers", () => {
       "Destination country is required.",
       "Message must be 2000 characters or fewer.",
     ]);
+  });
+
+  it("validates RFQ date and bounded destination fields", () => {
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    const errors = validateRFQForm({
+      ...emptyRFQForm(),
+      destinationCountry: "x".repeat(121),
+      destinationPort: "x".repeat(161),
+      targetDeliveryDate: yesterday,
+    });
+    assert.deepEqual(errors, [
+      "Destination country must be 120 characters or fewer.",
+      "Destination port must be 160 characters or fewer.",
+      "Target delivery date cannot be in the past.",
+    ]);
+  });
+
+  it("round-trips editable draft fields without ownership data", () => {
+    const values = rfqToFormValues({
+      id: "rfq-1", buyer_id: "buyer-1", manufacturer_id: "manufacturer-1", product_id: "product-1",
+      product_snapshot: {}, status: "draft", requested_quantity: 2, requested_currency: "CAD", incoterm: "FOB",
+      destination_country: "Canada", destination_port: "Vancouver", target_delivery_date: "2027-01-01",
+      buyer_message: "Quote request", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+    });
+    assert.deepEqual(values, {
+      requestedQuantity: "2", requestedCurrency: "CAD", incoterm: "FOB", destinationCountry: "Canada",
+      destinationPort: "Vancouver", targetDeliveryDate: "2027-01-01", buyerMessage: "Quote request",
+    });
+    assert.equal("buyerId" in values, false);
+    assert.equal("manufacturerId" in values, false);
+  });
+
+  it("sanitizes unknown database failures", () => {
+    assert.equal(toReadableRFQError({ message: "secret schema detail" }).message, "Unable to manage RFQ. Refresh and try again.");
+    assert.equal(toReadableRFQError({ message: "permission denied for table rfqs" }).message, "You are not authorized to access this RFQ.");
   });
 
   it("maps only supported RFQ statuses", () => {
