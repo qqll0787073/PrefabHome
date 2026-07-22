@@ -67,3 +67,10 @@ test("Vite and browser smoke enforce isolated modes before local rendering", () 
   assert.match(safeLauncher, /command === "preview"[\s\S]*"build", "--mode", "preview"/);
   assert.doesNotMatch(safeLauncher, /\.env\.production|\.env\.local/);
 });
+
+test("Supabase construction remains browser-only when CI placeholders are present", () => {
+  const supabase = readFileSync("src/lib/supabase.ts", "utf8");
+  assert.match(supabase, /typeof window !== "undefined" && typeof document !== "undefined"/);
+  assert.match(supabase, /if \(!browserRuntime\) return null/);
+  assert.match(supabase, /createRuntimeSupabaseClient\(runtimeConfig\)/);
+});

@@ -1,8 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { runtimeConfig, type RuntimeConfig } from "./runtimeConfig";
 
-export const isSupabaseConfigured = runtimeConfig.isSupabaseConnected;
-
 type SupabaseClientFactory = typeof createClient;
 
 export function createConfiguredSupabaseClient(
@@ -19,4 +17,18 @@ export function createConfiguredSupabaseClient(
   }) as SupabaseClient;
 }
 
-export const supabase = createConfiguredSupabaseClient(runtimeConfig);
+export function isBrowserClientRuntime(): boolean {
+  return typeof window !== "undefined" && typeof document !== "undefined";
+}
+
+export function createRuntimeSupabaseClient(
+  config: RuntimeConfig,
+  factory: SupabaseClientFactory = createClient,
+  browserRuntime = isBrowserClientRuntime(),
+): SupabaseClient | null {
+  if (!browserRuntime) return null;
+  return createConfiguredSupabaseClient(config, factory);
+}
+
+export const supabase = createRuntimeSupabaseClient(runtimeConfig);
+export const isSupabaseConfigured = supabase !== null;
