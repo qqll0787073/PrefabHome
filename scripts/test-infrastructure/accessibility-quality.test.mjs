@@ -155,6 +155,8 @@ test("quality gate is non-networking, non-deploying, and CI remains read-only", 
   assert.match(browserSmoke, /prefers-reduced-motion/);
   assert.match(browserSmoke, /consoleErrors: consoleErrors\.length/);
   assert.match(browserSmoke, /unsafeLogs: unsafeLogs\.length/);
+  assert.match(browserSmoke, /Fetch\.enable/);
+  assert.match(browserSmoke, /externalRequests: 0/);
   assert.doesNotMatch(browserSmoke, /\.env\.(?:local|staging|smoke)|SUPABASE|PREFAB_.*(?:PASSWORD|KEY|TOKEN)|screenshot/i);
   assert.match(workflow, /permissions:\s*\n\s+contents: read/);
   assert.doesNotMatch(workflow, /^\s+[A-Za-z_-]+:\s*write\s*$/m);

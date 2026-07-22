@@ -63,7 +63,7 @@ test("artifact verification is local-only and package scripts keep release actio
   assert.doesNotMatch(readiness, /\bsupabase\s+(?:db|link|migration)|\b(?:upload|deploy)\b/i);
   assert.match(artifact, /tmpdir\(\)/);
   assert.match(readiness, /runNpmScript\("verify:beta", betaEnvironment\)/);
-  assert.match(readiness, /runNpmScript\("build", productionEnvironment\)/);
+  assert.match(readiness, /runNpmScript\("build:production", productionEnvironment\)/);
   assert.match(readiness, /runNpmScript\("verify:production-artifact", productionEnvironment\)/);
 });
 

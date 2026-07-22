@@ -24,7 +24,9 @@ jobs:
     timeout-minutes: 20
     env:
       VITE_ENABLE_MARKETPLACE_DEMO: "false"
-      VITE_DEPLOYMENT_ENV: local
+      VITE_SUPABASE_URL: https://nonconnecting.example.invalid
+      VITE_SUPABASE_ANON_KEY: ci-browser-publishable-placeholder
+      VITE_DEPLOYMENT_ENV: ci
       VITE_APP_VERSION: ci
       VITE_COMMIT_SHA: unknown
       VITE_PUBLIC_SITE_URL: https://example.invalid

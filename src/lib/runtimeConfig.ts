@@ -9,6 +9,7 @@ export type RuntimeConfigIssueCode =
   | "SUPABASE_CONFIGURATION_MISSING"
   | "SUPABASE_CONFIGURATION_INCOMPLETE"
   | "SUPABASE_URL_INVALID"
+  | "LOCAL_PRODUCTION_SUPABASE_BLOCKED"
   | "PUBLIC_SITE_URL_INVALID";
 
 export interface RuntimeConfigIssue {
@@ -36,6 +37,8 @@ export interface RuntimeConfig {
 const TRUE_VALUES = new Set(["true", "1", "yes", "on"]);
 const FALSE_VALUES = new Set(["false", "0", "no", "off", ""]);
 const DEPLOYMENT_ENVIRONMENTS = new Set<DeploymentEnvironment>(["local", "staging", "production"]);
+const LOCAL_DEPLOYMENT_ALIASES = new Set(["local", "test", "ci", "development", "preview"]);
+const BLOCKED_PRODUCTION_PROJECT_REF = "eoyrfrjbjglfudfuwxdf";
 
 function envValue(env: Record<string, string | undefined>, name: string): string {
   return env[name]?.trim() ?? "";
@@ -54,12 +57,13 @@ function normalizeDeploymentEnvironment(
 ): DeploymentEnvironment {
   const normalized = value.toLowerCase();
   if (!normalized) return "local";
+  if (LOCAL_DEPLOYMENT_ALIASES.has(normalized)) return "local";
   if (DEPLOYMENT_ENVIRONMENTS.has(normalized as DeploymentEnvironment)) {
     return normalized as DeploymentEnvironment;
   }
   issues.push({
     code: "INVALID_DEPLOYMENT_ENV",
-    message: "The deployment environment must be local, staging, or production.",
+    message: "The deployment environment is not supported.",
   });
   return "local";
 }
@@ -73,6 +77,15 @@ function validSupabaseUrl(value: string): boolean {
   try {
     const url = new URL(value);
     return (url.protocol === "https:" || url.protocol === "http:") && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isBlockedProductionSupabaseUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.hostname.toLowerCase() === `${BLOCKED_PRODUCTION_PROJECT_REF}.supabase.co`;
   } catch {
     return false;
   }
@@ -106,6 +119,10 @@ export function parseRuntimeConfig(env: Record<string, string | undefined>): Run
   const hasUrl = Boolean(rawSupabaseUrl);
   const hasKey = Boolean(rawSupabaseAnonKey);
   const urlIsValid = hasUrl && validSupabaseUrl(rawSupabaseUrl);
+  const productionSupabaseBlocked =
+    deploymentEnvironment === "local"
+    && urlIsValid
+    && isBlockedProductionSupabaseUrl(rawSupabaseUrl);
 
   if (!hasUrl && !hasKey && !marketplaceDemoEnabled) {
     issues.push({
@@ -126,7 +143,15 @@ export function parseRuntimeConfig(env: Record<string, string | undefined>): Run
     });
   }
 
-  const isSupabaseConnected = urlIsValid && hasKey;
+  if (productionSupabaseBlocked) {
+    marketplaceDemoEnabled = false;
+    issues.push({
+      code: "LOCAL_PRODUCTION_SUPABASE_BLOCKED",
+      message: "The configured data service is unavailable in this local runtime.",
+    });
+  }
+
+  const isSupabaseConnected = urlIsValid && hasKey && !productionSupabaseBlocked;
   const publicSiteResult = normalizePublicSiteUrl(
     envValue(env, "VITE_PUBLIC_SITE_URL"),
     deploymentEnvironment === "production",
@@ -173,9 +198,10 @@ export function readRuntimeConfig(): RuntimeConfig {
 export const runtimeConfig = readRuntimeConfig();
 
 export function isDemoFallbackAllowed(
-  config: Pick<RuntimeConfig, "deploymentEnvironment"> = runtimeConfig
+  config: Pick<RuntimeConfig, "deploymentEnvironment" | "issues"> = runtimeConfig
 ): boolean {
-  return config.deploymentEnvironment !== "production";
+  return config.deploymentEnvironment !== "production"
+    && !config.issues.some((issue) => issue.code === "LOCAL_PRODUCTION_SUPABASE_BLOCKED");
 }
 
 export function runtimeConfigMessages(config: RuntimeConfig = runtimeConfig): string[] {

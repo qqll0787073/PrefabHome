@@ -14,11 +14,10 @@ Requirements: Node.js 20 or newer, npm, and a Supabase project with migrations `
 
 ```bash
 npm ci
-cp .env.example .env.local
-npm run dev
+npm run dev:safe
 ```
 
-Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the ignored `.env.local` file. Never put credentials or a service-role key in a `VITE_` variable. `VITE_ENABLE_MARKETPLACE_DEMO=true` is local-development-only and must remain disabled in deployed environments.
+Local QA must use the safe launcher. It strips inherited browser variables and does not load repository-root environment files. Keep real production configuration outside the development workspace and inject approved browser variables only through the deployment system. Never put credentials or a service-role key in a `VITE_` variable. See [Local Environment Safety](docs/LOCAL_ENVIRONMENT_SAFETY.md).
 
 Set `VITE_PUBLIC_SITE_URL` to the local public origin, normally `http://localhost:5173`. It controls canonical and sitemap output only and never grants portal access.
 
@@ -43,7 +42,7 @@ npm run verify:legal-structure
 
 This runs the repository's frontend and infrastructure tests, production build, dependency audit, tracked-secret scan, and required-document audit. It performs no remote Supabase operation.
 
-`npm run verify:quality` is a deterministic, non-networking build/test/artifact/bundle/documentation/legal-structure gate. `npm run verify:legal-publication` is a separate publication gate and intentionally fails while operator identity, contacts, dates, approvals, and final legal text remain unresolved. `npm run quality:bundle` reports and enforces the reviewed artifact budgets. After building locally, `npm run quality:browser` can run the optional Chrome/Edge viewport, focus, reflow, reduced-motion, forced-colors, legal-route, and console smoke; it is intentionally excluded from mandatory CI.
+`npm run verify:quality` is a deterministic, non-networking build/test/artifact/bundle/documentation/legal-structure gate. `npm run verify:legal-publication` is a separate publication gate and intentionally fails while operator identity, contacts, dates, approvals, and final legal text remain unresolved. `npm run quality:bundle` reports and enforces the reviewed artifact budgets. `npm run quality:browser` rebuilds with isolated test placeholders, blocks external browser traffic, and runs the optional Chrome/Edge viewport, focus, reflow, reduced-motion, forced-colors, legal-route, and console smoke; it is intentionally excluded from mandatory CI.
 
 ## RFQ And Quote Workflow
 
