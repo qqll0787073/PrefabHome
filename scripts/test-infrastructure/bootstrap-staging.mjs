@@ -13,10 +13,10 @@ export function listMigrationVersions(migrationsDir = "supabase/migrations") {
 }
 
 export function assertExpectedMigrations(versions) {
-  const expected = Array.from({ length: 24 }, (_, index) => String(index + 1).padStart(4, "0"));
+  const expected = Array.from({ length: 25 }, (_, index) => String(index + 1).padStart(4, "0"));
   const actual = [...versions].sort();
   if (actual.join(",") !== expected.join(",")) {
-    throw new Error(`Expected migrations 0001 through 0024, found ${actual.join(",") || "none"}.`);
+    throw new Error(`Expected migrations 0001 through 0025, found ${actual.join(",") || "none"}.`);
   }
   return true;
 }
@@ -40,7 +40,7 @@ export function resolveAuthProfilesMigrationBaseline() {
 
 export function assertMigrationsUnchangedFromAuthProfiles() {
   const protectedMigrationPaths = Array.from(
-    { length: 23 },
+    { length: 24 },
     (_, index) => `supabase/migrations/${String(index + 1).padStart(4, "0")}_`,
   );
   const migrationFiles = fs.readdirSync("supabase/migrations")
@@ -51,7 +51,7 @@ export function assertMigrationsUnchangedFromAuthProfiles() {
     execFileSync("git", ["diff", "--quiet", baseline, "--", ...migrationFiles], { stdio: "pipe" });
     return true;
   } catch {
-    throw new Error("Protected migrations 0001 through 0023 differ from auth-profiles.");
+    throw new Error("Protected migrations 0001 through 0024 differ from auth-profiles.");
   }
 }
 

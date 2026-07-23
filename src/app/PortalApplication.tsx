@@ -24,6 +24,7 @@ export function PortalApplication({ onPublicHome }: PortalApplicationProps) {
   const auth = useAuth();
   const initialLocation = readPortalLocation(window.location.search);
   const pendingRestoredWorkspace = useRef(initialLocation.workspace);
+  const previousAuthenticatedUserId = useRef<string | null>(null);
   const [role, setRole] = useState<Role>("buyer");
   const [view, setView] = useState<View>(initialLocation.view);
   const [workspace, setWorkspace] = useState<PortalWorkspace>(
@@ -32,9 +33,12 @@ export function PortalApplication({ onPublicHome }: PortalApplicationProps) {
   const [selectedLogisticsRequestId, setSelectedLogisticsRequestId] = useState<string | null>(
     initialLocation.requestId,
   );
+  const [selectedWorkflowRecordId, setSelectedWorkflowRecordId] = useState<string | null>(
+    initialLocation.recordId,
+  );
 
   function syncUrl(
-    next: { view: View; workspace: PortalWorkspace; requestId: string | null },
+    next: { view: View; workspace: PortalWorkspace; requestId: string | null; recordId: string | null },
     replace = false,
   ) {
     const url = `/marketplace${buildPortalSearch(next)}`;
@@ -43,7 +47,8 @@ export function PortalApplication({ onPublicHome }: PortalApplicationProps) {
 
   function changeView(nextView: View) {
     setView(nextView);
-    syncUrl({ view: nextView, workspace, requestId: selectedLogisticsRequestId });
+    if (nextView !== "dashboard") setSelectedWorkflowRecordId(null);
+    syncUrl({ view: nextView, workspace, requestId: selectedLogisticsRequestId, recordId: nextView === "dashboard" ? selectedWorkflowRecordId : null });
   }
 
   function changeRole(nextRole: Role) {
@@ -53,19 +58,28 @@ export function PortalApplication({ onPublicHome }: PortalApplicationProps) {
     setView("dashboard");
     setWorkspace(nextWorkspace);
     setSelectedLogisticsRequestId(null);
-    syncUrl({ view: "dashboard", workspace: nextWorkspace, requestId: null });
+    setSelectedWorkflowRecordId(null);
+    syncUrl({ view: "dashboard", workspace: nextWorkspace, requestId: null, recordId: null });
   }
 
   function changeWorkspace(nextWorkspace: PortalWorkspace) {
     pendingRestoredWorkspace.current = null;
     setWorkspace(nextWorkspace);
     setSelectedLogisticsRequestId(null);
-    syncUrl({ view: "dashboard", workspace: nextWorkspace, requestId: null });
+    setSelectedWorkflowRecordId(null);
+    syncUrl({ view: "dashboard", workspace: nextWorkspace, requestId: null, recordId: null });
   }
 
   function changeLogisticsRequest(requestId: string | null) {
     setSelectedLogisticsRequestId(requestId);
-    syncUrl({ view: "dashboard", workspace: "logistics", requestId });
+    setSelectedWorkflowRecordId(null);
+    syncUrl({ view: "dashboard", workspace: "logistics", requestId, recordId: null });
+  }
+
+  function changeWorkflowRecord(recordId: string | null) {
+    if (recordId === selectedWorkflowRecordId) return;
+    setSelectedWorkflowRecordId(recordId);
+    syncUrl({ view: "dashboard", workspace, requestId: null, recordId });
   }
 
   useEffect(() => {
@@ -76,10 +90,16 @@ export function PortalApplication({ onPublicHome }: PortalApplicationProps) {
     if (!auth.user) return;
     const nextRole = auth.user.role;
     const nextWorkspace = normalizePortalWorkspace(nextRole, pendingRestoredWorkspace.current ?? workspace);
+    const hasPreviousUser = previousAuthenticatedUserId.current !== null;
+    const userChanged = hasPreviousUser && previousAuthenticatedUserId.current !== auth.user.id;
+    const roleChanged = hasPreviousUser && nextRole !== role;
+    const clearWorkflowRecord = userChanged || roleChanged;
+    previousAuthenticatedUserId.current = auth.user.id;
     pendingRestoredWorkspace.current = null;
     setRole(nextRole);
     setWorkspace(nextWorkspace);
-    syncUrl({ view, workspace: nextWorkspace, requestId: selectedLogisticsRequestId }, true);
+    if (clearWorkflowRecord) setSelectedWorkflowRecordId(null);
+    syncUrl({ view, workspace: nextWorkspace, requestId: selectedLogisticsRequestId, recordId: clearWorkflowRecord ? null : selectedWorkflowRecordId }, true);
   }, [auth.user?.id]);
 
   useEffect(() => {
@@ -88,6 +108,7 @@ export function PortalApplication({ onPublicHome }: PortalApplicationProps) {
       setView(location.view);
       setWorkspace(normalizePortalWorkspace(role, location.workspace));
       setSelectedLogisticsRequestId(location.requestId);
+      setSelectedWorkflowRecordId(location.recordId);
     }
     window.addEventListener("popstate", restoreLocation);
     return () => window.removeEventListener("popstate", restoreLocation);
@@ -114,9 +135,11 @@ export function PortalApplication({ onPublicHome }: PortalApplicationProps) {
             role={role}
             workspace={workspace}
             selectedLogisticsRequestId={selectedLogisticsRequestId}
+            selectedWorkflowRecordId={selectedWorkflowRecordId}
             onRoleChange={changeRole}
             onWorkspaceChange={changeWorkspace}
             onLogisticsRequestChange={changeLogisticsRequest}
+            onWorkflowRecordChange={changeWorkflowRecord}
           />
         )}
       </main>

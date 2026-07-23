@@ -61,6 +61,40 @@ test("local demo mode remains available without Supabase credentials", () => {
   assert.equal(config.issues.length, 0);
 });
 
+test("non-production runtime aliases reject the production Supabase project without exposing configuration", () => {
+  const productionUrl = "https://eoyrfrjbjglfudfuwxdf.supabase.co";
+  const publishableKey = "production-shaped-publishable-value";
+  for (const environment of ["local", "test", "ci", "development", "preview"]) {
+    const config = parseRuntimeConfig({
+      VITE_DEPLOYMENT_ENV: environment,
+      VITE_SUPABASE_URL: productionUrl,
+      VITE_SUPABASE_ANON_KEY: publishableKey,
+      VITE_ENABLE_MARKETPLACE_DEMO: "true",
+    });
+    assert.equal(config.deploymentEnvironment, "local");
+    assert.equal(config.isSupabaseConnected, false);
+    assert.equal(config.supabaseUrl, null);
+    assert.equal(config.supabaseAnonKey, null);
+    assert.equal(config.marketplaceDemoEnabled, false);
+    assert.equal(isDemoFallbackAllowed(config), false);
+    assert.ok(config.issues.some((issue) => issue.code === "LOCAL_PRODUCTION_SUPABASE_BLOCKED"));
+    const messages = config.issues.map((issue) => issue.message).join(" ");
+    assert.doesNotMatch(messages, /eoyrfrjbjglfudfuwxdf|supabase\.co|production-shaped-publishable-value/i);
+  }
+});
+
+test("fake CI placeholders remain accepted without weakening the production-project guard", () => {
+  const config = parseRuntimeConfig({
+    VITE_DEPLOYMENT_ENV: "ci",
+    VITE_SUPABASE_URL: "https://nonconnecting.example.invalid",
+    VITE_SUPABASE_ANON_KEY: "browser-publishable-placeholder",
+    VITE_ENABLE_MARKETPLACE_DEMO: "false",
+  });
+  assert.equal(config.deploymentEnvironment, "local");
+  assert.equal(config.isSupabaseConnected, true);
+  assert.equal(config.issues.length, 0);
+});
+
 test("release metadata uses safe local fallbacks", () => {
   const config = parseRuntimeConfig({});
   assert.deepEqual(config.release, {

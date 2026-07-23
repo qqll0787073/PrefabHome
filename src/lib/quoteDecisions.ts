@@ -5,6 +5,7 @@ import type {
   RFQQuoteWithItems,
   RFQStatus,
 } from "../types";
+import { assertLiveRecordId } from "./rfqQuoteWorkflow";
 
 export const quoteDecisionValues: RFQQuoteDecisionValue[] = [
   "accepted",
@@ -32,7 +33,7 @@ function ensureSupabase() {
   return supabase;
 }
 
-function toReadableDecisionError(error: { message?: string }): Error {
+export function toReadableDecisionError(error: { message?: string }): Error {
   const message = error.message?.toLowerCase() ?? "";
 
   if (message.includes("row-level security") || message.includes("permission denied")) {
@@ -51,7 +52,7 @@ function toReadableDecisionError(error: { message?: string }): Error {
     return new Error("Only the current submitted quote can be reviewed.");
   }
 
-  return new Error(error.message ?? "Unable to review quote.");
+  return new Error("Unable to review quote. Refresh and try again.");
 }
 
 export function sortQuoteDecisions(
@@ -148,6 +149,7 @@ export async function acceptQuote(
   reason = ""
 ): Promise<RFQQuoteDecisionRecord> {
   const client = ensureSupabase();
+  assertLiveRecordId(quoteId, "Quote");
   const { data, error } = await client.rpc("accept_rfq_quote", {
     quote_uuid: quoteId,
     reason_text: reason.trim() || null,
@@ -161,6 +163,7 @@ export async function rejectQuote(
   reason = ""
 ): Promise<RFQQuoteDecisionRecord> {
   const client = ensureSupabase();
+  assertLiveRecordId(quoteId, "Quote");
   const { data, error } = await client.rpc("reject_rfq_quote", {
     quote_uuid: quoteId,
     reason_text: reason.trim() || null,
@@ -174,6 +177,7 @@ export async function requestQuoteRevision(
   reason: string
 ): Promise<RFQQuoteDecisionRecord> {
   const client = ensureSupabase();
+  assertLiveRecordId(quoteId, "Quote");
   const { data, error } = await client.rpc("request_rfq_quote_revision", {
     quote_uuid: quoteId,
     reason_text: reason.trim(),
@@ -186,6 +190,7 @@ export async function fetchQuoteDecisionsForRFQ(
   rfqId: string
 ): Promise<RFQQuoteDecisionRecord[]> {
   if (!supabase) return [];
+  assertLiveRecordId(rfqId, "RFQ");
   const { data, error } = await supabase
     .from("rfq_quote_decisions")
     .select("*")
@@ -205,6 +210,7 @@ export async function fetchCurrentQuoteDecision(
 
 export async function markQuoteOpened(quoteId: string): Promise<void> {
   const client = ensureSupabase();
+  assertLiveRecordId(quoteId, "Quote");
   const { error } = await client.rpc("record_rfq_quote_opened", { quote_uuid: quoteId });
   if (error) throw toReadableDecisionError(error);
 }

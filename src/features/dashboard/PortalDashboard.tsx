@@ -44,9 +44,11 @@ interface PortalDashboardProps {
   role: Role;
   workspace: PortalWorkspace;
   selectedLogisticsRequestId: string | null;
+  selectedWorkflowRecordId: string | null;
   onRoleChange: (role: Role) => void;
   onWorkspaceChange: (workspace: PortalWorkspace) => void;
   onLogisticsRequestChange: (requestId: string | null) => void;
+  onWorkflowRecordChange: (recordId: string | null) => void;
 }
 
 function BetaPlaceholder({ title, children }: { title: string; children: string }) {
@@ -64,9 +66,11 @@ export function PortalDashboard({
   role,
   workspace,
   selectedLogisticsRequestId,
+  selectedWorkflowRecordId,
   onRoleChange,
   onWorkspaceChange,
   onLogisticsRequestChange,
+  onWorkflowRecordChange,
 }: PortalDashboardProps) {
   const hasPortalAccess = Boolean(auth.user && auth.user.role === role);
   const [preferredShippingReadinessId, setPreferredShippingReadinessId] = useState<string | null>(null);
@@ -82,7 +86,7 @@ export function PortalDashboard({
     if (workspace === "overview") return <PortalOverview role={role} onWorkspaceChange={onWorkspaceChange} />;
 
     if (role === "buyer") {
-      if (workspace === "rfqs" || workspace === "quotes") return <BuyerRFQDashboard user={auth.user} authMode={auth.mode} showPurchaseOrders={false} />;
+      if (workspace === "rfqs" || workspace === "quotes") return <BuyerRFQDashboard user={auth.user} authMode={auth.mode} showPurchaseOrders={false} selectedRFQId={selectedWorkflowRecordId} onSelectedRFQChange={onWorkflowRecordChange} />;
       if (workspace === "purchase-orders") return <BuyerPurchaseOrders authMode={auth.mode} />;
       if (workspace === "contracts") return <><BuyerContracts authMode={auth.mode} /><BuyerSignaturePreparation authMode={auth.mode} /><BuyerSignatureDelivery authMode={auth.mode} /></>;
       if (workspace === "invoices") return <><BuyerInvoices authMode={auth.mode} /><BuyerPayments authMode={auth.mode} /></>;
@@ -93,7 +97,7 @@ export function PortalDashboard({
     if (role === "manufacturer") {
       if (workspace === "company") return <ManufacturerWorkspace user={auth.user} authMode={auth.mode} />;
       if (workspace === "products") return <ManufacturerProductList user={auth.user} authMode={auth.mode} />;
-      if (workspace === "rfqs" || workspace === "quotes") return <ManufacturerRFQInbox user={auth.user} authMode={auth.mode} />;
+      if (workspace === "rfqs" || workspace === "quotes") return <ManufacturerRFQInbox user={auth.user} authMode={auth.mode} selectedRFQId={selectedWorkflowRecordId} onSelectedRFQChange={onWorkflowRecordChange} />;
       if (workspace === "purchase-orders") return <ManufacturerPurchaseOrders authMode={auth.mode} />;
       if (workspace === "contracts") return <><ManufacturerContracts authMode={auth.mode} /><ManufacturerSignaturePreparation authMode={auth.mode} /><ManufacturerSignatureDelivery authMode={auth.mode} /></>;
       if (workspace === "invoices") return <><ManufacturerInvoices authMode={auth.mode} /><ManufacturerPayments authMode={auth.mode} /></>;
@@ -105,7 +109,7 @@ export function PortalDashboard({
       if (workspace === "users") return <BetaPlaceholder title="User operations">Dedicated user search, suspension, and invitation services are not implemented. Authentication and role authority remain managed through Supabase and database policies.</BetaPlaceholder>;
       if (workspace === "manufacturers") return <AdminManufacturerReview authMode={auth.mode} />;
       if (workspace === "products") return <AdminProductReview authMode={auth.mode} />;
-      if (workspace === "rfqs") return <AdminRFQManagement user={auth.user} authMode={auth.mode} />;
+      if (workspace === "rfqs") return <AdminRFQManagement authMode={auth.mode} selectedRFQId={selectedWorkflowRecordId} onSelectedRFQChange={onWorkflowRecordChange} />;
       if (workspace === "purchase-orders") return <AdminPurchaseOrderManagement authMode={auth.mode} />;
       if (workspace === "contracts") return <><AdminContractManagement authMode={auth.mode} /><AdminSignaturePreparation authMode={auth.mode} /><AdminSignatureDelivery authMode={auth.mode} /></>;
       if (workspace === "invoices") return <><AdminInvoices authMode={auth.mode} /><AdminPayments authMode={auth.mode} /></>;

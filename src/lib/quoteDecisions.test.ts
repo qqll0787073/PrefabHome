@@ -9,6 +9,7 @@ import {
   getLatestQuoteDecision,
   quoteDecisionLabels,
   sortQuoteDecisions,
+  toReadableDecisionError,
   validateDecisionReason,
 } from "./quoteDecisions";
 import type { RFQQuoteDecisionRecord, RFQQuoteWithItems } from "../types";
@@ -185,5 +186,10 @@ describe("quote decision helpers", () => {
       ]).map((decision) => decision.id),
       ["decision-1", "decision-2"]
     );
+  });
+
+  it("sanitizes unknown decision failures while preserving expected authorization feedback", () => {
+    assert.equal(toReadableDecisionError({ message: "private SQL function detail" }).message, "Unable to review quote. Refresh and try again.");
+    assert.equal(toReadableDecisionError({ message: "permission denied" }).message, "You are not authorized to review this quote.");
   });
 });

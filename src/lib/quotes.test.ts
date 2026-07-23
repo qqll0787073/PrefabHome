@@ -3,16 +3,19 @@ import { describe, it } from "node:test";
 import {
   calculateQuoteItemAmount,
   calculateQuoteSubtotal,
+  calculateQuoteSubtotalPreview,
   emptyQuoteForm,
   emptyQuoteItemForm,
   formatMoney,
   isQuoteEditableByManufacturer,
   isQuoteVisibleToBuyer,
   quoteStatusLabels,
+  quoteFormAfterRefresh,
   sortQuotesByVersion,
   validateQuoteDraftForm,
   validateQuoteForSubmission,
   validateQuoteItemForm,
+  toReadableQuoteError,
 } from "./quotes";
 import type { RFQQuoteWithItems } from "../types";
 
@@ -113,6 +116,43 @@ describe("quote helpers", () => {
     assert.equal(formatMoney(250.5, "USD"), "$250.50");
   });
 
+  it("calculates decimal-safe draft subtotals from current line-item state", () => {
+    const items = [
+      { ...quote.items[0], id: "item-a", amount: 0.1 },
+      { ...quote.items[0], id: "item-b", amount: 0.2 },
+    ];
+    assert.equal(calculateQuoteSubtotal(items), 0.3);
+    assert.equal(calculateQuoteSubtotalPreview(
+      items,
+      { ...emptyQuoteItemForm(), quantity: "2", unitPrice: "77.005" },
+      null,
+      true
+    ), 154.31);
+    assert.equal(calculateQuoteSubtotalPreview(
+      items,
+      { ...emptyQuoteItemForm(), quantity: "3", unitPrice: "10" },
+      "item-a",
+      true
+    ), 30.2);
+  });
+
+  it("preserves every unsaved quote metadata field across line-item refreshes", () => {
+    const unsaved = {
+      currency: "CAD",
+      incoterm: "CIF",
+      originPort: "Shanghai",
+      destinationPort: "Vancouver",
+      productionLeadDays: "45",
+      shippingLeadDays: "21",
+      validUntil: "2027-08-21",
+      manufacturerNote: "Unsaved commercial note",
+    };
+    const refreshed = { ...quote, currency: "USD", manufacturer_note: null };
+
+    assert.deepEqual(quoteFormAfterRefresh(refreshed, unsaved, true), unsaved);
+    assert.equal(quoteFormAfterRefresh(refreshed, unsaved, false).currency, "USD");
+  });
+
   it("keeps quote version ordering newest first", () => {
     assert.deepEqual(
       sortQuotesByVersion([
@@ -161,5 +201,27 @@ describe("quote helpers", () => {
       }),
       []
     );
+  });
+
+  it("requires a future validity date at submission but permits blank drafts", () => {
+    const item = {
+      id: "item-1", quote_id: quote.id, line_order: 1, item_type: "product" as const,
+      description: "Base model", quantity: 1, unit: "unit", unit_price: 100, amount: 100,
+      created_at: quote.created_at, updated_at: quote.updated_at,
+    };
+    const today = new Date().toISOString().slice(0, 10);
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    assert.deepEqual(validateQuoteDraftForm(emptyQuoteForm()), []);
+    assert.equal(validateQuoteForSubmission({ ...quote, valid_until: today, items: [item] }).includes("Valid until date must be in the future."), true);
+    assert.deepEqual(validateQuoteForSubmission({ ...quote, valid_until: tomorrow, items: [item] }), []);
+  });
+
+  it("validates bounded ports and sanitizes unknown database failures", () => {
+    assert.deepEqual(validateQuoteDraftForm({ ...emptyQuoteForm(), originPort: "x".repeat(161), destinationPort: "y".repeat(161) }), [
+      "Origin port must be 160 characters or fewer.",
+      "Destination port must be 160 characters or fewer.",
+    ]);
+    assert.equal(toReadableQuoteError({ message: "private postgres detail" }).message, "Unable to manage quote. Refresh and try again.");
+    assert.equal(toReadableQuoteError({ message: "row-level security violation" }).message, "You are not authorized to access this quote.");
   });
 });

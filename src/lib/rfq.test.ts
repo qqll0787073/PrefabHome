@@ -6,14 +6,18 @@ import {
   canTransitionRFQ,
   emptyRFQForm,
   isRFQStatus,
+  isRFQVisibleToManufacturer,
   manufacturerRFQDashboardGroup,
+  persistProductRFQ,
   rfqSnapshotTitle,
   rfqStatusLabels,
+  rfqToFormValues,
   rfqTimeline,
+  toReadableRFQError,
   toRFQPayload,
   validateRFQForm,
 } from "./rfq";
-import type { MarketplaceProduct, RFQEventRecord, RFQMessageRecord, RFQStatus } from "../types";
+import type { MarketplaceProduct, RFQEventRecord, RFQMessageRecord, RFQRecord, RFQStatus } from "../types";
 
 const product = {
   id: "product-1",
@@ -61,6 +65,41 @@ describe("rfq helpers", () => {
     ]);
   });
 
+  it("validates RFQ date and bounded destination fields", () => {
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    const errors = validateRFQForm({
+      ...emptyRFQForm(),
+      destinationCountry: "x".repeat(121),
+      destinationPort: "x".repeat(161),
+      targetDeliveryDate: yesterday,
+    });
+    assert.deepEqual(errors, [
+      "Destination country must be 120 characters or fewer.",
+      "Destination port must be 160 characters or fewer.",
+      "Target delivery date cannot be in the past.",
+    ]);
+  });
+
+  it("round-trips editable draft fields without ownership data", () => {
+    const values = rfqToFormValues({
+      id: "rfq-1", buyer_id: "buyer-1", manufacturer_id: "manufacturer-1", product_id: "product-1",
+      product_snapshot: {}, status: "draft", requested_quantity: 2, requested_currency: "CAD", incoterm: "FOB",
+      destination_country: "Canada", destination_port: "Vancouver", target_delivery_date: "2027-01-01",
+      buyer_message: "Quote request", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+    });
+    assert.deepEqual(values, {
+      requestedQuantity: "2", requestedCurrency: "CAD", incoterm: "FOB", destinationCountry: "Canada",
+      destinationPort: "Vancouver", targetDeliveryDate: "2027-01-01", buyerMessage: "Quote request",
+    });
+    assert.equal("buyerId" in values, false);
+    assert.equal("manufacturerId" in values, false);
+  });
+
+  it("sanitizes unknown database failures", () => {
+    assert.equal(toReadableRFQError({ message: "secret schema detail" }).message, "Unable to manage RFQ. Refresh and try again.");
+    assert.equal(toReadableRFQError({ message: "permission denied for table rfqs" }).message, "You are not authorized to access this RFQ.");
+  });
+
   it("maps only supported RFQ statuses", () => {
     const statuses: RFQStatus[] = [
       "draft",
@@ -105,6 +144,10 @@ describe("rfq helpers", () => {
         rfq_id: "rfq-1",
         event_type: "submitted",
         actor_profile_id: "buyer-1",
+        actor_role: "buyer",
+        source_type: "rfq",
+        source_id: "rfq-1",
+        event_key: "rfq:rfq-1:submitted",
         metadata: {},
         created_at: "2026-07-14T10:02:00Z",
       },
@@ -113,6 +156,10 @@ describe("rfq helpers", () => {
         rfq_id: "rfq-1",
         event_type: "draft_created",
         actor_profile_id: "buyer-1",
+        actor_role: "buyer",
+        source_type: "rfq",
+        source_id: "rfq-1",
+        event_key: "rfq:rfq-1:draft_created",
         metadata: {},
         created_at: "2026-07-14T10:00:00Z",
       },
@@ -166,6 +213,57 @@ describe("rfq helpers", () => {
       "Snapshot Model"
     );
     assert.equal(rfqSnapshotTitle({ name: "Snapshot Name" }), "Snapshot Name");
+  });
+
+  it("submits a previously saved product RFQ without creating a second record", async () => {
+    const records = new Map<string, RFQRecord>();
+    let createCount = 0;
+    const values = { ...emptyRFQForm(), destinationCountry: "Canada" };
+    const baseRecord = {
+      id: "11111111-1111-4111-8111-111111111111",
+      buyer_id: "buyer-1",
+      manufacturer_id: product.manufacturer_id,
+      product_id: product.id,
+      product_snapshot: {},
+      status: "draft",
+      requested_quantity: 1,
+      requested_currency: "USD",
+      incoterm: null,
+      destination_country: "Canada",
+      destination_port: null,
+      target_delivery_date: null,
+      buyer_message: null,
+      created_at: "2026-07-22T00:00:00Z",
+      updated_at: "2026-07-22T00:00:00Z",
+    } satisfies RFQRecord;
+    const operations = {
+      createDraft: async () => {
+        createCount += 1;
+        records.set(baseRecord.id, baseRecord);
+        return baseRecord;
+      },
+      updateDraft: async (id: string) => records.get(id)!,
+      submit: async (id: string) => {
+        const submitted = { ...records.get(id)!, status: "submitted" as const };
+        records.set(id, submitted);
+        return submitted;
+      },
+    };
+
+    const draft = await persistProductRFQ(product, values, "draft", null, operations);
+    const submitted = await persistProductRFQ(product, values, "submit", draft.id, operations);
+
+    assert.equal(createCount, 1);
+    assert.equal(records.size, 1);
+    assert.equal(submitted.id, draft.id);
+    assert.equal(submitted.status, "submitted");
+  });
+
+  it("keeps Buyer drafts outside Manufacturer-visible RFQ results", () => {
+    assert.equal(isRFQVisibleToManufacturer("draft"), false);
+    assert.equal(isRFQVisibleToManufacturer("submitted"), true);
+    assert.equal(isRFQVisibleToManufacturer("manufacturer_review"), true);
+    assert.equal(isRFQVisibleToManufacturer("quoted"), true);
   });
 
   it("uses permission-safe role mapping for RFQ conversations", () => {
