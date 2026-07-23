@@ -266,6 +266,19 @@ function toRFQUpdatePayload(values: RFQFormValues) {
   };
 }
 
+function toRFQRpcArgs(values: RFQFormValues) {
+  const payload = toRFQUpdatePayload(values);
+  return {
+    requested_quantity_value: payload.requested_quantity,
+    requested_currency_value: payload.requested_currency,
+    destination_country_value: payload.destination_country,
+    incoterm_value: payload.incoterm,
+    destination_port_value: payload.destination_port,
+    target_delivery_date_value: payload.target_delivery_date,
+    buyer_message_value: payload.buyer_message,
+  };
+}
+
 const participantRFQDetailSelect = "*, product:products(id,name,model_name,category)";
 const adminRFQDetailSelect =
   "*, product:products(id,name,model_name,category), manufacturer:manufacturers(id,company_name,company_display_name,country), buyer:profiles(id,full_name,email)";
@@ -277,31 +290,22 @@ export async function createDraftRFQ(
   const client = ensureSupabase();
   assertLiveRecordId(product.id, "Product");
   assertLiveRecordId(product.manufacturer_id, "Manufacturer");
-  const { data: authData, error: authError } = await client.auth.getUser();
-  if (authError || !authData.user) {
-    throw new Error("Sign in with a Buyer account before creating an RFQ.");
-  }
-  const buyerId = authData.user.id;
-  const payload = toRFQPayload(buyerId, product, values, "draft");
-  const { data, error } = await client.from("rfqs").insert(payload).select("*").single();
+  const { data, error } = await client.rpc("create_rfq_draft", {
+    product_uuid: product.id,
+    ...toRFQRpcArgs(values),
+  });
 
   if (error) throw toReadableRFQError(error);
   return data as RFQRecord;
 }
 
-export async function submitRFQ(rfqId: string, values?: RFQFormValues): Promise<RFQRecord> {
+export async function submitRFQ(rfqId: string, values: RFQFormValues): Promise<RFQRecord> {
   const client = ensureSupabase();
   assertLiveRecordId(rfqId, "RFQ");
-  const payload = values
-    ? { ...toRFQUpdatePayload(values), status: "submitted" as const }
-    : { status: "submitted" as const };
-
-  const { data, error } = await client
-    .from("rfqs")
-    .update(payload)
-    .eq("id", rfqId)
-    .select("*")
-    .single();
+  const { data, error } = await client.rpc("submit_rfq", {
+    rfq_uuid: rfqId,
+    ...toRFQRpcArgs(values),
+  });
 
   if (error) throw toReadableRFQError(error);
   return data as RFQRecord;
@@ -344,13 +348,10 @@ async function authenticatedProfileId(): Promise<string> {
 export async function updateDraftRFQ(rfqId: string, values: RFQFormValues): Promise<RFQRecord> {
   const client = ensureSupabase();
   assertLiveRecordId(rfqId, "RFQ");
-  const { data, error } = await client
-    .from("rfqs")
-    .update(toRFQUpdatePayload(values))
-    .eq("id", rfqId)
-    .eq("status", "draft")
-    .select("*")
-    .single();
+  const { data, error } = await client.rpc("update_rfq_draft", {
+    rfq_uuid: rfqId,
+    ...toRFQRpcArgs(values),
+  });
 
   if (error) throw toReadableRFQError(error);
   return data as RFQRecord;
@@ -427,18 +428,11 @@ export async function postRFQMessage(
 ): Promise<RFQMessageRecord> {
   const client = ensureSupabase();
   assertLiveRecordId(rfqId, "RFQ");
-  const { data: authData, error: authError } = await client.auth.getUser();
-  if (authError || !authData.user) throw new Error("Sign in before posting an RFQ message.");
-  const { data, error } = await client
-    .from("rfq_messages")
-    .insert({
-      rfq_id: rfqId,
-      sender_profile_id: authData.user.id,
-      message: message.trim(),
-      attachment_path: null,
-    })
-    .select("*")
-    .single();
+  const { data, error } = await client.rpc("send_rfq_message", {
+    rfq_uuid: rfqId,
+    message_text: message.trim(),
+    attachment_path_value: null,
+  });
 
   if (error) throw toReadableRFQError(error);
   return data as RFQMessageRecord;
@@ -482,12 +476,7 @@ export async function markManufacturerRFQOpened(rfqId: string): Promise<void> {
 export async function cancelRFQ(rfqId: string): Promise<RFQRecord> {
   const client = ensureSupabase();
   assertLiveRecordId(rfqId, "RFQ");
-  const { data, error } = await client
-    .from("rfqs")
-    .update({ status: "cancelled" })
-    .eq("id", rfqId)
-    .select("*")
-    .single();
+  const { data, error } = await client.rpc("cancel_rfq", { rfq_uuid: rfqId });
 
   if (error) throw toReadableRFQError(error);
   return data as RFQRecord;
@@ -498,6 +487,6 @@ export const cancelDraftRFQ = cancelRFQ;
 export async function deleteDraftRFQ(rfqId: string): Promise<void> {
   const client = ensureSupabase();
   assertLiveRecordId(rfqId, "RFQ");
-  const { error } = await client.from("rfqs").delete().eq("id", rfqId);
+  const { error } = await client.rpc("delete_rfq_draft", { rfq_uuid: rfqId });
   if (error) throw toReadableRFQError(error);
 }

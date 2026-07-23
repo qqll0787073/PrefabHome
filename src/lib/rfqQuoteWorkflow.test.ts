@@ -148,4 +148,22 @@ describe("RFQ service participant boundary", () => {
     assert.doesNotMatch(source.match(/const participantRFQDetailSelect[^;]+;/)?.[0] ?? "", /profiles|manufacturers/);
     assert.doesNotMatch(source, /console\.(?:log|error|warn)/);
   });
+
+  it("uses trusted RFQ and Message RPCs without caller-supplied identity", () => {
+    const source = readFileSync(new URL("./rfq.ts", import.meta.url), "utf8");
+    for (const rpc of [
+      "create_rfq_draft",
+      "update_rfq_draft",
+      "submit_rfq",
+      "cancel_rfq",
+      "delete_rfq_draft",
+      "send_rfq_message",
+    ]) {
+      assert.match(source, new RegExp(`\\.rpc\\(\"${rpc}\"`));
+    }
+    assert.doesNotMatch(source, /from\(\"rfq_messages\"\)\s*\.insert/);
+    assert.doesNotMatch(source, /from\(\"rfqs\"\)\s*\.(?:insert|update|delete)/);
+    const messageFunction = source.match(/export async function postRFQMessage[\s\S]+?\n}/)?.[0] ?? "";
+    assert.doesNotMatch(messageFunction, /sender_profile_id|sender_role|buyer_id|manufacturer_id/);
+  });
 });

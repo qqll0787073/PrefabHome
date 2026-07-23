@@ -381,6 +381,10 @@ export interface Database {
             | "cancelled"
             | "expired";
           actor_profile_id: string | null;
+          actor_role: "buyer" | "manufacturer" | "admin" | null;
+          source_type: "rfq" | "quote" | "quote_decision" | "message" | null;
+          source_id: string | null;
+          event_key: string | null;
           metadata: Json;
           created_at: string;
         };
@@ -402,6 +406,10 @@ export interface Database {
             | "cancelled"
             | "expired";
           actor_profile_id?: string | null;
+          actor_role?: "buyer" | "manufacturer" | "admin" | null;
+          source_type?: "rfq" | "quote" | "quote_decision" | "message" | null;
+          source_id?: string | null;
+          event_key?: string | null;
           metadata?: Json;
           created_at?: string;
         };
@@ -413,6 +421,7 @@ export interface Database {
           rfq_id: string;
           manufacturer_id: string;
           version: number;
+          supersedes_quote_id: string | null;
           status:
             | "draft"
             | "submitted"
@@ -443,6 +452,7 @@ export interface Database {
           rfq_id: string;
           manufacturer_id: string;
           version: number;
+          supersedes_quote_id?: string | null;
           status?:
             | "draft"
             | "submitted"
@@ -750,6 +760,61 @@ export interface Database {
           media_uuid: string;
         };
         Returns: Database["public"]["Tables"]["product_media"]["Row"];
+      };
+      create_rfq_draft: {
+        Args: {
+          product_uuid: string;
+          requested_quantity_value: number;
+          requested_currency_value: string;
+          destination_country_value: string;
+          incoterm_value?: string | null;
+          destination_port_value?: string | null;
+          target_delivery_date_value?: string | null;
+          buyer_message_value?: string | null;
+        };
+        Returns: Database["public"]["Tables"]["rfqs"]["Row"];
+      };
+      update_rfq_draft: {
+        Args: {
+          rfq_uuid: string;
+          requested_quantity_value: number;
+          requested_currency_value: string;
+          destination_country_value: string;
+          incoterm_value?: string | null;
+          destination_port_value?: string | null;
+          target_delivery_date_value?: string | null;
+          buyer_message_value?: string | null;
+        };
+        Returns: Database["public"]["Tables"]["rfqs"]["Row"];
+      };
+      submit_rfq: {
+        Args: {
+          rfq_uuid: string;
+          requested_quantity_value: number;
+          requested_currency_value: string;
+          destination_country_value: string;
+          incoterm_value?: string | null;
+          destination_port_value?: string | null;
+          target_delivery_date_value?: string | null;
+          buyer_message_value?: string | null;
+        };
+        Returns: Database["public"]["Tables"]["rfqs"]["Row"];
+      };
+      cancel_rfq: {
+        Args: { rfq_uuid: string };
+        Returns: Database["public"]["Tables"]["rfqs"]["Row"];
+      };
+      delete_rfq_draft: {
+        Args: { rfq_uuid: string };
+        Returns: void;
+      };
+      send_rfq_message: {
+        Args: {
+          rfq_uuid: string;
+          message_text: string;
+          attachment_path_value?: string | null;
+        };
+        Returns: Database["public"]["Tables"]["rfq_messages"]["Row"];
       };
       create_rfq_quote_draft: {
         Args: {

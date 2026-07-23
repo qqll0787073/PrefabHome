@@ -334,6 +334,10 @@ export interface RFQEventRecord {
   rfq_id: string;
   event_type: string;
   actor_profile_id: string | null;
+  actor_role: Role | null;
+  source_type: "rfq" | "quote" | "quote_decision" | "message" | null;
+  source_id: string | null;
+  event_key: string | null;
   metadata: Record<string, unknown>;
   created_at: string;
 }
@@ -375,6 +379,7 @@ export interface RFQQuoteRecord {
   rfq_id: string;
   manufacturer_id: string;
   version: number;
+  supersedes_quote_id: string | null;
   status: RFQQuoteStatus;
   currency: string;
   unit_price: number | null;
