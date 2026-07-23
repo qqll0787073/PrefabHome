@@ -9,7 +9,7 @@ The audit also found four design defects that are independent of trigger state:
 1. The RFQ SELECT policy and `can_access_rfq()` expose assigned Buyer drafts to the Manufacturer.
 2. `submit_rfq_quote()` supersedes only `submitted` quotes, not the `revision_requested` source of a new revision.
 3. Internal helpers retain excessive browser-role EXECUTE grants.
-4. The legacy authenticated `record_rfq_event(...)` RPC still permits participant-created opened events with caller-controlled metadata.
+4. The retained `record_rfq_event(...)` function is currently exposed as a generic authenticated opened-event interface and accepts caller-controlled metadata. It must remain, but only as a trusted internal authority boundary.
 
 Staging contained zero RFQs, Quotes, Messages, or dependent RFQ events at the audit timestamp. Recovery can therefore be prospective: no historical event or snapshot backfill is currently required, and no actor or timestamp should be fabricated.
 
@@ -68,7 +68,7 @@ Migration-created triggers are enabled by default (`tgenabled = O`). All actual 
 | `record_rfq_lifecycle_event` | Safe after protection/event helpers | Not before the protection trigger | No backfill required | Low prospectively; add event idempotency tests |
 | `protect_rfq_message_insert` | Requires function repair before enabling | No; it should derive both sender fields | No rows exist | None |
 | `record_rfq_message_event` | Safe after message protection repair | No; dependency ordering matters | No backfill required | Low; event should be tied uniquely to Message ID |
-| `protect_rfq_event_insert` | Requires grant/RPC cleanup before enabling | No; retire generic event RPC first | No rows exist | Generic RPC currently permits duplicates |
+| `protect_rfq_event_insert` | Requires grant/RPC cleanup before enabling | No; harden retained event authority first | No rows exist | Current generic entry point permits duplicates |
 | `set_rfq_quote_updated_at` | Safe to re-enable prospectively | Yes, after preflight | No rows exist | None |
 | `protect_rfq_quote_write` | Safe after revision RPC repair | Not as the first recovery action | No rows exist | None |
 | `set_rfq_quote_item_updated_at` | Safe to re-enable prospectively | Yes, after preflight | No rows exist | None |
@@ -76,7 +76,7 @@ Migration-created triggers are enabled by default (`tgenabled = O`). All actual 
 | `after_rfq_quote_item_change` | Safe to re-enable prospectively | Yes, after subtotal helper grant check | No rows exist | None |
 | `protect_rfq_quote_decision_write` | Safe to re-enable prospectively | Yes, after trusted-helper preflight | No rows exist | None |
 
-No trigger is obsolete. None requires data cleanup on current staging. The origin of the global disabled state is not recorded in the schema and remains an operational investigation item.
+No trigger is obsolete. None requires data cleanup on current staging. A follow-up read-only catalog audit found 29 disabled and 19 enabled user triggers across `public`, spanning RFQ/Quote and several other lifecycle domains. Current tracked files, Git history, deleted staging workflows, test infrastructure, and local tooling contain no trigger-disable, replication-role, restore, or remote-reset operation. The mixed state is therefore **unknown**, not attributable to a repository-controlled script. Manual SQL, an interrupted external restore/import, and other external staging operations remain possible hypotheses only; there is no evidence identifying an actor or a specific operation.
 
 ## Canonical Function and RPC Inventory
 
@@ -94,7 +94,7 @@ All inspected functions are owned by `postgres`. Every SECURITY DEFINER function
 | `public.record_rfq_message_event()` | `0011` | Trigger-only reply event writer | Definer / `public` | None | trusted event helper |
 | `public.insert_trusted_rfq_event(uuid,text,uuid,jsonb)` | `0013` | Internal event insert | Definer / `public` | None | `rfq_events` |
 | `public.protect_rfq_event_insert()` | `0013` | Trigger-only event authorization | Definer / `public` | None | RFQ access and trusted flags |
-| `public.record_rfq_event(uuid,text,jsonb)` | `0011` | Legacy generic opened-event RPC | Definer / `public` | **Should be none** | trusted event helper |
+| `public.record_rfq_event(uuid,text,jsonb)` | `0011` | Retained trusted event dispatcher; current signature is compatibility-only | Definer / `public` | None; internal database callers only | private insert helper, event/source validation |
 | `public.record_rfq_opened(uuid)` | `0013` | Manufacturer-only opened RPC | Definer / `public` | Authenticated | RFQ and event row locks |
 | `public.record_rfq_quote_opened(uuid)` | `0013` | Buyer Quote-version opened RPC | Definer / `public` | Authenticated | RFQ, Quote, trusted opened flag |
 | `public.is_trusted_quote_write()` | `0012` | Internal transaction-local flag | Invoker / stable | None | `set_config` convention |
@@ -142,7 +142,7 @@ The platform-level ancillary grants (`REFERENCES`, `TRIGGER`, `TRUNCATE`) are un
 | Message sender authority | Database-controlled role; caller ID checked | Trigger disabled; both sender columns NOT NULL | Normal role-free insert cannot succeed | Conversation blocked; unsafe workaround would enable impersonation |
 | Quote revision | Prior current version superseded atomically | Only prior `submitted` row is superseded | `revision_requested` source remains currentish | Ambiguous Quote history |
 | Internal function grants | Trigger/internal helpers not callable by browsers | Four known helpers plus additional pure/timestamp helpers have broad grants | Grant hardening gap | Unnecessary RPC surface |
-| Generic event RPC | Only narrow Manufacturer and Quote-specific Buyer opened paths | `record_rfq_event` remains authenticated | Legacy bypass | Caller can create opened events and arbitrary safe metadata without lifecycle transition |
+| Retained event authority | Trusted lifecycle RPCs/triggers only | `record_rfq_event` is directly executable by authenticated users | Authority bypass | Caller can create opened events and arbitrary safe metadata without a corresponding trusted action |
 
 ## Root Cause Per Blocker
 
@@ -164,7 +164,9 @@ Buyer revision decisions set the source Quote to `revision_requested`. `create_r
 
 ### Event Authority
 
-The trigger and trusted event helper were designed to generate lifecycle events, but all event triggers are disabled. Separately, `record_rfq_event(...)` remains executable by authenticated users and accepts caller metadata for `buyer_opened` or `manufacturer_opened`. It should be revoked/retired in favor of `record_rfq_opened(uuid)` for Manufacturers and `record_rfq_quote_opened(uuid)` for Buyers.
+The trigger and trusted event helper were designed to generate lifecycle events, but all event triggers are disabled. Separately, `record_rfq_event(...)` remains executable by authenticated users and accepts caller metadata for `buyer_opened` or `manufacturer_opened`. The function must be retained, hardened, and removed from generic browser execution. Narrow authenticated RPCs such as `record_rfq_opened(uuid)` and `record_rfq_quote_opened(uuid)` remain the user-facing actions; those RPCs and trusted trigger functions call the retained dispatcher internally.
+
+The retained dispatcher remains owned by `postgres`, remains `SECURITY DEFINER`, and keeps `search_path = public`. It accepts only database-derived actor identity, a validated source entity, an allowlisted event type, and event-specific metadata assembled by its trusted caller. A private `_record_rfq_event(...)` insert primitive may be introduced to isolate constraint-aware insertion; neither function is executable by `PUBLIC`, `anon`, or `authenticated`. `service_role` receives no direct grant unless a separately reviewed operational requirement establishes an audited use case.
 
 ## Proposed Least-Privilege Authority Model
 
@@ -257,7 +259,8 @@ All four are owned by `postgres` and use `search_path = public`. SECURITY DEFINE
 
 ### Additional Hardening
 
-- Revoke authenticated EXECUTE on `record_rfq_event(uuid,text,jsonb)` and retire it.
+- Retain `record_rfq_event(...)`, revoke generic `PUBLIC`/`anon`/`authenticated` execution, and route only trusted RPC/trigger paths through it.
+- Introduce an ungranted `_record_rfq_event(...)` primitive only if needed to keep source validation, metadata construction, and idempotent insertion separate.
 - Revoke PUBLIC/anon/authenticated EXECUTE on trigger-only timestamp and transition helpers where policy evaluation does not require direct execution.
 - Keep authenticated EXECUTE only on the explicit participant RPC allowlist.
 - Keep policy helpers executable only by roles whose policies call them; do not rely on PUBLIC defaults.
@@ -289,7 +292,7 @@ Rejected Message attempts and the time at which triggers were disabled are not r
 1. Assert environment authorization outside SQL and deny production.
 2. Assert migration baseline and exact staging object fingerprints.
 3. Assert current data-impact counts and stop on unexpected rows.
-4. Revoke the legacy generic event RPC and excessive helper grants.
+4. Harden the retained event dispatcher, remove generic browser execution, and revoke excessive helper grants.
 5. Repair SECURITY DEFINER functions and confirm fixed `search_path`/owner.
 6. Replace `can_access_rfq()` and the RFQ SELECT policy.
 7. Remove Admin mutation/delete policies and narrow table grants.
@@ -303,7 +306,7 @@ Rejected Message attempts and the time at which triggers were disabled are not r
 15. Apply only after separate approval, then run authenticated staging UAT and exact-ID cleanup.
 16. Make an explicit backfill decision. Current staging result is **no backfill**.
 
-Re-enabling triggers first is unsafe because it would preserve the legacy generic event surface, broad Admin policy, sender payload mismatch, and revision defect.
+Re-enabling triggers first is unsafe because it would preserve the current generic event surface, broad Admin policy, sender payload mismatch, and revision defect.
 
 ## Post-Migration Verification Matrix
 
@@ -334,18 +337,16 @@ Re-enabling triggers first is unsafe because it would preserve the legacy generi
 
 - Before commit: any assertion or security test failure aborts the migration transaction.
 - After commit but before UAT completion: revoke participant mutation RPC EXECUTE first to contain writes, then use a reviewed forward corrective migration. Do not use migration repair or edit applied migrations.
-- Do not restore broad Admin mutation policies or the generic event RPC as rollback shortcuts.
+- Do not restore broad Admin mutation policies or generic authenticated event execution as rollback shortcuts.
 - Trigger state rollback is not a data rollback. If disabling is ever required for containment, first revoke browser write surfaces and record operator approval.
 - With current zero-row staging state, no historical data restoration is needed.
 
-## Unresolved Owner Decisions
+## Sprint 3A.2 Owner Decisions
 
-1. Approve full RFQ RPC-only mutation, or retain direct Buyer draft-field updates with trigger enforcement. RPC-only is recommended.
-2. Confirm Admin is strictly read-only for Messages and all RFQ lifecycle actions. Recommended: yes.
-3. Approve retirement of `record_rfq_event(...)`. Recommended: revoke immediately in the future migration.
-4. Approve `supersedes_quote_id` for explicit revision lineage versus deriving the previous version. Explicit lineage is recommended.
-5. Decide whether to add uniqueness for Message reply events and Quote-created events.
-6. Investigate who or what disabled all 12 triggers and add operational drift monitoring.
-7. Decide whether browser ancillary table privileges should be removed globally or only for RFQ/Quote tables.
+1. RFQ mutation is RPC-only; direct browser RFQ writes are removed.
+2. Admin is strictly read-only for Messages and participant RFQ lifecycle actions.
+3. `record_rfq_event(...)` is retained and hardened; generic browser execution is removed.
+4. Quote revision history uses immutable `supersedes_quote_id` lineage.
+5. Event uniqueness is source-aware: Message and Quote events key by their source rows, lifecycle generations use database-generated event keys, and terminal RFQ outcomes use a partial uniqueness constraint.
 
-No unresolved decision justifies changing staging before migration authorization and review.
+The disabling operation remains unknown after repository, history, tooling, and read-only staging investigation. Ancillary privilege cleanup outside RFQ/Quote and recovery of the additional disabled lifecycle-domain triggers require separate scope decisions. No design decision authorizes changing staging before Migration 0025 review and explicit execution approval.
