@@ -100,6 +100,15 @@ test("revision submission locks and atomically supersedes revision_requested sou
   assert.match(migration, /where id = quote_record\.rfq_id[\s\S]+then 'manufacturer_review' else 'revision_requested' end/);
 });
 
+test("Quote submission retry returns only a previously submitted authoritative Quote", () => {
+  assert.match(migration, /quote_record\.submitted_at is not null/);
+  assert.match(migration, /e\.event_type = 'quote_created'/);
+  assert.match(migration, /e\.actor_profile_id = auth\.uid\(\)/);
+  assert.match(migration, /e\.source_type = 'quote'/);
+  assert.match(migration, /e\.source_id = quote_record\.id/);
+  assert.match(migration, /return quote_record;/);
+});
+
 test("event authority is source-aware, server-derived, and externally revoked", () => {
   assert.match(migration, /create or replace function public\.record_rfq_event\([\s\S]+security definer[\s\S]+set search_path = public/);
   assert.match(migration, /actor_uuid uuid := auth\.uid\(\)/);

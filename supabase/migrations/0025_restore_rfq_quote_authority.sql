@@ -920,11 +920,13 @@ begin
       end if;
     elsif actor_role_value <> 'buyer'
        or rfq_record.buyer_id is distinct from actor_uuid
-       or rfq_record.status <> case event_name
-         when 'draft_created' then 'draft'
-         when 'submitted' then 'submitted'
-         when 'cancelled' then 'cancelled'
-       end then
+       or rfq_record.status is distinct from (
+         case event_name
+           when 'draft_created' then 'draft'
+           when 'submitted' then 'submitted'
+           when 'cancelled' then 'cancelled'
+         end
+       ) then
       raise exception 'Buyer RFQ lifecycle event does not match authoritative state.';
     end if;
 
@@ -1044,11 +1046,13 @@ begin
        or actor_role_value <> 'buyer'
        or rfq_record.buyer_id is distinct from actor_uuid
        or decision_record.buyer_id is distinct from actor_uuid
-       or event_name <> case decision_record.decision
-         when 'accepted' then 'quote_accepted'
-         when 'rejected' then 'quote_rejected'
-         when 'revision_requested' then 'quote_revision_requested'
-       end then
+       or event_name is distinct from (
+         case decision_record.decision
+           when 'accepted' then 'quote_accepted'
+           when 'rejected' then 'quote_rejected'
+           when 'revision_requested' then 'quote_revision_requested'
+         end
+       ) then
       raise exception 'Quote-decision event does not match an authoritative decision.';
     end if;
 
@@ -1056,11 +1060,13 @@ begin
     if not found
        or quote_record.rfq_id is distinct from rfq_uuid
        or quote_record.status is distinct from decision_record.decision
-       or rfq_record.status is distinct from case decision_record.decision
-         when 'accepted' then 'accepted'
-         when 'rejected' then 'declined'
-         when 'revision_requested' then 'revision_requested'
-       end then
+       or rfq_record.status is distinct from (
+         case decision_record.decision
+           when 'accepted' then 'accepted'
+           when 'rejected' then 'declined'
+           when 'revision_requested' then 'revision_requested'
+         end
+       ) then
       raise exception 'Quote-decision source Quote does not match the RFQ.';
     end if;
 
@@ -1090,10 +1096,12 @@ begin
        or actor_role_value <> 'buyer'
        or rfq_record.buyer_id is distinct from actor_uuid
        or decision_record.buyer_id is distinct from actor_uuid
-       or event_name <> case decision_record.decision
-         when 'accepted' then 'accepted'
-         when 'rejected' then 'declined'
-       end
+       or event_name is distinct from (
+         case decision_record.decision
+           when 'accepted' then 'accepted'
+           when 'rejected' then 'declined'
+         end
+       )
        or rfq_record.status <> event_name then
       raise exception 'Terminal RFQ event does not match an authoritative Buyer decision.';
     end if;
@@ -1891,12 +1899,30 @@ begin
   end if;
 
   select * into quote_record from public.rfq_quotes where id = quote_uuid for update;
-  if quote_record.status <> 'draft' then
-    raise exception 'Only a draft Quote can be submitted.';
-  end if;
   if not public.owns_manufacturer(quote_record.manufacturer_id)
      or quote_record.manufacturer_id is distinct from rfq_record.manufacturer_id then
     raise exception 'Only the assigned Manufacturer can submit this Quote.';
+  end if;
+
+  if quote_record.status <> 'draft' then
+    if quote_record.submitted_at is not null
+       and quote_record.status in (
+         'submitted', 'superseded', 'accepted', 'rejected',
+         'revision_requested', 'expired', 'withdrawn'
+       )
+       and exists (
+         select 1
+         from public.rfq_events e
+         where e.rfq_id = quote_record.rfq_id
+           and e.event_type = 'quote_created'
+           and e.actor_profile_id = auth.uid()
+           and e.source_type = 'quote'
+           and e.source_id = quote_record.id
+       ) then
+      return quote_record;
+    end if;
+
+    raise exception 'Only a draft or previously submitted authoritative Quote can be submitted.';
   end if;
 
   if quote_record.supersedes_quote_id is null then

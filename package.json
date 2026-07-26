@@ -24,7 +24,11 @@
     "test:staging:bootstrap": "node --test \"scripts/test-infrastructure/bootstrap-staging.test.mjs\"",
     "test:staging:smoke": "node scripts/smoke/logistics-booking-live-smoke.mjs",
     "test:staging:cleanup": "node --test \"scripts/test-infrastructure/cleanup-staging-fixture.test.mjs\"",
-    "test:staging:logistics-arrangement": "node scripts/smoke/logistics-arrangement-live-smoke.mjs"
+    "test:staging:logistics-arrangement": "node scripts/smoke/logistics-arrangement-live-smoke.mjs",
+    "test:db:disposable:migrations": "node scripts/local-db/run-disposable-database-validation.mjs",
+    "test:db:disposable:authority": "node scripts/local-db/rfq-authority-integration.mjs",
+    "test:db:disposable:atomicity": "node scripts/local-db/verify-rfq-migration-atomicity.mjs",
+    "test:db:disposable:api": "node scripts/local-db/rfq-postgrest-integration.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
@@ -36,6 +40,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.0.0",
+    "pg": "^8.16.3",
     "tsx": "^4.23.0",
     "typescript": "^5.8.3",
     "vite": "^7.0.0"
