@@ -18,7 +18,7 @@ PR #29 must remain Draft.
 
 `0025_restore_rfq_quote_authority.sql` is one forward-only transactional migration. It restores and hardens only the RFQ/Quote authority surface defined by migrations `0011` through `0013`. Migrations `0001` through `0024` remain byte-for-byte unchanged. The 17 disabled non-RFQ triggers listed in [Staging Trigger Governance Incident](STAGING_TRIGGER_GOVERNANCE_INCIDENT.md) are not modified.
 
-The migration starts with fail-closed fingerprints for tables, columns/types, function signatures and ownership, function semantics, policies, status constraints, indexes, trigger identity, overload count, and conflicting current data. It ends with postconditions for trigger state, table grants, and internal function grants.
+The migration starts with fail-closed fingerprints for tables, every material column/type/nullability, RLS and ownership, function signatures/ownership/overloads, function semantics, policy bindings and semantic tokens, exact status vocabularies, partial indexes, exact trigger shape, and conflicting current data. It ends with postconditions for trigger state, RLS/ownership, table grants, function grants, and hardened search paths.
 
 ## Data Model
 
@@ -30,7 +30,7 @@ No historical lineage is fabricated. Existing Quotes receive `NULL`; lineage beg
 
 ### Event Provenance
 
-`rfq_events` adds nullable migration-safe columns `actor_role`, `source_type`, `source_id`, and `event_key`. New trusted writes always populate all four. Source types are limited to `rfq`, `quote`, `quote_decision`, and `message`.
+`rfq_events` adds nullable migration-safe columns `actor_role`, `source_type`, `source_id`, and `event_key`. A completeness constraint requires legacy rows to keep all four NULL and new trusted rows to populate all four. Source types are limited to `rfq`, `quote`, `quote_decision`, and `message`.
 
 Uniqueness is source-aware:
 
@@ -38,7 +38,7 @@ Uniqueness is source-aware:
 - `(event_type, source_type, source_id)` is unique when a source exists.
 - one terminal `accepted`, `declined`, `cancelled`, or `expired` event is permitted per RFQ.
 - distinct Message rows and Quote versions produce distinct events.
-- exact retries resolve to the existing event; mismatched retries fail.
+- identity/source-equivalent retries resolve to the existing event; mismatched actor or source retries fail. The first database-derived metadata snapshot remains authoritative.
 
 ## Functions
 
@@ -83,7 +83,7 @@ The migration creates or replaces:
 - `assert_rfq_quote_lineage(uuid,uuid,uuid)`
 - `decide_rfq_quote(uuid,text,text)`
 
-`record_rfq_event` is retained as an internal `SECURITY DEFINER` dispatcher owned by `postgres`, with `search_path = public`. It derives the actor and role, validates current state and source IDs, allowlists metadata per event, creates a server snapshot and timestamp, and applies source-aware idempotency. `PUBLIC`, `anon`, `authenticated`, and `service_role` have no direct execute grant. Trigger invocation does not require an end-user execute grant.
+`record_rfq_event` is retained as an internal `SECURITY DEFINER` dispatcher owned by `postgres`, with `search_path = public, pg_temp`. It derives the actor and role, validates current state and source IDs, allowlists metadata per event, creates a server snapshot and timestamp, and applies source-aware idempotency. `PUBLIC`, `anon`, `authenticated`, and `service_role` have no direct execute grant. Trigger invocation does not require an end-user execute grant.
 
 ## Atomic Quote Revision
 
@@ -101,6 +101,7 @@ Authenticated users had direct RFQ insert/update/delete, Message insert/delete, 
 - RFQ and Message mutations require narrow RPCs; direct Event/Decision mutation is unavailable.
 - `rfq_quotes` retains select and Manufacturer-owned draft update/delete only.
 - `rfq_quote_items` retains select and Manufacturer-owned draft item editing only.
+- Quote and Quote Item draft mutation requires a non-draft parent RFQ; child rows cannot create a visibility bypass beneath a private Buyer draft.
 - Buyer sees owned RFQs including drafts.
 - assigned Manufacturer visibility starts at non-draft RFQ status; unrelated Manufacturers see no row.
 - Admin select policies remain, but mutation policies and callable Admin mutation paths do not.
@@ -123,16 +124,16 @@ The migration explicitly enables the 12 reviewed triggers listed in [Staging Tri
 | Migration inventory | exactly `0001`-`0025`; only `0025` new |
 | Baseline integrity | each `0001`-`0024` file compared to `auth-profiles` |
 | Static migration authority | infrastructure assertions cover pre/postflight, trigger allowlist, lineage, locking, grants, RLS, RPCs, events, and frontend calls |
-| Rollback SQL | `supabase/tests/rfq_authority_recovery_security.sql`, 40 catalog/authority assertions, rollback-only |
+| Rollback SQL | `supabase/tests/rfq_authority_recovery_security.sql`, 54 catalog/authority assertions, rollback-only |
 | Frontend | RFQ services use trusted RPCs; existing saved-draft no-duplicate and Manufacturer draft boundary tests retained |
 | Disposable database | not executed in this task because local Docker/PostgreSQL was unavailable |
 | Remote database | not executed; migration application is not authorized |
 
-Local review results on 2026-07-22:
+Local independent-review results on 2026-07-26:
 
 - frontend tests: `234/234`
-- infrastructure/static tests: `83/83`
-- rollback SQL definition: `40` assertions, not executed because no disposable PostgreSQL was available
+- infrastructure/static tests: `86/86`
+- rollback SQL definition: `54` assertions, not executed because no disposable PostgreSQL was available
 - TypeScript and production build: passed
 - deterministic quality gate: passed
 - production artifact verification: passed, zero source maps

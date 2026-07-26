@@ -52,6 +52,24 @@ test("0025 is transactional, fail-closed, local-only SQL", () => {
   assert.doesNotMatch(migration, /drop\s+.+cascade|enable\s+trigger\s+(?:all|user)/i);
 });
 
+test("0025 preflight fingerprints schema shape, RLS, policies, indexes, and overloads", () => {
+  assert.match(migration, /pg_catalog\.format_type\(a\.atttypid, a\.atttypmod\)/);
+  assert.match(migration, /not c\.relrowsecurity or c\.relforcerowsecurity or r\.rolname <> 'postgres'/);
+  assert.match(migration, /has_schema_privilege\('authenticated', 'public', 'CREATE'\)/);
+  assert.match(migration, /t\.tgtype = e\.trigger_type/);
+  assert.match(migration, /t\.tgnargs = 0/);
+  assert.match(migration, /p\.polrelid = c\.oid/);
+  assert.match(migration, /p\.polroles = array\['authenticated'::regrole::oid\]/);
+  assert.match(migration, /expected RLS policy semantics changed/);
+  assert.match(migration, /required_tokens/);
+  assert.match(migration, /pg_get_expr\(p\.polqual, p\.polrelid\)/);
+  assert.match(migration, /rfq_statuses is distinct from array/);
+  assert.match(migration, /quote_statuses is distinct from array/);
+  assert.match(migration, /event_types is distinct from array/);
+  assert.match(migration, /pg_get_expr\(i\.indpred, i\.indrelid\) = '\(status = ''submitted''::text\)'/);
+  assert.match(migration, /an incompatible RFQ\/Quote RPC overload exists/);
+});
+
 test("0025 enables only the twelve approved RFQ and Quote triggers", () => {
   const enabled = [...migration.matchAll(/alter table public\.(\w+) enable trigger (\w+);/gi)]
     .map((match) => [match[1], match[2]]);
@@ -88,6 +106,7 @@ test("event authority is source-aware, server-derived, and externally revoked", 
   assert.match(migration, /actor_role_value text := public\.current_profile_role\(\)/);
   assert.match(migration, /rfq_events_source_event_unique/);
   assert.match(migration, /rfq_events_terminal_lifecycle_unique/);
+  assert.match(migration, /rfq_events_provenance_complete_check/);
   assert.match(migration, /on conflict \(rfq_id, event_key\).*do nothing/);
   assert.match(migration, /revoke all on function public\.record_rfq_event\(uuid,text,jsonb\) from public, anon, authenticated, service_role/);
   assert.doesNotMatch(migration, /grant execute on function public\.record_rfq_event/);
@@ -112,6 +131,24 @@ test("RLS protects Manufacturer drafts and Admin has no mutation policy", () => 
   assert.match(migration, /or \(status <> 'draft' and public\.owns_manufacturer\(manufacturer_id\)\)/);
   assert.match(migration, /or \(\s*r\.status <> 'draft'\s*and public\.owns_manufacturer\(r\.manufacturer_id\)\s*\)/);
   assert.doesNotMatch(migration, /create policy[^;]+(?:insert|update|delete)[^;]+public\.is_admin\(\)/is);
-  assert.match(migration, /revoke all on table public\.rfqs from anon, authenticated/);
+  assert.match(migration, /revoke all on table public\.rfqs from public, anon, authenticated/);
   assert.match(migration, /grant select on table public\.rfqs to authenticated/);
+});
+
+test("Quote draft child writes cannot cross the Buyer-draft boundary", () => {
+  assert.match(migration, /create or replace function public\.can_manage_rfq_quote_draft\(quote_uuid uuid\)/);
+  assert.match(migration, /q\.status = 'draft'[\s\S]+r\.status <> 'draft'/);
+  assert.match(migration, /q\.manufacturer_id = r\.manufacturer_id/);
+  assert.match(migration, /create or replace function public\.delete_rfq_quote_draft\(quote_uuid uuid\)/);
+  assert.match(migration, /for update of r[\s\S]+where id = quote_uuid[\s\S]+for update/);
+  assert.match(migration, /rfq_record\.status = 'draft'/);
+});
+
+test("reviewed functions use hardened search paths and complete grant postflight", () => {
+  assert.match(migration, /set search_path = public, pg_temp/);
+  assert.match(migration, /internal_function\(signature\)/);
+  assert.match(migration, /checked_role\(role_name\)/);
+  assert.match(migration, /authenticated_function\(signature\)/);
+  assert.match(migration, /anon retains RFQ\/Quote table access/);
+  assert.match(migration, /authenticated RPC grants are incorrect/);
 });

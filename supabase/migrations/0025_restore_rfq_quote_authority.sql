@@ -12,6 +12,9 @@ declare
   record_event_overload_count integer;
   submit_definition text;
   record_event_definition text;
+  rfq_statuses text[];
+  quote_statuses text[];
+  event_types text[];
 begin
   select count(*) into missing_count
   from unnest(array[
@@ -28,44 +31,89 @@ begin
     raise exception 'Migration 0025 preflight failed: required RFQ/Quote tables are missing.';
   end if;
 
-  with expected(table_name, column_name, data_type, udt_name) as (
+  with expected(table_name, column_name, formatted_type, is_not_null) as (
     values
-      ('rfqs', 'id', 'uuid', 'uuid'),
-      ('rfqs', 'buyer_id', 'uuid', 'uuid'),
-      ('rfqs', 'manufacturer_id', 'uuid', 'uuid'),
-      ('rfqs', 'product_id', 'uuid', 'uuid'),
-      ('rfqs', 'product_snapshot', 'jsonb', 'jsonb'),
-      ('rfqs', 'status', 'text', 'text'),
-      ('rfqs', 'requested_quantity', 'numeric', 'numeric'),
-      ('rfqs', 'requested_currency', 'text', 'text'),
-      ('rfqs', 'incoterm', 'text', 'text'),
-      ('rfqs', 'destination_country', 'text', 'text'),
-      ('rfqs', 'destination_port', 'text', 'text'),
-      ('rfqs', 'target_delivery_date', 'date', 'date'),
-      ('rfqs', 'buyer_message', 'text', 'text'),
-      ('rfq_messages', 'sender_profile_id', 'uuid', 'uuid'),
-      ('rfq_messages', 'sender_role', 'text', 'text'),
-      ('rfq_events', 'event_type', 'text', 'text'),
-      ('rfq_events', 'actor_profile_id', 'uuid', 'uuid'),
-      ('rfq_events', 'metadata', 'jsonb', 'jsonb'),
-      ('rfq_quotes', 'rfq_id', 'uuid', 'uuid'),
-      ('rfq_quotes', 'manufacturer_id', 'uuid', 'uuid'),
-      ('rfq_quotes', 'version', 'integer', 'int4'),
-      ('rfq_quotes', 'status', 'text', 'text'),
-      ('rfq_quotes', 'submitted_at', 'timestamp with time zone', 'timestamptz'),
-      ('rfq_quote_items', 'quote_id', 'uuid', 'uuid'),
-      ('rfq_quote_decisions', 'quote_id', 'uuid', 'uuid'),
-      ('rfq_quote_decisions', 'decision', 'text', 'text')
+      ('rfqs', 'id', 'uuid', true),
+      ('rfqs', 'buyer_id', 'uuid', true),
+      ('rfqs', 'manufacturer_id', 'uuid', true),
+      ('rfqs', 'product_id', 'uuid', true),
+      ('rfqs', 'product_snapshot', 'jsonb', true),
+      ('rfqs', 'status', 'text', true),
+      ('rfqs', 'requested_quantity', 'numeric(12,2)', true),
+      ('rfqs', 'requested_currency', 'text', true),
+      ('rfqs', 'incoterm', 'text', false),
+      ('rfqs', 'destination_country', 'text', true),
+      ('rfqs', 'destination_port', 'text', false),
+      ('rfqs', 'target_delivery_date', 'date', false),
+      ('rfqs', 'buyer_message', 'text', false),
+      ('rfqs', 'created_at', 'timestamp with time zone', true),
+      ('rfqs', 'updated_at', 'timestamp with time zone', true),
+      ('rfq_messages', 'id', 'uuid', true),
+      ('rfq_messages', 'rfq_id', 'uuid', true),
+      ('rfq_messages', 'sender_profile_id', 'uuid', true),
+      ('rfq_messages', 'sender_role', 'text', true),
+      ('rfq_messages', 'message', 'text', true),
+      ('rfq_messages', 'attachment_path', 'text', false),
+      ('rfq_messages', 'created_at', 'timestamp with time zone', true),
+      ('rfq_events', 'id', 'uuid', true),
+      ('rfq_events', 'rfq_id', 'uuid', true),
+      ('rfq_events', 'event_type', 'text', true),
+      ('rfq_events', 'actor_profile_id', 'uuid', false),
+      ('rfq_events', 'metadata', 'jsonb', true),
+      ('rfq_events', 'created_at', 'timestamp with time zone', true),
+      ('rfq_quotes', 'id', 'uuid', true),
+      ('rfq_quotes', 'rfq_id', 'uuid', true),
+      ('rfq_quotes', 'manufacturer_id', 'uuid', true),
+      ('rfq_quotes', 'version', 'integer', true),
+      ('rfq_quotes', 'status', 'text', true),
+      ('rfq_quotes', 'currency', 'text', true),
+      ('rfq_quotes', 'unit_price', 'numeric(14,2)', false),
+      ('rfq_quotes', 'quantity', 'numeric(12,2)', false),
+      ('rfq_quotes', 'subtotal', 'numeric(14,2)', true),
+      ('rfq_quotes', 'incoterm', 'text', false),
+      ('rfq_quotes', 'origin_port', 'text', false),
+      ('rfq_quotes', 'destination_port', 'text', false),
+      ('rfq_quotes', 'production_lead_days', 'integer', false),
+      ('rfq_quotes', 'shipping_lead_days', 'integer', false),
+      ('rfq_quotes', 'valid_until', 'date', false),
+      ('rfq_quotes', 'manufacturer_note', 'text', false),
+      ('rfq_quotes', 'created_by', 'uuid', true),
+      ('rfq_quotes', 'submitted_at', 'timestamp with time zone', false),
+      ('rfq_quotes', 'created_at', 'timestamp with time zone', true),
+      ('rfq_quotes', 'updated_at', 'timestamp with time zone', true),
+      ('rfq_quote_items', 'id', 'uuid', true),
+      ('rfq_quote_items', 'quote_id', 'uuid', true),
+      ('rfq_quote_items', 'line_order', 'integer', true),
+      ('rfq_quote_items', 'item_type', 'text', true),
+      ('rfq_quote_items', 'description', 'text', true),
+      ('rfq_quote_items', 'quantity', 'numeric(12,2)', true),
+      ('rfq_quote_items', 'unit', 'text', false),
+      ('rfq_quote_items', 'unit_price', 'numeric(14,2)', true),
+      ('rfq_quote_items', 'amount', 'numeric(14,2)', false),
+      ('rfq_quote_items', 'created_at', 'timestamp with time zone', true),
+      ('rfq_quote_items', 'updated_at', 'timestamp with time zone', true),
+      ('rfq_quote_decisions', 'id', 'uuid', true),
+      ('rfq_quote_decisions', 'rfq_id', 'uuid', true),
+      ('rfq_quote_decisions', 'quote_id', 'uuid', true),
+      ('rfq_quote_decisions', 'buyer_id', 'uuid', true),
+      ('rfq_quote_decisions', 'decision', 'text', true),
+      ('rfq_quote_decisions', 'reason', 'text', false),
+      ('rfq_quote_decisions', 'created_at', 'timestamp with time zone', true)
   )
   select count(*) into missing_count
   from expected e
-  left join information_schema.columns c
-    on c.table_schema = 'public'
-   and c.table_name = e.table_name
-   and c.column_name = e.column_name
-   and c.data_type = e.data_type
-   and c.udt_name = e.udt_name
-  where c.column_name is null;
+  left join pg_class c
+    on c.relname = e.table_name
+  left join pg_namespace n
+    on n.oid = c.relnamespace and n.nspname = 'public'
+  left join pg_attribute a
+    on a.attrelid = c.oid
+   and a.attname = e.column_name
+   and a.attnum > 0
+   and not a.attisdropped
+   and pg_catalog.format_type(a.atttypid, a.atttypmod) = e.formatted_type
+   and a.attnotnull = e.is_not_null
+  where n.oid is null or a.attnum is null;
 
   if missing_count <> 0 then
     raise exception 'Migration 0025 preflight failed: expected RFQ/Quote columns or types differ.';
@@ -75,10 +123,35 @@ begin
     select 1
     from information_schema.columns
     where table_schema = 'public'
-      and table_name = 'rfq_quotes'
-      and column_name = 'supersedes_quote_id'
+      and (
+        (table_name = 'rfq_quotes' and column_name = 'supersedes_quote_id')
+        or (
+          table_name = 'rfq_events'
+          and column_name in ('actor_role', 'source_type', 'source_id', 'event_key')
+        )
+      )
   ) then
-    raise exception 'Migration 0025 preflight failed: supersedes_quote_id already exists.';
+    raise exception 'Migration 0025 preflight failed: one or more 0025 columns already exist.';
+  end if;
+
+  if exists (
+    select 1
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    join pg_roles r on r.oid = c.relowner
+    where n.nspname = 'public'
+      and c.relname in (
+        'rfqs', 'rfq_messages', 'rfq_events', 'rfq_quotes',
+        'rfq_quote_items', 'rfq_quote_decisions'
+      )
+      and (not c.relrowsecurity or c.relforcerowsecurity or r.rolname <> 'postgres')
+  ) then
+    raise exception 'Migration 0025 preflight failed: RFQ/Quote RLS or table ownership changed.';
+  end if;
+
+  if has_schema_privilege('anon', 'public', 'CREATE')
+     or has_schema_privilege('authenticated', 'public', 'CREATE') then
+    raise exception 'Migration 0025 preflight failed: browser roles can create objects in public.';
   end if;
 
   select count(*) into missing_count
@@ -88,6 +161,7 @@ begin
     'public.is_admin()',
     'public.build_rfq_product_snapshot(uuid,uuid)',
     'public.can_access_rfq(uuid)',
+    'public.can_access_rfq_quote(uuid)',
     'public.is_valid_rfq_transition(text,text)',
     'public.protect_rfq_write()',
     'public.protect_rfq_message_insert()',
@@ -101,6 +175,10 @@ begin
     'public.is_trusted_quote_write()',
     'public.is_trusted_quote_decision_write()',
     'public.is_trusted_rfq_opened_write()',
+    'public.can_manage_rfq_quote_draft(uuid)',
+    'public.set_rfq_updated_at()',
+    'public.set_rfq_quote_updated_at()',
+    'public.set_rfq_quote_item_updated_at()',
     'public.recalculate_rfq_quote_subtotal(uuid)',
     'public.protect_rfq_quote_write()',
     'public.protect_rfq_quote_item_write()',
@@ -110,7 +188,10 @@ begin
     'public.create_rfq_quote_revision(uuid)',
     'public.submit_rfq_quote(uuid)',
     'public.delete_rfq_quote_draft(uuid)',
-    'public.decide_rfq_quote(uuid,text,text)'
+    'public.decide_rfq_quote(uuid,text,text)',
+    'public.accept_rfq_quote(uuid,text)',
+    'public.reject_rfq_quote(uuid,text)',
+    'public.request_rfq_quote_revision(uuid,text)'
   ]) as required_function(signature)
   where to_regprocedure(required_function.signature) is null;
 
@@ -127,6 +208,48 @@ begin
   if record_event_overload_count <> 1
      or to_regprocedure('public.record_rfq_event(uuid,text,jsonb)') is null then
     raise exception 'Migration 0025 preflight failed: incompatible record_rfq_event overload state.';
+  end if;
+
+  if exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname in (
+        'rfq_write_context', 'is_trusted_rfq_message_write',
+        'is_trusted_rfq_event_write', 'assert_rfq_values',
+        'create_rfq_draft', 'update_rfq_draft', 'submit_rfq',
+        'cancel_rfq', 'delete_rfq_draft', 'send_rfq_message',
+        'assert_rfq_quote_lineage'
+      )
+  ) then
+    raise exception 'Migration 0025 preflight failed: a new 0025 function name already exists.';
+  end if;
+
+  if exists (
+    with expected(function_name, signature) as (
+      values
+        ('can_access_rfq', 'public.can_access_rfq(uuid)'),
+        ('can_access_rfq_quote', 'public.can_access_rfq_quote(uuid)'),
+        ('can_manage_rfq_quote_draft', 'public.can_manage_rfq_quote_draft(uuid)'),
+        ('record_rfq_opened', 'public.record_rfq_opened(uuid)'),
+        ('record_rfq_quote_opened', 'public.record_rfq_quote_opened(uuid)'),
+        ('create_rfq_quote_draft', 'public.create_rfq_quote_draft(uuid)'),
+        ('create_rfq_quote_revision', 'public.create_rfq_quote_revision(uuid)'),
+        ('submit_rfq_quote', 'public.submit_rfq_quote(uuid)'),
+        ('delete_rfq_quote_draft', 'public.delete_rfq_quote_draft(uuid)'),
+        ('decide_rfq_quote', 'public.decide_rfq_quote(uuid,text,text)'),
+        ('accept_rfq_quote', 'public.accept_rfq_quote(uuid,text)'),
+        ('reject_rfq_quote', 'public.reject_rfq_quote(uuid,text)'),
+        ('request_rfq_quote_revision', 'public.request_rfq_quote_revision(uuid,text)')
+    )
+    select 1
+    from expected e
+    join pg_proc p on p.proname = e.function_name
+    join pg_namespace n on n.oid = p.pronamespace and n.nspname = 'public'
+    where p.oid <> to_regprocedure(e.signature)
+  ) then
+    raise exception 'Migration 0025 preflight failed: an incompatible RFQ/Quote RPC overload exists.';
   end if;
 
   select pg_get_functiondef(to_regprocedure('public.submit_rfq_quote(uuid)'))
@@ -146,20 +269,20 @@ begin
     raise exception 'Migration 0025 preflight failed: record_rfq_event semantic fingerprint changed.';
   end if;
 
-  with expected(table_name, trigger_name, function_name) as (
+  with expected(table_name, trigger_name, function_name, trigger_type) as (
     values
-      ('rfqs', 'protect_rfq_write', 'protect_rfq_write'),
-      ('rfqs', 'record_rfq_lifecycle_event', 'record_rfq_lifecycle_event'),
-      ('rfqs', 'set_rfqs_updated_at', 'set_rfq_updated_at'),
-      ('rfq_messages', 'protect_rfq_message_insert', 'protect_rfq_message_insert'),
-      ('rfq_messages', 'record_rfq_message_event', 'record_rfq_message_event'),
-      ('rfq_events', 'protect_rfq_event_insert', 'protect_rfq_event_insert'),
-      ('rfq_quotes', 'protect_rfq_quote_write', 'protect_rfq_quote_write'),
-      ('rfq_quotes', 'set_rfq_quote_updated_at', 'set_rfq_quote_updated_at'),
-      ('rfq_quote_items', 'protect_rfq_quote_item_write', 'protect_rfq_quote_item_write'),
-      ('rfq_quote_items', 'after_rfq_quote_item_change', 'after_rfq_quote_item_change'),
-      ('rfq_quote_items', 'set_rfq_quote_item_updated_at', 'set_rfq_quote_item_updated_at'),
-      ('rfq_quote_decisions', 'protect_rfq_quote_decision_write', 'protect_rfq_quote_decision_write')
+      ('rfqs', 'protect_rfq_write', 'protect_rfq_write', 23),
+      ('rfqs', 'record_rfq_lifecycle_event', 'record_rfq_lifecycle_event', 21),
+      ('rfqs', 'set_rfqs_updated_at', 'set_rfq_updated_at', 19),
+      ('rfq_messages', 'protect_rfq_message_insert', 'protect_rfq_message_insert', 7),
+      ('rfq_messages', 'record_rfq_message_event', 'record_rfq_message_event', 5),
+      ('rfq_events', 'protect_rfq_event_insert', 'protect_rfq_event_insert', 7),
+      ('rfq_quotes', 'protect_rfq_quote_write', 'protect_rfq_quote_write', 19),
+      ('rfq_quotes', 'set_rfq_quote_updated_at', 'set_rfq_quote_updated_at', 19),
+      ('rfq_quote_items', 'protect_rfq_quote_item_write', 'protect_rfq_quote_item_write', 31),
+      ('rfq_quote_items', 'after_rfq_quote_item_change', 'after_rfq_quote_item_change', 29),
+      ('rfq_quote_items', 'set_rfq_quote_item_updated_at', 'set_rfq_quote_item_updated_at', 19),
+      ('rfq_quote_decisions', 'protect_rfq_quote_decision_write', 'protect_rfq_quote_decision_write', 31)
   )
   select count(*) into scoped_trigger_count
   from expected e
@@ -167,63 +290,158 @@ begin
   join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
   join pg_trigger t on t.tgrelid = c.oid and t.tgname = e.trigger_name and not t.tgisinternal
   join pg_proc p on p.oid = t.tgfoid and p.proname = e.function_name
-  where t.tgenabled in ('D', 'O');
+  join pg_namespace fn on fn.oid = p.pronamespace and fn.nspname = 'public'
+  where t.tgenabled in ('D', 'O')
+    and t.tgtype = e.trigger_type
+    and t.tgnargs = 0
+    and t.tgqual is null
+    and p.prorettype = 'trigger'::regtype;
 
   if scoped_trigger_count <> 12 then
     raise exception 'Migration 0025 preflight failed: the 12 scoped triggers do not match reviewed definitions.';
   end if;
 
+  with expected(table_name, policy_name, policy_command) as (
+    values
+      ('rfqs', 'rfqs_select_participant_or_admin', 'r'),
+      ('rfqs', 'rfqs_insert_buyer', 'a'),
+      ('rfqs', 'rfqs_update_draft_buyer_or_admin', 'w'),
+      ('rfqs', 'rfqs_update_submitted_owned_manufacturer', 'w'),
+      ('rfqs', 'rfqs_delete_draft_buyer_or_admin', 'd'),
+      ('rfq_messages', 'rfq_messages_select_participant_or_admin', 'r'),
+      ('rfq_messages', 'rfq_messages_insert_participant', 'a'),
+      ('rfq_messages', 'rfq_messages_admin_delete', 'd'),
+      ('rfq_events', 'rfq_events_select_participant_or_admin', 'r'),
+      ('rfq_events', 'rfq_events_admin_delete', 'd'),
+      ('rfq_quotes', 'rfq_quotes_select_authorized', 'r'),
+      ('rfq_quotes', 'rfq_quotes_update_own_draft', 'w'),
+      ('rfq_quotes', 'rfq_quotes_delete_own_draft', 'd'),
+      ('rfq_quote_items', 'rfq_quote_items_select_authorized', 'r'),
+      ('rfq_quote_items', 'rfq_quote_items_insert_own_draft', 'a'),
+      ('rfq_quote_items', 'rfq_quote_items_update_own_draft', 'w'),
+      ('rfq_quote_items', 'rfq_quote_items_delete_own_draft', 'd'),
+      ('rfq_quote_decisions', 'rfq_quote_decisions_select_participant_or_admin', 'r')
+  )
   select count(*) into missing_count
-  from unnest(array[
-    'rfqs_select_participant_or_admin',
-    'rfqs_insert_buyer',
-    'rfqs_update_draft_buyer_or_admin',
-    'rfqs_update_submitted_owned_manufacturer',
-    'rfqs_delete_draft_buyer_or_admin',
-    'rfq_messages_select_participant_or_admin',
-    'rfq_messages_insert_participant',
-    'rfq_messages_admin_delete',
-    'rfq_events_select_participant_or_admin',
-    'rfq_events_admin_delete',
-    'rfq_quotes_select_authorized',
-    'rfq_quotes_update_own_draft',
-    'rfq_quotes_delete_own_draft',
-    'rfq_quote_items_select_authorized',
-    'rfq_quote_items_insert_own_draft',
-    'rfq_quote_items_update_own_draft',
-    'rfq_quote_items_delete_own_draft',
-    'rfq_quote_decisions_select_participant_or_admin'
-  ]) as expected_policy(policy_name)
-  where not exists (
-    select 1 from pg_policy p where p.polname = expected_policy.policy_name
-  );
+  from expected e
+  left join pg_class c on c.relname = e.table_name
+  left join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
+  left join pg_policy p
+    on p.polrelid = c.oid
+   and p.polname = e.policy_name
+   and p.polcmd = e.policy_command
+   and p.polpermissive
+   and p.polroles = array['authenticated'::regrole::oid]
+  where n.oid is null or p.oid is null;
 
   if missing_count <> 0 then
     raise exception 'Migration 0025 preflight failed: expected RLS policy state changed.';
   end if;
 
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = 'public.rfqs'::regclass
-      and conname = 'rfqs_status_check'
-      and pg_get_constraintdef(oid) like '%revision_requested%'
-  ) or not exists (
-    select 1 from pg_constraint
-    where conrelid = 'public.rfq_quotes'::regclass
-      and conname = 'rfq_quotes_status_check'
-      and pg_get_constraintdef(oid) like '%revision_requested%'
-      and pg_get_constraintdef(oid) like '%superseded%'
-  ) or not exists (
-    select 1 from pg_constraint
-    where conrelid = 'public.rfq_events'::regclass
-      and conname = 'rfq_events_type_check'
-      and pg_get_constraintdef(oid) like '%quote_revision_requested%'
+  if exists (
+    with expected(table_name, policy_name, required_tokens) as (
+      values
+        ('rfqs', 'rfqs_select_participant_or_admin', array['auth.uid', 'owns_manufacturer', 'is_admin']),
+        ('rfqs', 'rfqs_insert_buyer', array['auth.uid', 'current_profile_role', '''buyer''']),
+        ('rfqs', 'rfqs_update_draft_buyer_or_admin', array['auth.uid', 'is_admin', '''draft''', '''submitted''', '''cancelled''']),
+        ('rfqs', 'rfqs_update_submitted_owned_manufacturer', array['owns_manufacturer', '''submitted''', '''manufacturer_review''']),
+        ('rfqs', 'rfqs_delete_draft_buyer_or_admin', array['auth.uid', 'is_admin', '''draft''']),
+        ('rfq_messages', 'rfq_messages_select_participant_or_admin', array['can_access_rfq']),
+        ('rfq_messages', 'rfq_messages_insert_participant', array['can_access_rfq']),
+        ('rfq_messages', 'rfq_messages_admin_delete', array['is_admin']),
+        ('rfq_events', 'rfq_events_select_participant_or_admin', array['can_access_rfq']),
+        ('rfq_events', 'rfq_events_admin_delete', array['is_admin']),
+        ('rfq_quotes', 'rfq_quotes_select_authorized', array['auth.uid', 'owns_manufacturer', 'is_admin', '''draft''']),
+        ('rfq_quotes', 'rfq_quotes_update_own_draft', array['owns_manufacturer', '''draft''']),
+        ('rfq_quotes', 'rfq_quotes_delete_own_draft', array['owns_manufacturer', '''draft''']),
+        ('rfq_quote_items', 'rfq_quote_items_select_authorized', array['auth.uid', 'owns_manufacturer', 'is_admin', '''draft''']),
+        ('rfq_quote_items', 'rfq_quote_items_insert_own_draft', array['owns_manufacturer', '''draft''']),
+        ('rfq_quote_items', 'rfq_quote_items_update_own_draft', array['owns_manufacturer', '''draft''']),
+        ('rfq_quote_items', 'rfq_quote_items_delete_own_draft', array['owns_manufacturer', '''draft''']),
+        ('rfq_quote_decisions', 'rfq_quote_decisions_select_participant_or_admin', array['auth.uid', 'owns_manufacturer', 'is_admin'])
+    ), actual as (
+      select
+        c.relname as table_name,
+        p.polname as policy_name,
+        lower(
+          coalesce(pg_get_expr(p.polqual, p.polrelid), '') || ' ' ||
+          coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '')
+        ) as expression
+      from pg_policy p
+      join pg_class c on c.oid = p.polrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public'
+        and c.relname in (
+          'rfqs', 'rfq_messages', 'rfq_events', 'rfq_quotes',
+          'rfq_quote_items', 'rfq_quote_decisions'
+        )
+    )
+    select 1
+    from expected e
+    join actual a using (table_name, policy_name)
+    where exists (
+      select 1
+      from unnest(e.required_tokens) as required_token(value)
+      where position(required_token.value in a.expression) = 0
+    )
   ) then
+    raise exception 'Migration 0025 preflight failed: expected RLS policy semantics changed.';
+  end if;
+
+  select array_agg(m.value[1] order by m.value[1]) into rfq_statuses
+  from pg_constraint c
+  cross join lateral regexp_matches(
+    pg_get_constraintdef(c.oid), '''([^'']+)''::text', 'g'
+  ) as m(value)
+  where c.conrelid = 'public.rfqs'::regclass and c.conname = 'rfqs_status_check';
+
+  select array_agg(m.value[1] order by m.value[1]) into quote_statuses
+  from pg_constraint c
+  cross join lateral regexp_matches(
+    pg_get_constraintdef(c.oid), '''([^'']+)''::text', 'g'
+  ) as m(value)
+  where c.conrelid = 'public.rfq_quotes'::regclass and c.conname = 'rfq_quotes_status_check';
+
+  select array_agg(m.value[1] order by m.value[1]) into event_types
+  from pg_constraint c
+  cross join lateral regexp_matches(
+    pg_get_constraintdef(c.oid), '''([^'']+)''::text', 'g'
+  ) as m(value)
+  where c.conrelid = 'public.rfq_events'::regclass and c.conname = 'rfq_events_type_check';
+
+  if rfq_statuses is distinct from array[
+       'accepted', 'buyer_review', 'cancelled', 'declined', 'draft', 'expired',
+       'manufacturer_review', 'quoted', 'revision_requested', 'submitted'
+     ]::text[]
+     or quote_statuses is distinct from array[
+       'accepted', 'draft', 'expired', 'rejected', 'revision_requested',
+       'submitted', 'superseded', 'withdrawn'
+     ]::text[]
+     or event_types is distinct from array[
+       'accepted', 'buyer_opened', 'cancelled', 'declined', 'draft_created',
+       'expired', 'manufacturer_opened', 'manufacturer_replied', 'quote_accepted',
+       'quote_created', 'quote_rejected', 'quote_revision_requested', 'submitted'
+     ]::text[] then
     raise exception 'Migration 0025 preflight failed: lifecycle status/event constraints changed.';
   end if;
 
-  if to_regclass('public.rfq_quotes_one_current_submitted_per_rfq_idx') is null
-     or to_regclass('public.rfq_quotes_one_draft_per_rfq_idx') is null then
+  if not exists (
+    select 1
+    from pg_index i
+    where i.indexrelid = to_regclass('public.rfq_quotes_one_current_submitted_per_rfq_idx')
+      and i.indrelid = 'public.rfq_quotes'::regclass
+      and i.indisunique
+      and pg_get_indexdef(i.indexrelid) like '%(rfq_id)%'
+      and pg_get_expr(i.indpred, i.indrelid) = '(status = ''submitted''::text)'
+  ) or not exists (
+    select 1
+    from pg_index i
+    where i.indexrelid = to_regclass('public.rfq_quotes_one_draft_per_rfq_idx')
+      and i.indrelid = 'public.rfq_quotes'::regclass
+      and i.indisunique
+      and pg_get_indexdef(i.indexrelid) like '%(rfq_id)%'
+      and pg_get_expr(i.indpred, i.indrelid) = '(status = ''draft''::text)'
+  ) then
     raise exception 'Migration 0025 preflight failed: Quote current-version indexes are missing.';
   end if;
 
@@ -265,15 +483,70 @@ begin
 
   if exists (
     select 1
-    from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
+    from public.rfq_quotes q
+    join public.rfqs r on r.id = q.rfq_id
+    where q.manufacturer_id is distinct from r.manufacturer_id
+       or r.status = 'draft'
+  ) then
+    raise exception 'Migration 0025 preflight failed: Quote participant or Buyer-draft linkage requires review.';
+  end if;
+
+  if exists (
+    select 1
+    from public.rfq_quote_decisions d
+    join public.rfq_quotes q on q.id = d.quote_id
+    join public.rfqs r on r.id = q.rfq_id
+    where d.rfq_id is distinct from q.rfq_id
+       or d.buyer_id is distinct from r.buyer_id
+  ) then
+    raise exception 'Migration 0025 preflight failed: Quote decision participant linkage requires review.';
+  end if;
+
+  if exists (
+    with expected(signature) as (
+      values
+        ('public.current_profile_role()'),
+        ('public.owns_manufacturer(uuid)'),
+        ('public.is_admin()'),
+        ('public.build_rfq_product_snapshot(uuid,uuid)'),
+        ('public.can_access_rfq(uuid)'),
+        ('public.can_access_rfq_quote(uuid)'),
+        ('public.is_valid_rfq_transition(text,text)'),
+        ('public.protect_rfq_write()'),
+        ('public.protect_rfq_message_insert()'),
+        ('public.record_rfq_lifecycle_event()'),
+        ('public.record_rfq_message_event()'),
+        ('public.protect_rfq_event_insert()'),
+        ('public.record_rfq_event(uuid,text,jsonb)'),
+        ('public.insert_trusted_rfq_event(uuid,text,uuid,jsonb)'),
+        ('public.record_rfq_opened(uuid)'),
+        ('public.record_rfq_quote_opened(uuid)'),
+        ('public.is_trusted_quote_write()'),
+        ('public.is_trusted_quote_decision_write()'),
+        ('public.is_trusted_rfq_opened_write()'),
+        ('public.can_manage_rfq_quote_draft(uuid)'),
+        ('public.recalculate_rfq_quote_subtotal(uuid)'),
+        ('public.protect_rfq_quote_write()'),
+        ('public.protect_rfq_quote_item_write()'),
+        ('public.after_rfq_quote_item_change()'),
+        ('public.protect_rfq_quote_decision_write()'),
+        ('public.create_rfq_quote_draft(uuid)'),
+        ('public.create_rfq_quote_revision(uuid)'),
+        ('public.submit_rfq_quote(uuid)'),
+        ('public.delete_rfq_quote_draft(uuid)'),
+        ('public.decide_rfq_quote(uuid,text,text)'),
+        ('public.accept_rfq_quote(uuid,text)'),
+        ('public.reject_rfq_quote(uuid,text)'),
+        ('public.request_rfq_quote_revision(uuid,text)'),
+        ('public.set_rfq_updated_at()'),
+        ('public.set_rfq_quote_updated_at()'),
+        ('public.set_rfq_quote_item_updated_at()')
+    )
+    select 1
+    from expected e
+    join pg_proc p on p.oid = to_regprocedure(e.signature)
     join pg_roles r on r.oid = p.proowner
-    where n.nspname = 'public'
-      and p.proname in (
-        'protect_rfq_write', 'protect_rfq_message_insert', 'record_rfq_event',
-        'insert_trusted_rfq_event', 'submit_rfq_quote', 'decide_rfq_quote'
-      )
-      and r.rolname <> 'postgres'
+    where r.rolname <> 'postgres'
   ) then
     raise exception 'Migration 0025 preflight failed: reviewed function ownership changed.';
   end if;
@@ -308,7 +581,21 @@ alter table public.rfq_events
   add constraint rfq_events_source_type_check
     check (source_type is null or source_type in ('rfq', 'quote', 'quote_decision', 'message')),
   add constraint rfq_events_event_key_check
-    check (event_key is null or char_length(btrim(event_key)) between 1 and 240);
+    check (event_key is null or char_length(btrim(event_key)) between 1 and 240),
+  add constraint rfq_events_provenance_complete_check check (
+    (
+      actor_role is null
+      and source_type is null
+      and source_id is null
+      and event_key is null
+    )
+    or (
+      actor_role is not null
+      and source_type is not null
+      and source_id is not null
+      and event_key is not null
+    )
+  );
 
 create unique index rfq_events_rfq_event_key_unique
   on public.rfq_events (rfq_id, event_key)
@@ -440,6 +727,26 @@ as $$
         or (r.status <> 'draft' and public.owns_manufacturer(q.manufacturer_id))
         or (r.buyer_id = auth.uid() and q.status <> 'draft')
       )
+  );
+$$;
+
+create or replace function public.can_manage_rfq_quote_draft(quote_uuid uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.rfq_quotes q
+    join public.rfqs r on r.id = q.rfq_id
+    where q.id = quote_uuid
+      and q.status = 'draft'
+      and r.status <> 'draft'
+      and public.current_profile_role() = 'manufacturer'
+      and public.owns_manufacturer(q.manufacturer_id)
+      and q.manufacturer_id = r.manufacturer_id
   );
 $$;
 
@@ -1510,6 +1817,53 @@ exception when others then
 end;
 $$;
 
+create or replace function public.delete_rfq_quote_draft(quote_uuid uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  rfq_record public.rfqs%rowtype;
+  quote_record public.rfq_quotes%rowtype;
+  deleted_id uuid;
+begin
+  if auth.uid() is null or public.current_profile_role() <> 'manufacturer' then
+    raise exception 'Only an authenticated Manufacturer can delete a Quote draft.';
+  end if;
+
+  select r.* into rfq_record
+  from public.rfqs r
+  join public.rfq_quotes q on q.rfq_id = r.id
+  where q.id = quote_uuid
+  for update of r;
+  if not found then
+    raise exception 'Quote does not exist.';
+  end if;
+
+  select * into quote_record
+  from public.rfq_quotes
+  where id = quote_uuid
+  for update;
+
+  if not found
+     or quote_record.status <> 'draft'
+     or rfq_record.status = 'draft'
+     or quote_record.manufacturer_id is distinct from rfq_record.manufacturer_id
+     or not public.owns_manufacturer(quote_record.manufacturer_id) then
+    raise exception 'Only the assigned Manufacturer can delete an eligible Quote draft.';
+  end if;
+
+  delete from public.rfq_quotes
+  where id = quote_uuid and status = 'draft'
+  returning id into deleted_id;
+
+  if deleted_id is null then
+    raise exception 'Quote draft deletion lifecycle conflict.';
+  end if;
+end;
+$$;
+
 create or replace function public.submit_rfq_quote(quote_uuid uuid)
 returns public.rfq_quotes
 language plpgsql
@@ -1933,12 +2287,12 @@ using (
   )
 );
 
-revoke all on table public.rfqs from anon, authenticated;
-revoke all on table public.rfq_messages from anon, authenticated;
-revoke all on table public.rfq_events from anon, authenticated;
-revoke all on table public.rfq_quotes from anon, authenticated;
-revoke all on table public.rfq_quote_items from anon, authenticated;
-revoke all on table public.rfq_quote_decisions from anon, authenticated;
+revoke all on table public.rfqs from public, anon, authenticated;
+revoke all on table public.rfq_messages from public, anon, authenticated;
+revoke all on table public.rfq_events from public, anon, authenticated;
+revoke all on table public.rfq_quotes from public, anon, authenticated;
+revoke all on table public.rfq_quote_items from public, anon, authenticated;
+revoke all on table public.rfq_quote_decisions from public, anon, authenticated;
 
 grant select on table public.rfqs to authenticated;
 grant select on table public.rfq_messages to authenticated;
@@ -1992,13 +2346,50 @@ alter function public.set_rfq_updated_at() owner to postgres;
 alter function public.set_rfq_quote_updated_at() owner to postgres;
 alter function public.set_rfq_quote_item_updated_at() owner to postgres;
 
-alter function public.is_trusted_quote_write() set search_path = public;
-alter function public.is_trusted_quote_decision_write() set search_path = public;
-alter function public.is_trusted_rfq_opened_write() set search_path = public;
-alter function public.is_valid_rfq_transition(text,text) set search_path = public;
-alter function public.set_rfq_updated_at() set search_path = public;
-alter function public.set_rfq_quote_updated_at() set search_path = public;
-alter function public.set_rfq_quote_item_updated_at() set search_path = public;
+alter function public.rfq_write_context() set search_path = public, pg_temp;
+alter function public.is_trusted_rfq_message_write() set search_path = public, pg_temp;
+alter function public.is_trusted_rfq_event_write() set search_path = public, pg_temp;
+alter function public.assert_rfq_values(numeric,text,text,text,text,date,text) set search_path = public, pg_temp;
+alter function public.can_access_rfq(uuid) set search_path = public, pg_temp;
+alter function public.can_access_rfq_quote(uuid) set search_path = public, pg_temp;
+alter function public.can_manage_rfq_quote_draft(uuid) set search_path = public, pg_temp;
+alter function public.protect_rfq_write() set search_path = public, pg_temp;
+alter function public.record_rfq_event(uuid,text,jsonb) set search_path = public, pg_temp;
+alter function public.insert_trusted_rfq_event(uuid,text,uuid,jsonb) set search_path = public, pg_temp;
+alter function public.protect_rfq_event_insert() set search_path = public, pg_temp;
+alter function public.record_rfq_lifecycle_event() set search_path = public, pg_temp;
+alter function public.record_rfq_message_event() set search_path = public, pg_temp;
+alter function public.protect_rfq_message_insert() set search_path = public, pg_temp;
+alter function public.create_rfq_draft(uuid,numeric,text,text,text,text,date,text) set search_path = public, pg_temp;
+alter function public.update_rfq_draft(uuid,numeric,text,text,text,text,date,text) set search_path = public, pg_temp;
+alter function public.submit_rfq(uuid,numeric,text,text,text,text,date,text) set search_path = public, pg_temp;
+alter function public.cancel_rfq(uuid) set search_path = public, pg_temp;
+alter function public.delete_rfq_draft(uuid) set search_path = public, pg_temp;
+alter function public.send_rfq_message(uuid,text,text) set search_path = public, pg_temp;
+alter function public.record_rfq_opened(uuid) set search_path = public, pg_temp;
+alter function public.protect_rfq_quote_write() set search_path = public, pg_temp;
+alter function public.assert_rfq_quote_lineage(uuid,uuid,uuid) set search_path = public, pg_temp;
+alter function public.create_rfq_quote_draft(uuid) set search_path = public, pg_temp;
+alter function public.create_rfq_quote_revision(uuid) set search_path = public, pg_temp;
+alter function public.delete_rfq_quote_draft(uuid) set search_path = public, pg_temp;
+alter function public.submit_rfq_quote(uuid) set search_path = public, pg_temp;
+alter function public.record_rfq_quote_opened(uuid) set search_path = public, pg_temp;
+alter function public.decide_rfq_quote(uuid,text,text) set search_path = public, pg_temp;
+alter function public.accept_rfq_quote(uuid,text) set search_path = public, pg_temp;
+alter function public.reject_rfq_quote(uuid,text) set search_path = public, pg_temp;
+alter function public.request_rfq_quote_revision(uuid,text) set search_path = public, pg_temp;
+alter function public.is_trusted_quote_write() set search_path = public, pg_temp;
+alter function public.is_trusted_quote_decision_write() set search_path = public, pg_temp;
+alter function public.is_trusted_rfq_opened_write() set search_path = public, pg_temp;
+alter function public.recalculate_rfq_quote_subtotal(uuid) set search_path = public, pg_temp;
+alter function public.protect_rfq_quote_item_write() set search_path = public, pg_temp;
+alter function public.after_rfq_quote_item_change() set search_path = public, pg_temp;
+alter function public.protect_rfq_quote_decision_write() set search_path = public, pg_temp;
+alter function public.is_valid_rfq_transition(text,text) set search_path = public, pg_temp;
+alter function public.build_rfq_product_snapshot(uuid,uuid) set search_path = public, pg_temp;
+alter function public.set_rfq_updated_at() set search_path = public, pg_temp;
+alter function public.set_rfq_quote_updated_at() set search_path = public, pg_temp;
+alter function public.set_rfq_quote_item_updated_at() set search_path = public, pg_temp;
 
 revoke all on function public.rfq_write_context() from public, anon, authenticated, service_role;
 revoke all on function public.is_trusted_rfq_message_write() from public, anon, authenticated, service_role;
@@ -2027,28 +2418,28 @@ revoke all on function public.set_rfq_updated_at() from public, anon, authentica
 revoke all on function public.set_rfq_quote_updated_at() from public, anon, authenticated, service_role;
 revoke all on function public.set_rfq_quote_item_updated_at() from public, anon, authenticated, service_role;
 
-revoke all on function public.can_access_rfq(uuid) from public, anon, authenticated;
-revoke all on function public.can_access_rfq_quote(uuid) from public, anon, authenticated;
-revoke all on function public.can_manage_rfq_quote_draft(uuid) from public, anon, authenticated;
+revoke all on function public.can_access_rfq(uuid) from public, anon, authenticated, service_role;
+revoke all on function public.can_access_rfq_quote(uuid) from public, anon, authenticated, service_role;
+revoke all on function public.can_manage_rfq_quote_draft(uuid) from public, anon, authenticated, service_role;
 grant execute on function public.can_access_rfq(uuid) to authenticated;
 grant execute on function public.can_access_rfq_quote(uuid) to authenticated;
 grant execute on function public.can_manage_rfq_quote_draft(uuid) to authenticated;
 
-revoke all on function public.create_rfq_draft(uuid,numeric,text,text,text,text,date,text) from public, anon, authenticated;
-revoke all on function public.update_rfq_draft(uuid,numeric,text,text,text,text,date,text) from public, anon, authenticated;
-revoke all on function public.submit_rfq(uuid,numeric,text,text,text,text,date,text) from public, anon, authenticated;
-revoke all on function public.cancel_rfq(uuid) from public, anon, authenticated;
-revoke all on function public.delete_rfq_draft(uuid) from public, anon, authenticated;
-revoke all on function public.send_rfq_message(uuid,text,text) from public, anon, authenticated;
-revoke all on function public.record_rfq_opened(uuid) from public, anon, authenticated;
-revoke all on function public.create_rfq_quote_draft(uuid) from public, anon, authenticated;
-revoke all on function public.create_rfq_quote_revision(uuid) from public, anon, authenticated;
-revoke all on function public.submit_rfq_quote(uuid) from public, anon, authenticated;
-revoke all on function public.record_rfq_quote_opened(uuid) from public, anon, authenticated;
-revoke all on function public.accept_rfq_quote(uuid,text) from public, anon, authenticated;
-revoke all on function public.reject_rfq_quote(uuid,text) from public, anon, authenticated;
-revoke all on function public.request_rfq_quote_revision(uuid,text) from public, anon, authenticated;
-revoke all on function public.delete_rfq_quote_draft(uuid) from public, anon, authenticated;
+revoke all on function public.create_rfq_draft(uuid,numeric,text,text,text,text,date,text) from public, anon, authenticated, service_role;
+revoke all on function public.update_rfq_draft(uuid,numeric,text,text,text,text,date,text) from public, anon, authenticated, service_role;
+revoke all on function public.submit_rfq(uuid,numeric,text,text,text,text,date,text) from public, anon, authenticated, service_role;
+revoke all on function public.cancel_rfq(uuid) from public, anon, authenticated, service_role;
+revoke all on function public.delete_rfq_draft(uuid) from public, anon, authenticated, service_role;
+revoke all on function public.send_rfq_message(uuid,text,text) from public, anon, authenticated, service_role;
+revoke all on function public.record_rfq_opened(uuid) from public, anon, authenticated, service_role;
+revoke all on function public.create_rfq_quote_draft(uuid) from public, anon, authenticated, service_role;
+revoke all on function public.create_rfq_quote_revision(uuid) from public, anon, authenticated, service_role;
+revoke all on function public.submit_rfq_quote(uuid) from public, anon, authenticated, service_role;
+revoke all on function public.record_rfq_quote_opened(uuid) from public, anon, authenticated, service_role;
+revoke all on function public.accept_rfq_quote(uuid,text) from public, anon, authenticated, service_role;
+revoke all on function public.reject_rfq_quote(uuid,text) from public, anon, authenticated, service_role;
+revoke all on function public.request_rfq_quote_revision(uuid,text) from public, anon, authenticated, service_role;
+revoke all on function public.delete_rfq_quote_draft(uuid) from public, anon, authenticated, service_role;
 
 grant execute on function public.create_rfq_draft(uuid,numeric,text,text,text,text,date,text) to authenticated;
 grant execute on function public.update_rfq_draft(uuid,numeric,text,text,text,text,date,text) to authenticated;
@@ -2083,6 +2474,7 @@ do $$
 declare
   enabled_count integer;
   unexpected_grants integer;
+  invalid_table_count integer;
 begin
   with expected(table_name, trigger_name) as (
     values
@@ -2110,6 +2502,37 @@ begin
     raise exception 'Migration 0025 postflight failed: all 12 scoped triggers must be enabled.';
   end if;
 
+  select count(*) into invalid_table_count
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  join pg_roles r on r.oid = c.relowner
+  where n.nspname = 'public'
+    and c.relname in (
+      'rfqs', 'rfq_messages', 'rfq_events', 'rfq_quotes',
+      'rfq_quote_items', 'rfq_quote_decisions'
+    )
+    and (not c.relrowsecurity or c.relforcerowsecurity or r.rolname <> 'postgres');
+
+  if invalid_table_count <> 0 then
+    raise exception 'Migration 0025 postflight failed: RFQ/Quote RLS or table ownership is unsafe.';
+  end if;
+
+  if exists (
+    with protected_table(table_name) as (
+      values
+        ('rfqs'), ('rfq_messages'), ('rfq_events'),
+        ('rfq_quotes'), ('rfq_quote_items'), ('rfq_quote_decisions')
+    )
+    select 1
+    from protected_table t
+    where has_table_privilege('anon', 'public.' || t.table_name, 'SELECT')
+       or has_table_privilege('anon', 'public.' || t.table_name, 'INSERT')
+       or has_table_privilege('anon', 'public.' || t.table_name, 'UPDATE')
+       or has_table_privilege('anon', 'public.' || t.table_name, 'DELETE')
+  ) then
+    raise exception 'Migration 0025 postflight failed: anon retains RFQ/Quote table access.';
+  end if;
+
   if has_table_privilege('authenticated', 'public.rfqs', 'INSERT')
      or has_table_privilege('authenticated', 'public.rfqs', 'UPDATE')
      or has_table_privilege('authenticated', 'public.rfqs', 'DELETE')
@@ -2125,18 +2548,118 @@ begin
     raise exception 'Migration 0025 postflight failed: protected tables retain direct mutation grants.';
   end if;
 
+  with internal_function(signature) as (
+    values
+      ('public.rfq_write_context()'),
+      ('public.is_trusted_rfq_message_write()'),
+      ('public.is_trusted_rfq_event_write()'),
+      ('public.assert_rfq_values(numeric,text,text,text,text,date,text)'),
+      ('public.protect_rfq_write()'),
+      ('public.record_rfq_event(uuid,text,jsonb)'),
+      ('public.insert_trusted_rfq_event(uuid,text,uuid,jsonb)'),
+      ('public.protect_rfq_event_insert()'),
+      ('public.record_rfq_lifecycle_event()'),
+      ('public.record_rfq_message_event()'),
+      ('public.protect_rfq_message_insert()'),
+      ('public.protect_rfq_quote_write()'),
+      ('public.assert_rfq_quote_lineage(uuid,uuid,uuid)'),
+      ('public.decide_rfq_quote(uuid,text,text)'),
+      ('public.is_trusted_quote_write()'),
+      ('public.is_trusted_quote_decision_write()'),
+      ('public.is_trusted_rfq_opened_write()'),
+      ('public.recalculate_rfq_quote_subtotal(uuid)'),
+      ('public.protect_rfq_quote_item_write()'),
+      ('public.after_rfq_quote_item_change()'),
+      ('public.protect_rfq_quote_decision_write()'),
+      ('public.is_valid_rfq_transition(text,text)'),
+      ('public.build_rfq_product_snapshot(uuid,uuid)'),
+      ('public.set_rfq_updated_at()'),
+      ('public.set_rfq_quote_updated_at()'),
+      ('public.set_rfq_quote_item_updated_at()')
+  ), checked_role(role_name) as (
+    values ('anon'), ('authenticated'), ('service_role')
+  )
   select count(*) into unexpected_grants
-  from information_schema.routine_privileges
-  where specific_schema = 'public'
-    and routine_name in (
-      'record_rfq_event', 'insert_trusted_rfq_event', 'assert_rfq_quote_lineage',
-      'protect_rfq_write', 'protect_rfq_message_insert', 'protect_rfq_event_insert'
-    )
-    and grantee in ('PUBLIC', 'anon', 'authenticated', 'service_role')
-    and privilege_type = 'EXECUTE';
+  from internal_function f
+  cross join checked_role r
+  where has_function_privilege(r.role_name, f.signature, 'EXECUTE');
+
+  if unexpected_grants = 0 then
+    select count(*) into unexpected_grants
+    from information_schema.routine_privileges
+    where specific_schema = 'public'
+      and routine_name in (
+        'rfq_write_context', 'is_trusted_rfq_message_write', 'is_trusted_rfq_event_write',
+        'assert_rfq_values', 'protect_rfq_write', 'record_rfq_event',
+        'insert_trusted_rfq_event', 'protect_rfq_event_insert',
+        'record_rfq_lifecycle_event', 'record_rfq_message_event',
+        'protect_rfq_message_insert', 'protect_rfq_quote_write',
+        'assert_rfq_quote_lineage', 'decide_rfq_quote', 'is_trusted_quote_write',
+        'is_trusted_quote_decision_write', 'is_trusted_rfq_opened_write',
+        'recalculate_rfq_quote_subtotal', 'protect_rfq_quote_item_write',
+        'after_rfq_quote_item_change', 'protect_rfq_quote_decision_write',
+        'is_valid_rfq_transition', 'build_rfq_product_snapshot',
+        'set_rfq_updated_at', 'set_rfq_quote_updated_at', 'set_rfq_quote_item_updated_at'
+      )
+      and grantee = 'PUBLIC'
+      and privilege_type = 'EXECUTE';
+  end if;
 
   if unexpected_grants <> 0 then
     raise exception 'Migration 0025 postflight failed: internal functions remain externally executable.';
+  end if;
+
+  if exists (
+    with authenticated_function(signature) as (
+      values
+        ('public.can_access_rfq(uuid)'),
+        ('public.can_access_rfq_quote(uuid)'),
+        ('public.can_manage_rfq_quote_draft(uuid)'),
+        ('public.create_rfq_draft(uuid,numeric,text,text,text,text,date,text)'),
+        ('public.update_rfq_draft(uuid,numeric,text,text,text,text,date,text)'),
+        ('public.submit_rfq(uuid,numeric,text,text,text,text,date,text)'),
+        ('public.cancel_rfq(uuid)'),
+        ('public.delete_rfq_draft(uuid)'),
+        ('public.send_rfq_message(uuid,text,text)'),
+        ('public.record_rfq_opened(uuid)'),
+        ('public.create_rfq_quote_draft(uuid)'),
+        ('public.create_rfq_quote_revision(uuid)'),
+        ('public.submit_rfq_quote(uuid)'),
+        ('public.record_rfq_quote_opened(uuid)'),
+        ('public.accept_rfq_quote(uuid,text)'),
+        ('public.reject_rfq_quote(uuid,text)'),
+        ('public.request_rfq_quote_revision(uuid,text)'),
+        ('public.delete_rfq_quote_draft(uuid)')
+    )
+    select 1
+    from authenticated_function f
+    where not has_function_privilege('authenticated', f.signature, 'EXECUTE')
+       or has_function_privilege('anon', f.signature, 'EXECUTE')
+       or has_function_privilege('service_role', f.signature, 'EXECUTE')
+  ) then
+    raise exception 'Migration 0025 postflight failed: authenticated RPC grants are incorrect.';
+  end if;
+
+  if exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname in (
+        'record_rfq_event', 'protect_rfq_write', 'protect_rfq_message_insert',
+        'protect_rfq_event_insert', 'protect_rfq_quote_write',
+        'protect_rfq_quote_item_write', 'protect_rfq_quote_decision_write',
+        'create_rfq_draft', 'update_rfq_draft', 'submit_rfq', 'cancel_rfq',
+        'send_rfq_message', 'create_rfq_quote_draft', 'create_rfq_quote_revision',
+        'delete_rfq_quote_draft', 'submit_rfq_quote', 'record_rfq_quote_opened',
+        'decide_rfq_quote'
+      )
+      and not (
+        coalesce(p.proconfig, '{}'::text[])
+        @> array['search_path=public, pg_temp']::text[]
+      )
+  ) then
+    raise exception 'Migration 0025 postflight failed: reviewed function search_path is unsafe.';
   end if;
 end;
 $$;

@@ -101,6 +101,114 @@ begin
     'revision requested source superseded'
   );
 
+  perform pg_temp.assert_rfq_authority(
+    exists (
+      select 1 from pg_constraint
+      where conrelid='public.rfq_events'::regclass
+        and conname='rfq_events_provenance_complete_check'
+    ),
+    'legacy-null or complete event provenance enforced'
+  );
+  perform pg_temp.assert_rfq_authority(
+    pg_get_functiondef('public.can_manage_rfq_quote_draft(uuid)'::regprocedure)
+      like '%r.status <> ''draft''%',
+    'Quote draft management excludes Buyer drafts'
+  );
+  perform pg_temp.assert_rfq_authority(
+    pg_get_functiondef('public.delete_rfq_quote_draft(uuid)'::regprocedure)
+      like '%rfq_record.status = ''draft''%'
+    and pg_get_functiondef('public.delete_rfq_quote_draft(uuid)'::regprocedure)
+      like '%for update of r%',
+    'Quote draft deletion locks parent and excludes Buyer drafts'
+  );
+  perform pg_temp.assert_rfq_authority(
+    (
+      select count(*) from pg_class c
+      join pg_namespace n on n.oid=c.relnamespace
+      where n.nspname='public'
+        and c.relname in ('rfqs','rfq_messages','rfq_events','rfq_quotes','rfq_quote_items','rfq_quote_decisions')
+        and c.relrowsecurity
+    ) = 6,
+    'RLS enabled on all RFQ and Quote tables'
+  );
+  perform pg_temp.assert_rfq_authority(
+    not has_table_privilege('anon','public.rfqs','SELECT')
+    and not has_table_privilege('anon','public.rfq_messages','SELECT')
+    and not has_table_privilege('anon','public.rfq_events','SELECT')
+    and not has_table_privilege('anon','public.rfq_quotes','SELECT')
+    and not has_table_privilege('anon','public.rfq_quote_items','SELECT')
+    and not has_table_privilege('anon','public.rfq_quote_decisions','SELECT'),
+    'Anonymous table reads denied'
+  );
+  perform pg_temp.assert_rfq_authority(
+    not has_function_privilege('authenticated','public.assert_rfq_quote_lineage(uuid,uuid,uuid)','EXECUTE')
+    and not has_function_privilege('service_role','public.assert_rfq_quote_lineage(uuid,uuid,uuid)','EXECUTE')
+    and not has_function_privilege('authenticated','public.decide_rfq_quote(uuid,text,text)','EXECUTE')
+    and not has_function_privilege('service_role','public.decide_rfq_quote(uuid,text,text)','EXECUTE'),
+    'Internal lineage and decision helpers denied'
+  );
+  perform pg_temp.assert_rfq_authority(
+    coalesce(
+      (select p.proconfig from pg_proc p where p.oid='public.record_rfq_event(uuid,text,jsonb)'::regprocedure),
+      '{}'::text[]
+    ) @> array['search_path=public, pg_temp']::text[],
+    'Event dispatcher search path hardened'
+  );
+  perform pg_temp.assert_rfq_authority(
+    exists (
+      select 1 from pg_policies
+      where schemaname='public' and tablename='rfq_quote_items'
+        and policyname='rfq_quote_items_update_own_draft'
+        and qual like '%can_manage_rfq_quote_draft%'
+    ),
+    'Quote item update uses parent-safe helper'
+  );
+  perform pg_temp.assert_rfq_authority(
+    exists (
+      select 1 from pg_policies
+      where schemaname='public' and tablename='rfq_quote_items'
+        and policyname='rfq_quote_items_delete_own_draft'
+        and qual like '%can_manage_rfq_quote_draft%'
+    ),
+    'Quote item delete uses parent-safe helper'
+  );
+  perform pg_temp.assert_rfq_authority(
+    not has_function_privilege('service_role','public.create_rfq_draft(uuid,numeric,text,text,text,text,date,text)','EXECUTE')
+    and not has_function_privilege('service_role','public.submit_rfq_quote(uuid)','EXECUTE')
+    and not has_function_privilege('service_role','public.send_rfq_message(uuid,text,text)','EXECUTE'),
+    'Participant RPCs have no service-role grant'
+  );
+  perform pg_temp.assert_rfq_authority(
+    not exists (
+      select 1 from public.rfq_quotes q
+      join public.rfqs r on r.id=q.rfq_id
+      where r.status='draft'
+    ),
+    'No Quote is linked to a Buyer draft'
+  );
+  perform pg_temp.assert_rfq_authority(
+    exists (
+      select 1 from pg_constraint
+      where conrelid='public.rfq_quotes'::regclass
+        and conname='rfq_quotes_not_self_superseding_check'
+    ),
+    'Self-superseding Quote rejected'
+  );
+  perform pg_temp.assert_rfq_authority(
+    pg_get_functiondef('public.assert_rfq_quote_lineage(uuid,uuid,uuid)'::regprocedure)
+      like '%where not a.cyclic%'
+    and pg_get_functiondef('public.assert_rfq_quote_lineage(uuid,uuid,uuid)'::regprocedure)
+      like '%id = revision_uuid%',
+    'Lineage recursion terminates and detects revision cycles'
+  );
+  perform pg_temp.assert_rfq_authority(
+    pg_get_functiondef('public.submit_rfq_quote(uuid)'::regprocedure)
+      like '%where id = quote_record.id and status = ''draft''%'
+    and pg_get_functiondef('public.submit_rfq_quote(uuid)'::regprocedure)
+      like '%where id = source_quote.id and status = ''revision_requested''%',
+    'Quote submission updates are state conditional'
+  );
+
   with expected(table_name, trigger_name) as (
     values
       ('rfqs','protect_rfq_write'), ('rfqs','record_rfq_lifecycle_event'), ('rfqs','set_rfqs_updated_at'),
@@ -120,7 +228,7 @@ begin
   perform pg_temp.assert_rfq_authority(scoped_enabled = 12, 'all twelve scoped triggers enabled');
 
   perform pg_temp.assert_rfq_authority(
-    (select count(*) from rfq_authority_checks) = 39,
+    (select count(*) from rfq_authority_checks) = 53,
     'expected pre-final assertion count'
   );
 end;
@@ -130,8 +238,8 @@ do $$
 declare check_count integer;
 begin
   select count(*) into check_count from rfq_authority_checks;
-  if check_count <> 40 then
-    raise exception 'Expected 40 RFQ authority checks, got %.', check_count;
+  if check_count <> 54 then
+    raise exception 'Expected 54 RFQ authority checks, got %.', check_count;
   end if;
   raise notice 'RFQ authority recovery verification passed: %/% checks.', check_count, check_count;
 end;
