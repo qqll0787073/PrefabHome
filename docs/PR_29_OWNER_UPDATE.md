@@ -36,9 +36,15 @@ Deferred: broader Buyer Message event vocabulary, true cross-Manufacturer biddin
 - Migration has **not** been applied to Production
 - Production Supabase was not accessed
 
-**Staging verdict: B. STAGING MIGRATION PASSED — UAT CONDITIONS REMAIN**
+**Staging migration verdict: B. STAGING MIGRATION PASSED - UAT CONDITIONS REMAIN**
 
-Owner review remains required before the PR can leave Draft. The existing Buyer Message event vocabulary remains unchanged; broader vocabulary work is deferred.
+**Sprint 3B.1 browser verdict: D. UAT BLOCKED - STAGING FRONTEND NOT DEPLOYED**
+
+The migration and authenticated API validation remain successful. Browser UAT could
+not begin because no deployed Staging frontend URL, deployment record, or verifiable
+build identity was available for the current PR head. No local server was substituted
+for the required deployed Staging application. Keep PR #29 Draft until the Staging
+frontend is deployed from the reviewed head and the role-based browser UAT passes.
 
 ## Verification
 
@@ -53,6 +59,7 @@ Owner review remains required before the PR can leave Draft. The existing Buyer 
 - The 12 reviewed RFQ triggers are enabled
 - The 17 non-RFQ triggers remain unchanged and out of scope
 - Synthetic submitted UAT records were retained as clearly marked audit evidence; ignored exact-ID manifests contain no credentials
+- Sprint 3B.1 browser UAT was not executed because the deployed Staging frontend gate failed
 
 PR #29 remains Draft and unmerged.
 
