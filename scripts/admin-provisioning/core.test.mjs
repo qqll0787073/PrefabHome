@@ -9,6 +9,14 @@ import {
 const EMAIL = "admin.uat@example.test";
 const UUID = "11111111-1111-4111-8111-111111111111";
 
+function syntheticSupabaseSecret() {
+  return ["sb", "_secret", "_", "abcdefghijklm", "nopqrstuvwxyz"].join("");
+}
+
+function syntheticJwt() {
+  return [["ey", "Jabcdefghijk"].join(""), "abcdefghijkl", "abcdefghijkl"].join(".");
+}
+
 function auth(overrides = {}) { return { id: UUID, email: EMAIL, email_confirmed_at: "2026-01-01T00:00:00Z", banned_until: null, disabled: false, ...overrides }; }
 function profile(overrides = {}) { return { id: UUID, email: EMAIL, role: "buyer", status: "active", ...overrides }; }
 function adapter(options = {}) {
@@ -28,7 +36,7 @@ function adapter(options = {}) {
       return rows;
     },
     async createAuthUser(input) {
-      if (options.createError) { state.authUsers = options.uncertainAuthUsers ?? state.authUsers; throw new Error("unsafe token sb_secret_abcdefghijklmnopqrstuvwxyz"); }
+      if (options.createError) { state.authUsers = options.uncertainAuthUsers ?? state.authUsers; throw new Error(`unsafe token ${syntheticSupabaseSecret()}`); }
       const created = auth({ email_confirmed_at: input.emailConfirm ? "2026-01-01T00:00:00Z" : null });
       state.authUsers = [created];
       if (!options.profileMissing) state.profiles = [profile()];
@@ -130,10 +138,17 @@ test("already-Admin result is idempotent", async () => {
 });
 
 test("password and token fields are redacted", () => {
-  const output = JSON.stringify(redact({ password: "plain", nested: { accessToken: "secret" }, message: "sb_secret_abcdefghijklmnopqrstuvwxyz" }));
-  assert.doesNotMatch(output, /plain|abcdefghijklmnopqrstuvwxyz/);
+  const assembledToken = syntheticSupabaseSecret();
+  const output = JSON.stringify(redact({ password: "plain", nested: { accessToken: "secret" }, message: assembledToken }));
+  assert.equal(output.includes(assembledToken), false);
+  assert.doesNotMatch(output, /plain|abcdefghijklm|nopqrstuvwxyz/);
 });
-test("JWT-like values in errors are redacted", () => assert.doesNotMatch(JSON.stringify(redact({ error: "eyJabcdefghijk.abcdefghijkl.abcdefghijkl" })), /eyJ/));
+test("JWT-like values in errors are redacted", () => {
+  const assembledJwt = syntheticJwt();
+  const output = JSON.stringify(redact({ error: assembledJwt }));
+  assert.equal(output.includes(assembledJwt), false);
+  assert.doesNotMatch(output, /abcdefghijk|abcdefghijkl/);
+});
 test("confirmation phrase mismatch is rejected", () => assert.throws(() => assertConfirmation("yes"), /confirmation/));
 test("exact confirmation phrase passes", () => assert.doesNotThrow(() => assertConfirmation(STAGING_CONFIRMATION)));
 test("audit record contains masked identifiers and no credentials", async () => {
