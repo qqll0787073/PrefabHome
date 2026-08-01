@@ -565,7 +565,7 @@ main[id] {
   .public-navigation a[aria-current="page"],
   .nav-tabs button.active,
   .segmented-control button.active,
-  .portal-workspace-nav button.active {
+  .pw-link.active {
     outline: 2px solid Highlight;
   }
 }
@@ -1750,16 +1750,19 @@ main {
   scrollbar-width: thin;
 }
 
-.portal-workspace-nav button {
+.pw-link {
+  display: inline-flex;
+  align-items: center;
   flex: 0 0 auto;
   min-height: 38px;
   padding: 8px 12px;
   border: 1px solid #d0d5dd;
   background: #fff;
   color: #667085;
+  text-decoration: none;
 }
 
-.portal-workspace-nav button.active {
+.pw-link.active {
   border-color: #16665a;
   background: #16665a;
   color: #fff;

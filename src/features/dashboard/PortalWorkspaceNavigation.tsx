@@ -1,6 +1,10 @@
 import React from "react";
 import type { Role } from "../../types";
-import { portalWorkspaces, type PortalWorkspace } from "../../lib/portalNavigation";
+import {
+  buildPortalSearch,
+  portalWorkspaces,
+  type PortalWorkspace,
+} from "../../lib/portalNavigation";
 
 interface PortalWorkspaceNavigationProps {
   role: Role;
@@ -12,15 +16,23 @@ export function PortalWorkspaceNavigation({ role, workspace, onWorkspaceChange }
   return (
     <nav className="portal-workspace-nav" aria-label={`${role} portal workspaces`}>
       {portalWorkspaces[role].map((item) => (
-        <button
-          type="button"
+        <a
           key={item.id}
-          className={workspace === item.id ? "active" : ""}
+          className={workspace === item.id ? "pw-link active" : "pw-link"}
           aria-current={workspace === item.id ? "page" : undefined}
-          onClick={() => onWorkspaceChange(item.id)}
+          href={`/marketplace${buildPortalSearch({
+            view: "dashboard",
+            workspace: item.id,
+            requestId: null,
+            recordId: null,
+          })}`}
+          onClick={(event) => {
+            event.preventDefault();
+            onWorkspaceChange(item.id);
+          }}
         >
           {item.label}
-        </button>
+        </a>
       ))}
     </nav>
   );
