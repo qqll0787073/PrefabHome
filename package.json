@@ -28,7 +28,9 @@
     "test:db:disposable:migrations": "node scripts/local-db/run-disposable-database-validation.mjs",
     "test:db:disposable:authority": "node scripts/local-db/rfq-authority-integration.mjs",
     "test:db:disposable:atomicity": "node scripts/local-db/verify-rfq-migration-atomicity.mjs",
-    "test:db:disposable:api": "node scripts/local-db/rfq-postgrest-integration.mjs"
+    "test:db:disposable:api": "node scripts/local-db/rfq-postgrest-integration.mjs",
+    "admin:provision": "node scripts/admin-provisioning/cli.mjs",
+    "test:admin:provision": "node --test scripts/admin-provisioning/*.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
