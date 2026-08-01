@@ -17,7 +17,7 @@ test("Beta document audit reports missing files and broken links", () => {
   mkdirSync(join(root, "docs"), { recursive: true });
   writeFileSync(join(root, "README.md"), "[Missing](docs/not-there.md)\n", "utf8");
   const errors = auditBetaDocs(root);
-  assert.ok(errors.some((error) => error.includes("Missing required release file")));
+  assert.ok(errors.includes("Missing required release file: docs/QUICK_START_GUIDE.md"));
   assert.ok(errors.some((error) => error.includes("Broken local link")));
   assert.ok(errors.some((error) => error.includes("Missing migration directory")));
 });
