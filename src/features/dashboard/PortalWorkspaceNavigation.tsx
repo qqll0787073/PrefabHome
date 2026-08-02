@@ -12,6 +12,16 @@ interface PortalWorkspaceNavigationProps {
   onWorkspaceChange: (workspace: PortalWorkspace) => void;
 }
 
+export function shouldHandleWorkspaceNavigation(event: React.MouseEvent<HTMLAnchorElement>): boolean {
+  return event.button === 0
+    && !event.ctrlKey
+    && !event.metaKey
+    && !event.shiftKey
+    && !event.altKey
+    && event.currentTarget.target !== "_blank"
+    && !event.currentTarget.hasAttribute("download");
+}
+
 export function PortalWorkspaceNavigation({ role, workspace, onWorkspaceChange }: PortalWorkspaceNavigationProps) {
   return (
     <nav className="portal-workspace-nav" aria-label={`${role} portal workspaces`}>
@@ -27,6 +37,7 @@ export function PortalWorkspaceNavigation({ role, workspace, onWorkspaceChange }
             recordId: null,
           })}`}
           onClick={(event) => {
+            if (!shouldHandleWorkspaceNavigation(event)) return;
             event.preventDefault();
             onWorkspaceChange(item.id);
           }}

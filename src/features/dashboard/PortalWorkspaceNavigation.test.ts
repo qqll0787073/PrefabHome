@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PortalWorkspaceNavigation } from "./PortalWorkspaceNavigation";
+import {
+  PortalWorkspaceNavigation,
+  shouldHandleWorkspaceNavigation,
+} from "./PortalWorkspaceNavigation";
 
 const adminRoutes = [
   ["Dashboard", "overview"],
@@ -39,4 +42,45 @@ test("keeps Admin-only workspace routes out of other portal navigation", () => {
     assert.doesNotMatch(markup, />Users<\/a>/);
     assert.doesNotMatch(markup, />Manufacturers<\/a>/);
   }
+});
+
+function navigationEvent(overrides: Record<string, unknown> = {}) {
+  return {
+    button: 0,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+    altKey: false,
+    currentTarget: {
+      target: "",
+      hasAttribute: () => false,
+    },
+    ...overrides,
+  } as unknown as Parameters<typeof shouldHandleWorkspaceNavigation>[0];
+}
+
+test("intercepts only an unmodified primary workspace click", () => {
+  assert.equal(shouldHandleWorkspaceNavigation(navigationEvent()), true);
+});
+
+test("preserves native behavior for modified and non-primary workspace clicks", () => {
+  for (const overrides of [
+    { ctrlKey: true },
+    { metaKey: true },
+    { shiftKey: true },
+    { altKey: true },
+    { button: 1 },
+    { button: 2 },
+  ]) {
+    assert.equal(shouldHandleWorkspaceNavigation(navigationEvent(overrides)), false);
+  }
+});
+
+test("preserves native behavior for new-tab and download links", () => {
+  assert.equal(shouldHandleWorkspaceNavigation(navigationEvent({
+    currentTarget: { target: "_blank", hasAttribute: () => false },
+  })), false);
+  assert.equal(shouldHandleWorkspaceNavigation(navigationEvent({
+    currentTarget: { target: "", hasAttribute: (name: string) => name === "download" },
+  })), false);
 });
