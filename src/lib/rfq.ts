@@ -10,6 +10,7 @@ import type {
   RFQStatus,
   RFQWithDetails,
 } from "../types";
+import { assertLiveRecordId } from "./rfqQuoteWorkflow";
 
 export const rfqStatuses: RFQStatus[] = [
   "draft",
@@ -48,6 +49,8 @@ export const buyerRFQDashboardStatuses: RFQStatus[] = [
 ];
 
 export const rfqMessageMaxLength = 2000;
+export const rfqCountryMaxLength = 120;
+export const rfqPortMaxLength = 160;
 
 export const rfqIncoterms: RFQIncoterm[] = ["FOB", "CIF", "EXW", "DDP", "DAP"];
 
@@ -122,6 +125,8 @@ export function validateRFQForm(values: RFQFormValues): string[] {
 
   if (!values.destinationCountry.trim()) {
     errors.push("Destination country is required.");
+  } else if (values.destinationCountry.trim().length > rfqCountryMaxLength) {
+    errors.push(`Destination country must be ${rfqCountryMaxLength} characters or fewer.`);
   }
 
   if (!/^[A-Za-z]{3}$/.test(values.requestedCurrency.trim())) {
@@ -130,6 +135,19 @@ export function validateRFQForm(values: RFQFormValues): string[] {
 
   if (values.incoterm.trim() && !rfqIncoterms.includes(values.incoterm.trim().toUpperCase() as RFQIncoterm)) {
     errors.push("Incoterm is not supported.");
+  }
+
+  if (values.destinationPort.trim().length > rfqPortMaxLength) {
+    errors.push(`Destination port must be ${rfqPortMaxLength} characters or fewer.`);
+  }
+
+  if (values.targetDeliveryDate) {
+    const targetDate = Date.parse(`${values.targetDeliveryDate}T00:00:00Z`);
+    if (Number.isNaN(targetDate)) {
+      errors.push("Target delivery date must be valid.");
+    } else if (values.targetDeliveryDate < new Date().toISOString().slice(0, 10)) {
+      errors.push("Target delivery date cannot be in the past.");
+    }
   }
 
   if (values.buyerMessage.length > rfqMessageMaxLength) {
@@ -198,7 +216,7 @@ function ensureSupabase() {
   return supabase;
 }
 
-function toReadableRFQError(error: { code?: string; message?: string }): Error {
+export function toReadableRFQError(error: { code?: string; message?: string }): Error {
   const message = error.message?.toLowerCase() ?? "";
 
   if (message.includes("row-level security") || message.includes("permission denied")) {
@@ -213,57 +231,139 @@ function toReadableRFQError(error: { code?: string; message?: string }): Error {
     return new Error("Invalid RFQ status transition.");
   }
 
-  return new Error(error.message ?? "Unable to manage RFQ.");
+  if (message.includes("duplicate") || error.code === "23505") {
+    return new Error("This RFQ action conflicts with an existing record. Refresh and try again.");
+  }
+
+  return new Error("Unable to manage RFQ. Refresh and try again.");
 }
 
-const rfqDetailSelect =
+export function isRFQVisibleToManufacturer(status: RFQStatus): boolean {
+  return status !== "draft";
+}
+
+export function rfqToFormValues(rfq: RFQRecord): RFQFormValues {
+  return {
+    requestedQuantity: String(rfq.requested_quantity),
+    requestedCurrency: rfq.requested_currency,
+    incoterm: rfq.incoterm ?? "",
+    destinationCountry: rfq.destination_country,
+    destinationPort: rfq.destination_port ?? "",
+    targetDeliveryDate: rfq.target_delivery_date ?? "",
+    buyerMessage: rfq.buyer_message ?? "",
+  };
+}
+
+function toRFQUpdatePayload(values: RFQFormValues) {
+  return {
+    requested_quantity: quantityFromText(values.requestedQuantity) ?? 1,
+    requested_currency: values.requestedCurrency.trim().toUpperCase(),
+    incoterm: normalizeIncoterm(values.incoterm),
+    destination_country: values.destinationCountry.trim(),
+    destination_port: optionalText(values.destinationPort),
+    target_delivery_date: optionalText(values.targetDeliveryDate),
+    buyer_message: optionalText(values.buyerMessage),
+  };
+}
+
+function toRFQRpcArgs(values: RFQFormValues) {
+  const payload = toRFQUpdatePayload(values);
+  return {
+    requested_quantity_value: payload.requested_quantity,
+    requested_currency_value: payload.requested_currency,
+    destination_country_value: payload.destination_country,
+    incoterm_value: payload.incoterm,
+    destination_port_value: payload.destination_port,
+    target_delivery_date_value: payload.target_delivery_date,
+    buyer_message_value: payload.buyer_message,
+  };
+}
+
+const participantRFQDetailSelect = "*, product:products(id,name,model_name,category)";
+const adminRFQDetailSelect =
   "*, product:products(id,name,model_name,category), manufacturer:manufacturers(id,company_name,company_display_name,country), buyer:profiles(id,full_name,email)";
 
 export async function createDraftRFQ(
-  buyerId: string,
   product: Pick<MarketplaceProduct, "id" | "manufacturer_id" | "currency">,
   values: RFQFormValues
 ): Promise<RFQRecord> {
   const client = ensureSupabase();
-  const payload = toRFQPayload(buyerId, product, values, "draft");
-  const { data, error } = await client.from("rfqs").insert(payload).select("*").single();
+  assertLiveRecordId(product.id, "Product");
+  assertLiveRecordId(product.manufacturer_id, "Manufacturer");
+  const { data, error } = await client.rpc("create_rfq_draft", {
+    product_uuid: product.id,
+    ...toRFQRpcArgs(values),
+  });
 
   if (error) throw toReadableRFQError(error);
   return data as RFQRecord;
 }
 
-export async function submitRFQ(rfqId: string, values?: RFQFormValues): Promise<RFQRecord> {
+export async function submitRFQ(rfqId: string, values: RFQFormValues): Promise<RFQRecord> {
   const client = ensureSupabase();
-  const payload = values
-    ? {
-        requested_quantity: quantityFromText(values.requestedQuantity) ?? 1,
-        requested_currency: values.requestedCurrency.trim().toUpperCase(),
-        incoterm: normalizeIncoterm(values.incoterm),
-        destination_country: values.destinationCountry.trim(),
-        destination_port: optionalText(values.destinationPort),
-        target_delivery_date: optionalText(values.targetDeliveryDate),
-        buyer_message: optionalText(values.buyerMessage),
-        status: "submitted" as const,
-      }
-    : { status: "submitted" as const };
-
-  const { data, error } = await client
-    .from("rfqs")
-    .update(payload)
-    .eq("id", rfqId)
-    .select("*")
-    .single();
+  assertLiveRecordId(rfqId, "RFQ");
+  const { data, error } = await client.rpc("submit_rfq", {
+    rfq_uuid: rfqId,
+    ...toRFQRpcArgs(values),
+  });
 
   if (error) throw toReadableRFQError(error);
   return data as RFQRecord;
 }
 
-export async function fetchBuyerRFQs(buyerId: string): Promise<RFQWithDetails[]> {
+interface RFQRequestOperations {
+  createDraft: typeof createDraftRFQ;
+  updateDraft: typeof updateDraftRFQ;
+  submit: typeof submitRFQ;
+}
+
+export async function persistProductRFQ(
+  product: Pick<MarketplaceProduct, "id" | "manufacturer_id" | "currency">,
+  values: RFQFormValues,
+  action: "draft" | "submit",
+  existingDraftId: string | null,
+  operations: RFQRequestOperations = {
+    createDraft: createDraftRFQ,
+    updateDraft: updateDraftRFQ,
+    submit: submitRFQ,
+  }
+): Promise<RFQRecord> {
+  if (existingDraftId) {
+    return action === "submit"
+      ? operations.submit(existingDraftId, values)
+      : operations.updateDraft(existingDraftId, values);
+  }
+
+  const draft = await operations.createDraft(product, values);
+  return action === "submit" ? operations.submit(draft.id, values) : draft;
+}
+
+async function authenticatedProfileId(): Promise<string> {
+  const client = ensureSupabase();
+  const { data, error } = await client.auth.getUser();
+  if (error || !data.user) throw new Error("Sign in to access RFQs.");
+  return data.user.id;
+}
+
+export async function updateDraftRFQ(rfqId: string, values: RFQFormValues): Promise<RFQRecord> {
+  const client = ensureSupabase();
+  assertLiveRecordId(rfqId, "RFQ");
+  const { data, error } = await client.rpc("update_rfq_draft", {
+    rfq_uuid: rfqId,
+    ...toRFQRpcArgs(values),
+  });
+
+  if (error) throw toReadableRFQError(error);
+  return data as RFQRecord;
+}
+
+export async function fetchBuyerRFQs(): Promise<RFQWithDetails[]> {
   if (!supabase) return [];
+  const buyerId = await authenticatedProfileId();
 
   const { data, error } = await supabase
     .from("rfqs")
-    .select(rfqDetailSelect)
+    .select(participantRFQDetailSelect)
     .eq("buyer_id", buyerId)
     .order("created_at", { ascending: true });
 
@@ -271,8 +371,9 @@ export async function fetchBuyerRFQs(buyerId: string): Promise<RFQWithDetails[]>
   return (data ?? []) as RFQWithDetails[];
 }
 
-export async function fetchManufacturerRFQs(ownerId: string): Promise<RFQWithDetails[]> {
+export async function fetchManufacturerRFQs(): Promise<RFQWithDetails[]> {
   if (!supabase) return [];
+  const ownerId = await authenticatedProfileId();
 
   const { data: manufacturers, error: manufacturerError } = await supabase
     .from("manufacturers")
@@ -286,12 +387,13 @@ export async function fetchManufacturerRFQs(ownerId: string): Promise<RFQWithDet
 
   const { data, error } = await supabase
     .from("rfqs")
-    .select(rfqDetailSelect)
+    .select(participantRFQDetailSelect)
     .in("manufacturer_id", manufacturerIds)
+    .neq("status", "draft")
     .order("created_at", { ascending: true });
 
   if (error) throw toReadableRFQError(error);
-  return (data ?? []) as RFQWithDetails[];
+  return ((data ?? []) as RFQWithDetails[]).filter((rfq) => isRFQVisibleToManufacturer(rfq.status));
 }
 
 export async function fetchAdminRFQs(): Promise<RFQWithDetails[]> {
@@ -299,7 +401,7 @@ export async function fetchAdminRFQs(): Promise<RFQWithDetails[]> {
 
   const { data, error } = await supabase
     .from("rfqs")
-    .select(rfqDetailSelect)
+    .select(adminRFQDetailSelect)
     .order("created_at", { ascending: true });
 
   if (error) throw toReadableRFQError(error);
@@ -308,10 +410,11 @@ export async function fetchAdminRFQs(): Promise<RFQWithDetails[]> {
 
 export async function fetchRFQ(rfqId: string): Promise<RFQWithDetails | null> {
   if (!supabase) return null;
+  assertLiveRecordId(rfqId, "RFQ");
 
   const { data, error } = await supabase
     .from("rfqs")
-    .select(rfqDetailSelect)
+    .select(participantRFQDetailSelect)
     .eq("id", rfqId)
     .maybeSingle();
 
@@ -321,20 +424,15 @@ export async function fetchRFQ(rfqId: string): Promise<RFQWithDetails | null> {
 
 export async function postRFQMessage(
   rfqId: string,
-  senderProfileId: string,
   message: string
 ): Promise<RFQMessageRecord> {
   const client = ensureSupabase();
-  const { data, error } = await client
-    .from("rfq_messages")
-    .insert({
-      rfq_id: rfqId,
-      sender_profile_id: senderProfileId,
-      message: message.trim(),
-      attachment_path: null,
-    })
-    .select("*")
-    .single();
+  assertLiveRecordId(rfqId, "RFQ");
+  const { data, error } = await client.rpc("send_rfq_message", {
+    rfq_uuid: rfqId,
+    message_text: message.trim(),
+    attachment_path_value: null,
+  });
 
   if (error) throw toReadableRFQError(error);
   return data as RFQMessageRecord;
@@ -342,6 +440,7 @@ export async function postRFQMessage(
 
 export async function fetchRFQMessages(rfqId: string): Promise<RFQMessageRecord[]> {
   if (!supabase) return [];
+  assertLiveRecordId(rfqId, "RFQ");
 
   const { data, error } = await supabase
     .from("rfq_messages")
@@ -355,6 +454,7 @@ export async function fetchRFQMessages(rfqId: string): Promise<RFQMessageRecord[
 
 export async function fetchRFQEvents(rfqId: string): Promise<RFQEventRecord[]> {
   if (!supabase) return [];
+  assertLiveRecordId(rfqId, "RFQ");
 
   const { data, error } = await supabase
     .from("rfq_events")
@@ -366,21 +466,27 @@ export async function fetchRFQEvents(rfqId: string): Promise<RFQEventRecord[]> {
   return (data ?? []) as RFQEventRecord[];
 }
 
-export async function cancelDraftRFQ(rfqId: string): Promise<RFQRecord> {
+export async function markManufacturerRFQOpened(rfqId: string): Promise<void> {
   const client = ensureSupabase();
-  const { data, error } = await client
-    .from("rfqs")
-    .update({ status: "cancelled" })
-    .eq("id", rfqId)
-    .select("*")
-    .single();
+  assertLiveRecordId(rfqId, "RFQ");
+  const { error } = await client.rpc("record_rfq_opened", { rfq_uuid: rfqId });
+  if (error) throw toReadableRFQError(error);
+}
+
+export async function cancelRFQ(rfqId: string): Promise<RFQRecord> {
+  const client = ensureSupabase();
+  assertLiveRecordId(rfqId, "RFQ");
+  const { data, error } = await client.rpc("cancel_rfq", { rfq_uuid: rfqId });
 
   if (error) throw toReadableRFQError(error);
   return data as RFQRecord;
 }
 
+export const cancelDraftRFQ = cancelRFQ;
+
 export async function deleteDraftRFQ(rfqId: string): Promise<void> {
   const client = ensureSupabase();
-  const { error } = await client.from("rfqs").delete().eq("id", rfqId);
+  assertLiveRecordId(rfqId, "RFQ");
+  const { error } = await client.rpc("delete_rfq_draft", { rfq_uuid: rfqId });
   if (error) throw toReadableRFQError(error);
 }

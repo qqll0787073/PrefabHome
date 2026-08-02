@@ -121,7 +121,7 @@ export function main() {
     runNpmScript("verify:legal-structure", productionEnvironment);
     reportLegalPublicationStatus(productionEnvironment);
     runNpmScript("verify:beta", betaEnvironment);
-    runNpmScript("build", productionEnvironment);
+    runNpmScript("build:production", productionEnvironment);
     runNpmScript("verify:production-artifact", productionEnvironment);
     console.log("Technical production readiness verification passed. No publication, release, or deployment action was performed.");
   } catch (error) {

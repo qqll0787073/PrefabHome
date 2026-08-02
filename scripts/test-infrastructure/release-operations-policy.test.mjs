@@ -63,7 +63,7 @@ test("artifact verification is local-only and package scripts keep release actio
   assert.doesNotMatch(readiness, /\bsupabase\s+(?:db|link|migration)|\b(?:upload|deploy)\b/i);
   assert.match(artifact, /tmpdir\(\)/);
   assert.match(readiness, /runNpmScript\("verify:beta", betaEnvironment\)/);
-  assert.match(readiness, /runNpmScript\("build", productionEnvironment\)/);
+  assert.match(readiness, /runNpmScript\("build:production", productionEnvironment\)/);
   assert.match(readiness, /runNpmScript\("verify:production-artifact", productionEnvironment\)/);
 });
 
@@ -88,17 +88,17 @@ test("Vite source maps are disabled and public CI/environment examples are non-c
   assert.match(environmentExample, /VITE_ENABLE_MARKETPLACE_DEMO=false/);
 });
 
-test("migration baseline remains exactly 0001 through 0024 and unchanged", () => {
+test("migration baseline 0001 through 0024 is unchanged and 0025 is review-only", () => {
   const migrations = readdirSync("supabase/migrations")
     .filter((file) => /^\d{4}_.+\.sql$/.test(file))
     .sort();
-  assert.equal(migrations.length, 24);
+  assert.equal(migrations.length, 25);
   assert.equal(migrations[0].slice(0, 4), "0001");
-  assert.equal(migrations.at(-1).slice(0, 4), "0024");
+  assert.equal(migrations.at(-1), "0025_restore_rfq_quote_authority.sql");
   const changed = execFileSync(
     "git",
     ["diff", "--name-only", resolveAuthProfilesMigrationBaseline(), "--", "supabase/migrations"],
     { encoding: "utf8", windowsHide: true },
   ).trim();
-  assert.equal(changed, "");
+  assert.ok(changed === "" || changed === "supabase/migrations/0025_restore_rfq_quote_authority.sql");
 });

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ConfirmationDialog } from "../../components/common/ConfirmationDialog";
 import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
 import {
@@ -9,6 +10,7 @@ import {
 } from "../../lib/quoteDecisions";
 import {
   addQuoteItem,
+  calculateQuoteSubtotalPreview,
   createQuoteDraft,
   createQuoteRevision,
   deleteQuoteDraft,
@@ -23,6 +25,7 @@ import {
   quoteItemTypeLabels,
   quoteItemTypes,
   quoteStatusLabels,
+  quoteFormAfterRefresh,
   quoteToFormValues,
   submitQuote,
   updateQuoteDraft,
@@ -43,7 +46,7 @@ import { QuoteSummaryList } from "./QuoteSummaryList";
 
 interface QuoteBuilderProps {
   rfq: RFQWithDetails | null;
-  onQuoteSubmitted?: () => void;
+  onQuoteSubmitted?: () => void | Promise<void>;
 }
 
 export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
@@ -53,10 +56,14 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
   const [quoteValues, setQuoteValues] = useState<RFQQuoteFormValues>(() => emptyQuoteForm());
   const [itemValues, setItemValues] = useState<RFQQuoteItemFormValues>(() => emptyQuoteItemForm());
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [itemEditorDirty, setItemEditorDirty] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
+  const [pendingDelete, setPendingDelete] = useState<{ kind: "draft" | "item"; item?: RFQQuoteItemRecord } | null>(null);
+  const deleteReturnFocus = useRef<HTMLElement | null>(null);
+  const submitLock = useRef(false);
 
   const submittedQuotes = useMemo(
     () => quotes.filter((quote) => quote.status !== "draft"),
@@ -68,7 +75,7 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
     [quotes]
   );
 
-  async function loadQuotes(nextActiveId?: string) {
+  async function loadQuotes(nextActiveId?: string, preserveUnsavedValues = false) {
     if (!rfq) return;
     setIsLoading(true);
     setErrors([]);
@@ -83,9 +90,15 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
         items[0] ??
         null;
       setActiveQuote(selected);
-      setQuoteValues(selected ? quoteToFormValues(selected) : emptyQuoteForm(rfq.requested_currency));
+      setQuoteValues((current) => quoteFormAfterRefresh(
+        selected,
+        current,
+        preserveUnsavedValues,
+        rfq.requested_currency
+      ));
       setItemValues(emptyQuoteItemForm((selected?.items.length ?? 0) + 1));
       setEditingItemId(null);
+      setItemEditorDirty(false);
     } catch (error) {
       setErrors([error instanceof Error ? error.message : "Unable to load quotes."]);
     } finally {
@@ -156,7 +169,7 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
       } else {
         await addQuoteItem(activeQuote.id, itemValues);
       }
-      await loadQuotes(activeQuote.id);
+      await loadQuotes(activeQuote.id, true);
       setMessage(editingItemId ? "Line item updated." : "Line item added.");
     } catch (error) {
       setErrors([error instanceof Error ? error.message : "Unable to save quote line item."]);
@@ -180,13 +193,25 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
   }
 
   async function submitDraft() {
-    if (!activeQuote) return;
-    const validationErrors = validateQuoteForSubmission(activeQuote);
+    if (!activeQuote || submitLock.current) return;
+    const candidateQuote: RFQQuoteWithItems = {
+      ...activeQuote,
+      currency: quoteValues.currency.trim().toUpperCase(),
+      incoterm: quoteValues.incoterm.trim().toUpperCase() as RFQQuoteWithItems["incoterm"] || null,
+      origin_port: quoteValues.originPort.trim() || null,
+      destination_port: quoteValues.destinationPort.trim() || null,
+      production_lead_days: quoteValues.productionLeadDays ? Number(quoteValues.productionLeadDays) : null,
+      shipping_lead_days: quoteValues.shippingLeadDays ? Number(quoteValues.shippingLeadDays) : null,
+      valid_until: quoteValues.validUntil || null,
+      manufacturer_note: quoteValues.manufacturerNote.trim() || null,
+    };
+    const validationErrors = validateQuoteForSubmission(candidateQuote);
     if (validationErrors.length > 0) {
       setErrors(validationErrors);
       return;
     }
 
+    submitLock.current = true;
     setIsSaving(true);
     setErrors([]);
     setMessage("");
@@ -195,10 +220,11 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
       const submitted = await submitQuote(activeQuote.id);
       await loadQuotes(submitted.id);
       setMessage("Quote submitted to the buyer.");
-      onQuoteSubmitted?.();
+      await onQuoteSubmitted?.();
     } catch (error) {
       setErrors([error instanceof Error ? error.message : "Unable to submit quote."]);
     } finally {
+      submitLock.current = false;
       setIsSaving(false);
     }
   }
@@ -217,6 +243,19 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  async function confirmDelete() {
+    const pending = pendingDelete;
+    if (!pending) return;
+    setPendingDelete(null);
+    if (pending.kind === "item" && pending.item) await removeLineItem(pending.item);
+    else await deleteDraft();
+  }
+
+  function requestDelete(kind: "draft" | "item", trigger: HTMLElement, item?: RFQQuoteItemRecord) {
+    deleteReturnFocus.current = trigger;
+    setPendingDelete({ kind, item });
   }
 
   async function reviseQuote(quote: RFQQuoteWithItems) {
@@ -247,6 +286,9 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
   const activeDecision = activeQuote ? getDecisionForQuote(activeQuote.id, decisions) : null;
   const canCreateRevision =
     activeQuote ? canManufacturerCreateRevision(activeQuote, rfq.status, decisions) : false;
+  const displayedSubtotal = activeQuote
+    ? calculateQuoteSubtotalPreview(activeQuote.items, itemValues, editingItemId, itemEditorDirty)
+    : 0;
 
   return (
     <section className="panel quote-builder">
@@ -256,7 +298,7 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
         Requested: {rfq.requested_quantity} units - {rfq.requested_currency}
       </p>
       <ErrorList errors={errors} />
-      {message && <p className="form-notice">{message}</p>}
+      {message && <p className="form-notice" role="status">{message}</p>}
       {isLoading && <LoadingState message="Loading quotes..." />}
       {!draftQuote && canCreateDraft && (
         <div className="actions">
@@ -307,6 +349,7 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
               <input
                 value={quoteValues.originPort}
                 disabled={!isDraftEditable}
+                maxLength={160}
                 onChange={(event) => setQuoteValues({ ...quoteValues, originPort: event.target.value })}
               />
             </label>
@@ -315,6 +358,7 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
               <input
                 value={quoteValues.destinationPort}
                 disabled={!isDraftEditable}
+                maxLength={160}
                 onChange={(event) => setQuoteValues({ ...quoteValues, destinationPort: event.target.value })}
               />
             </label>
@@ -378,11 +422,12 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
                       onClick={() => {
                         setEditingItemId(item.id);
                         setItemValues(itemToFormValues(item));
+                        setItemEditorDirty(false);
                       }}
                     >
                       Edit
                     </button>
-                    <button type="button" onClick={() => void removeLineItem(item)}>
+                    <button type="button" onClick={(event) => requestDelete("item", event.currentTarget, item)}>
                       Delete
                     </button>
                   </span>
@@ -398,19 +443,20 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
                   <input
                     value={itemValues.lineOrder}
                     inputMode="numeric"
-                    onChange={(event) => setItemValues({ ...itemValues, lineOrder: event.target.value })}
+                    onChange={(event) => { setItemEditorDirty(true); setItemValues({ ...itemValues, lineOrder: event.target.value }); }}
                   />
                 </label>
                 <label>
                   Type
                   <select
                     value={itemValues.itemType}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      setItemEditorDirty(true);
                       setItemValues({
                         ...itemValues,
                         itemType: event.target.value as RFQQuoteItemFormValues["itemType"],
-                      })
-                    }
+                      });
+                    }}
                   >
                     {quoteItemTypes.map((itemType) => (
                       <option key={itemType} value={itemType}>
@@ -424,14 +470,14 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
                   <input
                     value={itemValues.quantity}
                     inputMode="decimal"
-                    onChange={(event) => setItemValues({ ...itemValues, quantity: event.target.value })}
+                    onChange={(event) => { setItemEditorDirty(true); setItemValues({ ...itemValues, quantity: event.target.value }); }}
                   />
                 </label>
                 <label>
                   Unit
                   <input
                     value={itemValues.unit}
-                    onChange={(event) => setItemValues({ ...itemValues, unit: event.target.value })}
+                    onChange={(event) => { setItemEditorDirty(true); setItemValues({ ...itemValues, unit: event.target.value }); }}
                   />
                 </label>
                 <label>
@@ -439,7 +485,7 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
                   <input
                     value={itemValues.unitPrice}
                     inputMode="decimal"
-                    onChange={(event) => setItemValues({ ...itemValues, unitPrice: event.target.value })}
+                    onChange={(event) => { setItemEditorDirty(true); setItemValues({ ...itemValues, unitPrice: event.target.value }); }}
                   />
                 </label>
               </div>
@@ -447,7 +493,7 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
                 Description
                 <input
                   value={itemValues.description}
-                  onChange={(event) => setItemValues({ ...itemValues, description: event.target.value })}
+                  onChange={(event) => { setItemEditorDirty(true); setItemValues({ ...itemValues, description: event.target.value }); }}
                 />
               </label>
               <div className="actions">
@@ -460,6 +506,7 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
                     onClick={() => {
                       setEditingItemId(null);
                       setItemValues(emptyQuoteItemForm(activeQuote.items.length + 1));
+                      setItemEditorDirty(false);
                     }}
                   >
                     Cancel Edit
@@ -470,7 +517,7 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
           )}
           <div className="meta-row">
             <strong>Subtotal</strong>
-            <strong>{formatMoney(activeQuote.subtotal, activeQuote.currency)}</strong>
+            <strong>{formatMoney(displayedSubtotal, quoteValues.currency || activeQuote.currency)}</strong>
           </div>
           <div className="actions">
             {isDraftEditable ? (
@@ -481,7 +528,7 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
                 <button type="button" disabled={isSaving} onClick={() => void submitDraft()}>
                   Submit Quote
                 </button>
-                <button type="button" disabled={isSaving} onClick={() => void deleteDraft()}>
+                <button type="button" disabled={isSaving} onClick={(event) => requestDelete("draft", event.currentTarget)}>
                   Delete Draft
                 </button>
               </>
@@ -500,6 +547,16 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
         title="Submitted Quote Versions"
         readOnlyNote="Submitted quote versions preserve the negotiation history."
         decisions={decisions}
+      />
+      <ConfirmationDialog
+        open={Boolean(pendingDelete)}
+        title={pendingDelete?.kind === "item" ? "Delete quote line item?" : "Delete quote draft?"}
+        description={pendingDelete?.kind === "item" ? "The line item will be removed and the database will recalculate the subtotal." : "This permanently removes the draft quote. Submitted quote history is not affected."}
+        confirmLabel={pendingDelete?.kind === "item" ? "Delete Line" : "Delete Draft"}
+        isBusy={isSaving}
+        returnFocusTo={deleteReturnFocus.current}
+        onConfirm={() => void confirmDelete()}
+        onClose={() => setPendingDelete(null)}
       />
     </section>
   );

@@ -1,8 +1,12 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import {
+  browserRequestPolicy,
+  browserSmokeEnvironment,
+} from "../environment/safe-vite-environment.mjs";
 
 const unsafeLogPattern = /password|access[_-]?token|refresh[_-]?token|authorization:\s*bearer|token=|signature=/i;
 const viewports = [
@@ -86,14 +90,28 @@ async function run() {
   const debuggingPort = await availablePort();
   const origin = `http://127.0.0.1:${previewPort}`;
   const profile = mkdtempSync(join(tmpdir(), "prefab-quality-browser-"));
+  const isolatedEnvironment = browserSmokeEnvironment();
+  const build = spawnSync(process.execPath, [
+    resolve("node_modules/vite/bin/vite.js"),
+    "build",
+    "--mode", "test",
+    "--configLoader", "runner",
+  ], {
+    env: isolatedEnvironment,
+    stdio: "inherit",
+    windowsHide: true,
+  });
+  if (build.error) throw build.error;
+  if (build.status !== 0) throw new Error("Isolated browser-smoke build failed.");
   const vite = spawn(process.execPath, [
     resolve("node_modules/vite/bin/vite.js"),
     "preview",
+    "--mode", "test",
     "--configLoader", "runner",
     "--host", "127.0.0.1",
     "--port", String(previewPort),
     "--strictPort",
-  ], { stdio: "ignore", windowsHide: true });
+  ], { env: isolatedEnvironment, stdio: "ignore", windowsHide: true });
   let chrome;
   let socket;
 
@@ -127,6 +145,7 @@ async function run() {
     const pending = new Map();
     const consoleErrors = [];
     const unsafeLogs = [];
+    const blockedExternalHosts = [];
     socket.addEventListener("message", async (event) => {
       let rawMessage = event.data;
       if (typeof rawMessage !== "string" && typeof rawMessage?.text === "function") {
@@ -142,6 +161,19 @@ async function run() {
         pending.delete(message.id);
         if (message.error) request.reject(new Error(message.error.message));
         else request.resolve(message.result ?? {});
+        return;
+      }
+      if (message.method === "Fetch.requestPaused") {
+        const policy = browserRequestPolicy(message.params.request.url, origin);
+        if (policy.allowed) {
+          void send("Fetch.continueRequest", { requestId: message.params.requestId });
+        } else {
+          blockedExternalHosts.push(policy.safeHost);
+          void send("Fetch.failRequest", {
+            requestId: message.params.requestId,
+            errorReason: "BlockedByClient",
+          });
+        }
         return;
       }
       if (message.method === "Runtime.exceptionThrown") consoleErrors.push("runtime-exception");
@@ -215,6 +247,7 @@ async function run() {
     await send("Page.enable");
     await send("Runtime.enable");
     await send("Log.enable");
+    await send("Fetch.enable", { patterns: [{ urlPattern: "*" }] });
 
     const viewportResults = [];
     const legalPageResults = [];
@@ -373,6 +406,9 @@ async function run() {
     }
     if (!forcedColors) throw new Error("Forced-colors emulation did not activate.");
     if (zoomResults.some((item) => item.homeOverflow || item.loginOverflow)) throw new Error("Zoom/reflow proxy failed.");
+    if (blockedExternalHosts.length > 0) {
+      throw new Error(`Browser smoke blocked unexpected external traffic to ${[...new Set(blockedExternalHosts)].join(", ")}.`);
+    }
     if (consoleErrors.length > 0 || unsafeLogs.length > 0) throw new Error("Browser console safety check failed.");
 
     console.log(JSON.stringify({
@@ -388,6 +424,7 @@ async function run() {
       zoomReflow: zoomResults,
       consoleErrors: consoleErrors.length,
       unsafeLogs: unsafeLogs.length,
+      externalRequests: 0,
     }));
   } finally {
     try { socket?.close(); } catch {}

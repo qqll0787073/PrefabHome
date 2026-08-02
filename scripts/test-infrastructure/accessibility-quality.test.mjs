@@ -155,19 +155,21 @@ test("quality gate is non-networking, non-deploying, and CI remains read-only", 
   assert.match(browserSmoke, /prefers-reduced-motion/);
   assert.match(browserSmoke, /consoleErrors: consoleErrors\.length/);
   assert.match(browserSmoke, /unsafeLogs: unsafeLogs\.length/);
+  assert.match(browserSmoke, /Fetch\.enable/);
+  assert.match(browserSmoke, /externalRequests: 0/);
   assert.doesNotMatch(browserSmoke, /\.env\.(?:local|staging|smoke)|SUPABASE|PREFAB_.*(?:PASSWORD|KEY|TOKEN)|screenshot/i);
   assert.match(workflow, /permissions:\s*\n\s+contents: read/);
   assert.doesNotMatch(workflow, /^\s+[A-Za-z_-]+:\s*write\s*$/m);
   assert.doesNotMatch(workflow, /\bsupabase\b|\bdeploy\b|git\s+tag|create[- ]release/i);
 });
 
-test("migrations remain exactly 0001 through 0024 and unchanged", () => {
+test("migrations contain unchanged 0001 through 0024 plus review-only 0025", () => {
   const migrations = readdirSync("supabase/migrations").filter((file) => /^\d{4}_.+\.sql$/.test(file)).sort();
-  assert.equal(migrations.length, 24);
+  assert.equal(migrations.length, 25);
   assert.equal(migrations[0].slice(0, 4), "0001");
-  assert.equal(migrations.at(-1).slice(0, 4), "0024");
+  assert.equal(migrations.at(-1), "0025_restore_rfq_quote_authority.sql");
   const changed = execFileSync("git", [
     "diff", "--name-only", resolveAuthProfilesMigrationBaseline(), "--", "supabase/migrations",
   ], { encoding: "utf8", windowsHide: true }).trim();
-  assert.equal(changed, "");
+  assert.ok(changed === "" || changed === "supabase/migrations/0025_restore_rfq_quote_authority.sql");
 });

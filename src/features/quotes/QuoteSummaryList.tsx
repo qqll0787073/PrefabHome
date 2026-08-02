@@ -1,4 +1,5 @@
 import { getDecisionForQuote, quoteDecisionLabels } from "../../lib/quoteDecisions";
+import { formatDateOnly } from "../../lib/format";
 import { formatMoney, quoteStatusLabels } from "../../lib/quotes";
 import type { RFQQuoteDecisionRecord, RFQQuoteWithItems } from "../../types";
 
@@ -41,7 +42,7 @@ export function QuoteSummaryList({
                 {quote.production_lead_days ?? "TBD"} production days
                 {quote.shipping_lead_days !== null ? ` - ${quote.shipping_lead_days} shipping days` : ""}
               </p>
-              {quote.valid_until && <p>Valid until {new Date(quote.valid_until).toLocaleDateString()}</p>}
+              {quote.valid_until && <p>Valid until {formatDateOnly(quote.valid_until)}</p>}
               {quote.manufacturer_note && <p>{quote.manufacturer_note}</p>}
             </div>
             <div className="quote-line-items">

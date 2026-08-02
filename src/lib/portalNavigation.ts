@@ -1,4 +1,5 @@
 import type { Role, View } from "../types";
+import { isLiveRecordId } from "./rfqQuoteWorkflow";
 
 export type PortalWorkspace =
   | "overview"
@@ -56,6 +57,7 @@ export interface PortalLocationState {
   view: View;
   workspace: string | null;
   requestId: string | null;
+  recordId: string | null;
 }
 
 export function defaultPortalWorkspace(role: Role): PortalWorkspace {
@@ -73,10 +75,16 @@ export function normalizePortalWorkspace(role: Role, value: string | null | unde
 export function readPortalLocation(search: string): PortalLocationState {
   const params = new URLSearchParams(search);
   const requestedView = params.get("view") as View | null;
+  const workspace = params.get("workspace");
+  const recordId = params.get("record");
   return {
     view: requestedView && validViews.includes(requestedView) ? requestedView : "browse",
-    workspace: params.get("workspace"),
+    workspace,
     requestId: params.get("request"),
+    recordId:
+      ["rfqs", "quotes"].includes(workspace ?? "") && recordId && isLiveRecordId(recordId)
+        ? recordId
+        : null,
   };
 }
 
@@ -86,6 +94,14 @@ export function buildPortalSearch(state: PortalLocationState): string {
   if (state.view === "dashboard" && state.workspace) params.set("workspace", state.workspace);
   if (state.view === "dashboard" && state.workspace === "logistics" && state.requestId) {
     params.set("request", state.requestId);
+  }
+  if (
+    state.view === "dashboard" &&
+    ["rfqs", "quotes"].includes(state.workspace ?? "") &&
+    state.recordId &&
+    isLiveRecordId(state.recordId)
+  ) {
+    params.set("record", state.recordId);
   }
   const query = params.toString();
   return query ? `?${query}` : "";
