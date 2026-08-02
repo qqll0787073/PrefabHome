@@ -9,6 +9,7 @@ export type RuntimeConfigIssueCode =
   | "SUPABASE_CONFIGURATION_MISSING"
   | "SUPABASE_CONFIGURATION_INCOMPLETE"
   | "SUPABASE_URL_INVALID"
+  | "SUPABASE_PROJECT_MISMATCH"
   | "LOCAL_PRODUCTION_SUPABASE_BLOCKED"
   | "PUBLIC_SITE_URL_INVALID";
 
@@ -39,6 +40,7 @@ const FALSE_VALUES = new Set(["false", "0", "no", "off", ""]);
 const DEPLOYMENT_ENVIRONMENTS = new Set<DeploymentEnvironment>(["local", "staging", "production"]);
 const LOCAL_DEPLOYMENT_ALIASES = new Set(["local", "test", "ci", "development", "preview"]);
 const BLOCKED_PRODUCTION_PROJECT_REF = "eoyrfrjbjglfudfuwxdf";
+const AUTHORIZED_STAGING_PROJECT_REF = "bvzbkjpbnczquecwqvlm";
 
 function envValue(env: Record<string, string | undefined>, name: string): string {
   return env[name]?.trim() ?? "";
@@ -91,6 +93,17 @@ function isBlockedProductionSupabaseUrl(value: string): boolean {
   }
 }
 
+function projectRefFromSupabaseUrl(value: string): string | null {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase();
+    if (!hostname.endsWith(".supabase.co")) return null;
+    const projectRef = hostname.slice(0, -".supabase.co".length);
+    return /^[a-z0-9]{20}$/.test(projectRef) ? projectRef : null;
+  } catch {
+    return null;
+  }
+}
+
 export function parseRuntimeConfig(env: Record<string, string | undefined>): RuntimeConfig {
   const issues: RuntimeConfigIssue[] = [];
   const deploymentEnvironment = normalizeDeploymentEnvironment(
@@ -119,10 +132,25 @@ export function parseRuntimeConfig(env: Record<string, string | undefined>): Run
   const hasUrl = Boolean(rawSupabaseUrl);
   const hasKey = Boolean(rawSupabaseAnonKey);
   const urlIsValid = hasUrl && validSupabaseUrl(rawSupabaseUrl);
+  const configuredProjectRef = envValue(env, "VITE_SUPABASE_PROJECT_REF").toLowerCase();
+  const urlProjectRef = urlIsValid ? projectRefFromSupabaseUrl(rawSupabaseUrl) : null;
   const productionSupabaseBlocked =
-    deploymentEnvironment === "local"
+    deploymentEnvironment !== "production"
     && urlIsValid
     && isBlockedProductionSupabaseUrl(rawSupabaseUrl);
+  const stagingProjectMismatch =
+    deploymentEnvironment === "staging"
+    && urlIsValid
+    && urlProjectRef !== AUTHORIZED_STAGING_PROJECT_REF;
+  const configuredProjectMismatch =
+    Boolean(configuredProjectRef)
+    && urlIsValid
+    && urlProjectRef !== configuredProjectRef;
+  const hasInvalidDeploymentEnvironment = issues.some((issue) => issue.code === "INVALID_DEPLOYMENT_ENV");
+  const environmentIsolationBlocked = productionSupabaseBlocked
+    || stagingProjectMismatch
+    || configuredProjectMismatch
+    || hasInvalidDeploymentEnvironment;
 
   if (!hasUrl && !hasKey && !marketplaceDemoEnabled) {
     issues.push({
@@ -143,15 +171,24 @@ export function parseRuntimeConfig(env: Record<string, string | undefined>): Run
     });
   }
 
+  if (stagingProjectMismatch || configuredProjectMismatch) {
+    issues.push({
+      code: "SUPABASE_PROJECT_MISMATCH",
+      message: "The configured data service does not match the authorized deployment project.",
+    });
+  }
+
   if (productionSupabaseBlocked) {
-    marketplaceDemoEnabled = false;
     issues.push({
       code: "LOCAL_PRODUCTION_SUPABASE_BLOCKED",
       message: "The configured data service is unavailable in this local runtime.",
     });
   }
 
-  const isSupabaseConnected = urlIsValid && hasKey && !productionSupabaseBlocked;
+  if (environmentIsolationBlocked) marketplaceDemoEnabled = false;
+  const isSupabaseConnected = urlIsValid
+    && hasKey
+    && !environmentIsolationBlocked;
   const publicSiteResult = normalizePublicSiteUrl(
     envValue(env, "VITE_PUBLIC_SITE_URL"),
     deploymentEnvironment === "production",
@@ -201,7 +238,11 @@ export function isDemoFallbackAllowed(
   config: Pick<RuntimeConfig, "deploymentEnvironment" | "issues"> = runtimeConfig
 ): boolean {
   return config.deploymentEnvironment !== "production"
-    && !config.issues.some((issue) => issue.code === "LOCAL_PRODUCTION_SUPABASE_BLOCKED");
+    && !config.issues.some((issue) => [
+      "INVALID_DEPLOYMENT_ENV",
+      "SUPABASE_PROJECT_MISMATCH",
+      "LOCAL_PRODUCTION_SUPABASE_BLOCKED",
+    ].includes(issue.code));
 }
 
 export function runtimeConfigMessages(config: RuntimeConfig = runtimeConfig): string[] {

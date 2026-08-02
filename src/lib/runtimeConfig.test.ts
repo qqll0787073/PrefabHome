@@ -83,6 +83,62 @@ test("non-production runtime aliases reject the production Supabase project with
   }
 });
 
+test("staging rejects Production and accepts only the authorized Staging project", () => {
+  const production = parseRuntimeConfig({
+    VITE_DEPLOYMENT_ENV: "staging",
+    VITE_SUPABASE_URL: "https://eoyrfrjbjglfudfuwxdf.supabase.co",
+    VITE_SUPABASE_ANON_KEY: "browser-publishable-placeholder",
+  });
+  assert.equal(production.isSupabaseConnected, false);
+  assert.equal(production.supabaseUrl, null);
+  assert.ok(production.issues.some((issue) => issue.code === "LOCAL_PRODUCTION_SUPABASE_BLOCKED"));
+
+  const staging = parseRuntimeConfig({
+    VITE_DEPLOYMENT_ENV: "staging",
+    VITE_SUPABASE_URL: "https://bvzbkjpbnczquecwqvlm.supabase.co",
+    VITE_SUPABASE_ANON_KEY: "browser-publishable-placeholder",
+  });
+  assert.equal(staging.isSupabaseConnected, true);
+  assert.equal(staging.issues.length, 0);
+});
+
+test("unknown environments fail closed before connecting to Production", () => {
+  const config = parseRuntimeConfig({
+    VITE_DEPLOYMENT_ENV: "unexpected",
+    VITE_SUPABASE_URL: "https://eoyrfrjbjglfudfuwxdf.supabase.co",
+    VITE_SUPABASE_ANON_KEY: "browser-publishable-placeholder",
+  });
+  assert.equal(config.isSupabaseConnected, false);
+  assert.equal(config.marketplaceDemoEnabled, false);
+  assert.equal(isDemoFallbackAllowed(config), false);
+  assert.ok(config.issues.some((issue) => issue.code === "INVALID_DEPLOYMENT_ENV"));
+  assert.ok(config.issues.some((issue) => issue.code === "LOCAL_PRODUCTION_SUPABASE_BLOCKED"));
+});
+
+test("Production project requires an explicit Production deployment", () => {
+  const config = parseRuntimeConfig({
+    VITE_DEPLOYMENT_ENV: "production",
+    VITE_SUPABASE_URL: "https://eoyrfrjbjglfudfuwxdf.supabase.co",
+    VITE_SUPABASE_ANON_KEY: "browser-publishable-placeholder",
+    VITE_ENABLE_MARKETPLACE_DEMO: "false",
+  });
+  assert.equal(config.deploymentEnvironment, "production");
+  assert.equal(config.isSupabaseConnected, true);
+  assert.ok(config.issues.every((issue) => issue.code !== "LOCAL_PRODUCTION_SUPABASE_BLOCKED"));
+});
+
+test("configured project refs must match a valid Supabase project URL", () => {
+  for (const url of ["not-a-url", "https://wrongprojectref00000.supabase.co", "https://example.invalid"]) {
+    const config = parseRuntimeConfig({
+      VITE_DEPLOYMENT_ENV: "staging",
+      VITE_SUPABASE_URL: url,
+      VITE_SUPABASE_PROJECT_REF: "bvzbkjpbnczquecwqvlm",
+      VITE_SUPABASE_ANON_KEY: "browser-publishable-placeholder",
+    });
+    assert.equal(config.isSupabaseConnected, false);
+  }
+});
+
 test("fake CI placeholders remain accepted without weakening the production-project guard", () => {
   const config = parseRuntimeConfig({
     VITE_DEPLOYMENT_ENV: "ci",
