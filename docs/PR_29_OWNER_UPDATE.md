@@ -1,5 +1,9 @@
 # PR #29 Owner Update
 
+> Superseding Admin UAT evidence: the completed Sprint 4B authenticated Admin
+> Portal result is recorded in `docs/SPRINT_4B_ADMIN_PORTAL_UAT.md`. The Sprint 3B
+> browser status below remains historical and is not the current Admin UAT status.
+
 The GitHub integration previously returned `403 Resource not accessible by
 integration` for PR #29. Sprint 3B's update request was therefore blocked before
 reaching GitHub to enforce the instruction not to retry the same denied mutation.
