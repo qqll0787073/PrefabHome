@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches:
+      - auth-profiles
       - production-sprint-1
       - production-sprint-2
       - production-sprint-2b
