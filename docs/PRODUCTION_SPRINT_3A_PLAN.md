@@ -108,4 +108,3 @@ Sprint 3A has no migration. Reverting its source and documentation commits resto
 - Legal publication remains intentionally blocked.
 - Migrations `0001` through `0024` are unchanged; migration `0025` does not exist.
 - No secrets, deployment, merge, tag, release, or remote Supabase access occurs.
-
