@@ -83,7 +83,7 @@ export function PortalDashboard({
 
   function workspaceContent() {
     if (!auth.user) return null;
-    if (workspace === "overview") return <PortalOverview role={role} onWorkspaceChange={onWorkspaceChange} />;
+    if (workspace === "overview") return <PortalOverview role={role} user={auth.user} onWorkspaceChange={onWorkspaceChange} />;
 
     if (role === "buyer") {
       if (workspace === "rfqs" || workspace === "quotes") return <BuyerRFQDashboard user={auth.user} authMode={auth.mode} showPurchaseOrders={false} selectedRFQId={selectedWorkflowRecordId} onSelectedRFQChange={onWorkflowRecordChange} />;
