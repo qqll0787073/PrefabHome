@@ -30,7 +30,9 @@
     "test:db:disposable:atomicity": "node scripts/local-db/verify-rfq-migration-atomicity.mjs",
     "test:db:disposable:api": "node scripts/local-db/rfq-postgrest-integration.mjs",
     "admin:provision": "node scripts/admin-provisioning/cli.mjs",
-    "test:admin:provision": "node --test scripts/admin-provisioning/*.test.mjs"
+    "test:admin:provision": "node --test scripts/admin-provisioning/*.test.mjs",
+    "buyer:provision": "node scripts/buyer-provisioning/cli.mjs",
+    "test:buyer:provision": "node --test scripts/buyer-provisioning/*.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
