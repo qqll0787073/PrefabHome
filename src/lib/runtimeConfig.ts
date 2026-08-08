@@ -84,10 +84,15 @@ function validSupabaseUrl(value: string): boolean {
   }
 }
 
+function canonicalizeSupabaseHostname(hostname: string): string {
+  const normalized = hostname.toLowerCase();
+  return normalized.endsWith(".") ? normalized.slice(0, -1) : normalized;
+}
+
 function isBlockedProductionSupabaseUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    return url.hostname.toLowerCase() === `${BLOCKED_PRODUCTION_PROJECT_REF}.supabase.co`;
+    return canonicalizeSupabaseHostname(url.hostname) === `${BLOCKED_PRODUCTION_PROJECT_REF}.supabase.co`;
   } catch {
     return false;
   }
@@ -95,7 +100,7 @@ function isBlockedProductionSupabaseUrl(value: string): boolean {
 
 function projectRefFromSupabaseUrl(value: string): string | null {
   try {
-    const hostname = new URL(value).hostname.toLowerCase();
+    const hostname = canonicalizeSupabaseHostname(new URL(value).hostname);
     if (!hostname.endsWith(".supabase.co")) return null;
     const projectRef = hostname.slice(0, -".supabase.co".length);
     return /^[a-z0-9]{20}$/.test(projectRef) ? projectRef : null;

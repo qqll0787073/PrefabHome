@@ -139,6 +139,84 @@ test("configured project refs must match a valid Supabase project URL", () => {
   }
 });
 
+test("canonicalizes one terminal DNS dot before enforcing project isolation", () => {
+  const productionUrl = "https://eoyrfrjbjglfudfuwxdf.supabase.co.";
+  const publishableKey = "browser-publishable-placeholder";
+
+  for (const environment of ["staging", "local", "preview", "test", "ci", "development", "unexpected"]) {
+    const config = parseRuntimeConfig({
+      VITE_DEPLOYMENT_ENV: environment,
+      VITE_SUPABASE_URL: productionUrl,
+      VITE_SUPABASE_ANON_KEY: publishableKey,
+      VITE_ENABLE_MARKETPLACE_DEMO: "true",
+    });
+    assert.equal(config.isSupabaseConnected, false, environment);
+    assert.equal(config.marketplaceDemoEnabled, false, environment);
+    assert.equal(isDemoFallbackAllowed(config), false, environment);
+    assert.ok(config.issues.some((issue) => issue.code === "LOCAL_PRODUCTION_SUPABASE_BLOCKED"), environment);
+  }
+});
+
+test("accepts canonical trailing-dot projects only in their authorized environments", () => {
+  const publishableKey = "browser-publishable-placeholder";
+  const staging = parseRuntimeConfig({
+    VITE_DEPLOYMENT_ENV: "staging",
+    VITE_SUPABASE_URL: "https://bvzbkjpbnczquecwqvlm.supabase.co.",
+    VITE_SUPABASE_PROJECT_REF: "bvzbkjpbnczquecwqvlm",
+    VITE_SUPABASE_ANON_KEY: publishableKey,
+  });
+  assert.equal(staging.isSupabaseConnected, true);
+  assert.equal(staging.issues.length, 0);
+
+  const production = parseRuntimeConfig({
+    VITE_DEPLOYMENT_ENV: "production",
+    VITE_SUPABASE_URL: "https://eoyrfrjbjglfudfuwxdf.supabase.co.",
+    VITE_SUPABASE_PROJECT_REF: "eoyrfrjbjglfudfuwxdf",
+    VITE_SUPABASE_ANON_KEY: publishableKey,
+  });
+  assert.equal(production.isSupabaseConnected, true);
+  assert.ok(production.issues.every((issue) => issue.code !== "LOCAL_PRODUCTION_SUPABASE_BLOCKED"));
+});
+
+test("does not misclassify unrelated Supabase-like hostnames as Production", () => {
+  for (const url of [
+    "https://x.eoyrfrjbjglfudfuwxdf.supabase.co",
+    "https://eoyrfrjbjglfudfuwxdf.supabase.co.example.invalid",
+  ]) {
+    const config = parseRuntimeConfig({
+      VITE_DEPLOYMENT_ENV: "local",
+      VITE_SUPABASE_URL: url,
+      VITE_SUPABASE_ANON_KEY: "browser-publishable-placeholder",
+    });
+    assert.equal(config.isSupabaseConnected, true);
+    assert.ok(config.issues.every((issue) => issue.code !== "LOCAL_PRODUCTION_SUPABASE_BLOCKED"));
+  }
+});
+
+test("canonical project checks preserve URL parser host semantics", () => {
+  for (const url of [
+    "https://EOYRFRJBJGLFUDFUWXDF.SUPABASE.CO",
+    "https://eoyrfrjbjglfudfuwxdf.supabase.co:443",
+    "https://user:password@eoyrfrjbjglfudfuwxdf.supabase.co",
+  ]) {
+    const config = parseRuntimeConfig({
+      VITE_DEPLOYMENT_ENV: "local",
+      VITE_SUPABASE_URL: url,
+      VITE_SUPABASE_ANON_KEY: "browser-publishable-placeholder",
+    });
+    assert.equal(config.isSupabaseConnected, false);
+    assert.ok(config.issues.some((issue) => issue.code === "LOCAL_PRODUCTION_SUPABASE_BLOCKED"));
+  }
+
+  const wrongProject = parseRuntimeConfig({
+    VITE_DEPLOYMENT_ENV: "staging",
+    VITE_SUPABASE_URL: "https://wrongprojectref00000.supabase.co.",
+    VITE_SUPABASE_ANON_KEY: "browser-publishable-placeholder",
+  });
+  assert.equal(wrongProject.isSupabaseConnected, false);
+  assert.ok(wrongProject.issues.some((issue) => issue.code === "SUPABASE_PROJECT_MISMATCH"));
+});
+
 test("fake CI placeholders remain accepted without weakening the production-project guard", () => {
   const config = parseRuntimeConfig({
     VITE_DEPLOYMENT_ENV: "ci",
