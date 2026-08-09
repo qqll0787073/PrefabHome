@@ -7,6 +7,7 @@ export type PortalWorkspace =
   | "company"
   | "manufacturers"
   | "products"
+  | "favorites"
   | "rfqs"
   | "quotes"
   | "purchase-orders"
@@ -34,6 +35,7 @@ const sharedTransactionWorkspaces: PortalWorkspaceDefinition[] = [
 export const portalWorkspaces: Record<Role, PortalWorkspaceDefinition[]> = {
   buyer: [
     { id: "overview", label: "Dashboard", description: "Buyer activity and next steps." },
+    { id: "favorites", label: "Favorites", description: "Saved Marketplace products." },
     ...sharedTransactionWorkspaces,
   ],
   manufacturer: [
