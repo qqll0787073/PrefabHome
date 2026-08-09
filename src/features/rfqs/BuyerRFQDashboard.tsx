@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmationDialog } from "../../components/common/ConfirmationDialog";
 import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
 import {
-  buyerRFQDashboardStatuses,
   cancelRFQ,
   deleteDraftRFQ,
   fetchRFQ,
@@ -18,9 +17,18 @@ import type { AuthUser } from "../../lib/auth";
 import type {
   RFQQuoteDecisionRecord,
   RFQQuoteWithItems,
-  RFQStatus,
   RFQWithDetails,
 } from "../../types";
+import {
+  buyerRFQFilterLabels,
+  buyerRFQFilters,
+  buyerRFQHref,
+  buyerRFQManufacturer,
+  selectBuyerRFQs,
+  shortRFQReference,
+  type BuyerRFQFilter,
+  type BuyerRFQSort,
+} from "../../lib/buyerRfqList";
 import { BuyerQuoteDecisionPanel } from "../quotes/BuyerQuoteDecisionPanel";
 import { QuoteSummaryList } from "../quotes/QuoteSummaryList";
 import { QuoteComparisonView } from "../quotes/QuoteComparisonView";
@@ -37,20 +45,47 @@ interface BuyerRFQDashboardProps {
   onSelectedRFQChange?: (rfqId: string | null) => void;
 }
 
+export function shouldHandleBuyerRFQNavigation(event: React.MouseEvent<HTMLAnchorElement>): boolean {
+  return event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey
+    && event.currentTarget.target !== "_blank" && !event.currentTarget.hasAttribute("download");
+}
+
+function safeDate(value: string): string {
+  const date = new Date(value); return Number.isNaN(date.getTime()) ? "Date unavailable" : date.toLocaleDateString();
+}
+
+export function BuyerRFQLoadError({ onRetry }: { onRetry: () => void }) {
+  return <div className="workspace-error" role="alert"><p>Unable to load your RFQs.</p><button type="button" onClick={onRetry}>Retry</button></div>;
+}
+
+export function BuyerRFQEmptyState() {
+  return <div className="buyer-rfq-empty"><h2>You have not submitted any RFQs yet.</h2><p>Browse the Marketplace to find a home and start a request.</p><a href="/marketplace?view=browse">Browse Marketplace</a></div>;
+}
+
+export function BuyerRFQLoadingState() {
+  return <div aria-busy="true"><p className="loading-state" role="status" aria-live="polite">Loading your RFQs...</p></div>;
+}
+
 export function BuyerRFQDashboard({ user, authMode, showPurchaseOrders = true, selectedRFQId = null, onSelectedRFQChange }: BuyerRFQDashboardProps) {
   const [rfqs, setRFQs] = useState<RFQWithDetails[]>([]);
   const [quotes, setQuotes] = useState<RFQQuoteWithItems[]>([]);
   const [decisions, setDecisions] = useState<RFQQuoteDecisionRecord[]>([]);
   const [selectedRFQ, setSelectedRFQ] = useState<RFQWithDetails | null>(null);
-  const [statusFilter, setStatusFilter] = useState<RFQStatus | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<BuyerRFQFilter>("all");
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<BuyerRFQSort>("updated");
   const [isLoading, setIsLoading] = useState(authMode === "supabase");
+  const [loadError, setLoadError] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [pendingAction, setPendingAction] = useState<{ rfq: RFQWithDetails; kind: "cancel" | "delete" } | null>(null);
   const [isActing, setIsActing] = useState(false);
   const actionReturnFocus = useRef<HTMLElement | null>(null);
+  const loadSequence = useRef(0);
 
   async function loadRFQs() {
+    const sequence = ++loadSequence.current;
     setIsLoading(true);
+    setLoadError(false);
     setErrors([]);
     try {
       if (authMode === "demo") {
@@ -59,13 +94,12 @@ export function BuyerRFQDashboard({ user, authMode, showPurchaseOrders = true, s
         setDecisions([]);
       } else {
         const [nextRFQs, nextQuotes] = await Promise.all([fetchBuyerRFQs(), fetchBuyerQuotes()]);
-        setRFQs(nextRFQs);
-        setQuotes(nextQuotes);
+        if (sequence === loadSequence.current) { setRFQs(nextRFQs); setQuotes(nextQuotes); }
       }
-    } catch (error) {
-      setErrors([error instanceof Error ? error.message : "Unable to load RFQs."]);
+    } catch {
+      if (sequence === loadSequence.current) setLoadError(true);
     } finally {
-      setIsLoading(false);
+      if (sequence === loadSequence.current) setIsLoading(false);
     }
   }
 
@@ -73,10 +107,7 @@ export function BuyerRFQDashboard({ user, authMode, showPurchaseOrders = true, s
     void loadRFQs();
   }, [authMode, user.id]);
 
-  const filteredRFQs = useMemo(
-    () => (statusFilter === "all" ? rfqs : rfqs.filter((rfq) => rfq.status === statusFilter)),
-    [rfqs, statusFilter]
-  );
+  const filteredRFQs = useMemo(() => selectBuyerRFQs(rfqs, statusFilter, search, sort), [rfqs, search, sort, statusFilter]);
 
   const selectedQuotes = useMemo(
     () => (selectedRFQ ? quotes.filter((quote) => quote.rfq_id === selectedRFQ.id) : []),
@@ -166,49 +197,58 @@ export function BuyerRFQDashboard({ user, authMode, showPurchaseOrders = true, s
       <section className="panel">
         <p className="eyebrow">Buyer Portal</p>
         <h1>My RFQs</h1>
-        <div className="segmented-control rfq-status-filter">
-          <button
-            type="button"
-            className={statusFilter === "all" ? "active" : ""}
-            onClick={() => setStatusFilter("all")}
-          >
-            All
-          </button>
-          {buyerRFQDashboardStatuses.map((status) => (
+        <p>Search and review requests already authorized for your signed-in Buyer account.</p>
+        <div className="queue-controls">
+          <label>
+            <span>Search RFQs</span>
+            <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Reference, product, or manufacturer" />
+          </label>
+          <label>
+            <span>Sort RFQs</span>
+            <select value={sort} onChange={(event) => setSort(event.target.value as BuyerRFQSort)}>
+              <option value="updated">Latest updated</option>
+              <option value="created">Newest created</option>
+              <option value="status">Status</option>
+            </select>
+          </label>
+        </div>
+        <div className="status-filter-bar" aria-label="Buyer RFQ status filters">
+          {buyerRFQFilters.map((filter) => (
             <button
               type="button"
-              className={statusFilter === status ? "active" : ""}
-              key={status}
-              onClick={() => setStatusFilter(status)}
+              className={statusFilter === filter ? "active" : ""}
+              aria-pressed={statusFilter === filter}
+              key={filter}
+              onClick={() => setStatusFilter(filter)}
             >
-              {rfqStatusLabels[status]}
+              {buyerRFQFilterLabels[filter]}
             </button>
           ))}
         </div>
-        {isLoading && <LoadingState message="Loading RFQs..." />}
+        <div aria-busy={isLoading}>
+        {isLoading && <LoadingState message="Loading your RFQs..." />}
+        {loadError && <BuyerRFQLoadError onRetry={() => void loadRFQs()} />}
         <ErrorList errors={errors} />
-        {!isLoading && filteredRFQs.length === 0 && <p>No RFQs in this status yet.</p>}
+        {!isLoading && !loadError && rfqs.length === 0 && <BuyerRFQEmptyState />}
+        {!isLoading && !loadError && rfqs.length > 0 && filteredRFQs.length === 0 && <div className="buyer-rfq-empty"><h2>No RFQs match these filters.</h2><button type="button" onClick={() => { setSearch(""); setStatusFilter("all"); }}>Clear filters</button></div>}
         <div className="review-list">
           {filteredRFQs.map((rfq) => (
             <article className="review-item" key={rfq.id}>
               <div>
                 <p className="eyebrow">{rfqStatusLabels[rfq.status]}</p>
-                <h3>{rfqSnapshotTitle(rfq.product_snapshot)}</h3>
-                <p>
-                  {rfq.requested_quantity} units to {rfq.destination_country}
-                </p>
+                <h2><a href={buyerRFQHref(rfq.id)} onClick={(event) => { if (!shouldHandleBuyerRFQNavigation(event)) return; event.preventDefault(); void openRFQ(rfq); }}>{rfqSnapshotTitle(rfq.product_snapshot)} — {shortRFQReference(rfq.id)}</a></h2>
+                <p>{buyerRFQManufacturer(rfq)}</p>
+                <p>{rfq.requested_quantity} units to {rfq.destination_country}</p>
                 {quotes.some((quote) => quote.rfq_id === rfq.id) && (
                   <p className="form-notice">Quote received</p>
                 )}
               </div>
               <div className="meta-row">
-                <span>{rfq.requested_currency}</span>
-                <span>{new Date(rfq.created_at).toLocaleDateString()}</span>
+                <span>Created <time dateTime={rfq.created_at}>{safeDate(rfq.created_at)}</time></span>
+                <span>Updated <time dateTime={rfq.updated_at}>{safeDate(rfq.updated_at)}</time></span>
               </div>
               <div className="actions">
-                <button type="button" onClick={() => void openRFQ(rfq)}>
-                  Open RFQ
-                </button>
+                <a className="button-link" href={buyerRFQHref(rfq.id)} onClick={(event) => { if (!shouldHandleBuyerRFQNavigation(event)) return; event.preventDefault(); void openRFQ(rfq); }}>Open {shortRFQReference(rfq.id)}</a>
                 {availableRfqActions("buyer", rfq.status).includes("cancel") && (
                   <button type="button" onClick={(event) => requestAction(rfq, "cancel", event.currentTarget)}>
                     Cancel RFQ
@@ -223,7 +263,9 @@ export function BuyerRFQDashboard({ user, authMode, showPurchaseOrders = true, s
             </article>
           ))}
         </div>
+        </div>
       </section>
+      {selectedRFQ && <nav className="detail-return" aria-label="RFQ detail navigation"><a href="/marketplace?view=dashboard&workspace=rfqs" onClick={(event) => { if (!shouldHandleBuyerRFQNavigation(event)) return; event.preventDefault(); setSelectedRFQ(null); onSelectedRFQChange?.(null); }}>Back to My RFQs</a></nav>}
       {selectedRFQ?.status === "draft" && (
         <BuyerRFQDraftEditor rfq={selectedRFQ} onSaved={() => void refreshSelectedRFQ()} />
       )}
