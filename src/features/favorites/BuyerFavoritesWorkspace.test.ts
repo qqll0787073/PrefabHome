@@ -58,7 +58,7 @@ test("workspace starts with accessible loading and reuses responsive product gri
 
 test("removal service derives Buyer authority and scopes the delete by Buyer and product", () => {
   const source = readFileSync(new URL("../../lib/buyerFavorites.ts", import.meta.url), "utf8");
-  assert.match(source, /supabase\.auth\.getUser\(\)/);
+  assert.match(source, /client\.auth\.getUser\(\)/);
   assert.match(source, /profile\.role !== "buyer" \|\| profile\.status !== "active"/);
   assert.match(source, /\.from\("saved_products"\)[\s\S]*?\.delete\(\)[\s\S]*?\.eq\("buyer_id", buyerId\)[\s\S]*?\.eq\("product_id", productId\)/);
   assert.doesNotMatch(source, /localStorage|sessionStorage/);

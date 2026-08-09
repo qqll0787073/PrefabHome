@@ -1,12 +1,17 @@
 import type { MarketplaceProduct } from "../../types";
+import { MarketplaceFavoriteButton } from "./MarketplaceFavoriteButton";
 
 interface MarketplaceProductCardProps {
   product: MarketplaceProduct;
   priority?: boolean;
   onSelect: (product: MarketplaceProduct) => void;
+  favoriteEligible: boolean;
+  favoriteSaved: boolean;
+  favoritePending: boolean;
+  onAddFavorite: (product: MarketplaceProduct) => void;
 }
 
-export function MarketplaceProductCard({ product, priority = false, onSelect }: MarketplaceProductCardProps) {
+export function MarketplaceProductCard({ product, priority = false, onSelect, favoriteEligible, favoriteSaved, favoritePending, onAddFavorite }: MarketplaceProductCardProps) {
   const title = product.model_name || product.name;
   const imageAlt = product.primary_image?.alt_text || title;
 
@@ -52,6 +57,7 @@ export function MarketplaceProductCard({ product, priority = false, onSelect }: 
           <button type="button" onClick={() => onSelect(product)}>
             Details
           </button>
+          <MarketplaceFavoriteButton product={product} eligible={favoriteEligible} saved={favoriteSaved} pending={favoritePending} onAdd={onAddFavorite} />
         </div>
       </div>
     </article>

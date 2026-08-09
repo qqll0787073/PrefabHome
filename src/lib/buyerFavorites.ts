@@ -1,6 +1,8 @@
 import type { MarketplaceProduct } from "../types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchMarketplaceProductsByIds } from "./marketplace";
 import { isSupabaseConfigured, supabase } from "./supabase";
+import { isLiveRecordId } from "./rfqQuoteWorkflow";
 
 export type BuyerFavoriteSort = "latest" | "newest_product" | "manufacturer" | "alphabetical";
 
@@ -51,10 +53,45 @@ export function toBuyerFavoritesError(): Error {
   return new Error("Your favorite products could not be loaded. Please try again.");
 }
 
+export function toAddBuyerFavoriteError(): Error {
+  return new Error("This product could not be added to Favorites. Please try again.");
+}
+
+export async function fetchBuyerFavoriteProductIds(): Promise<string[]> {
+  if (!isSupabaseConfigured || !supabase) return [];
+  try {
+    const buyerId = await requireActiveBuyer(supabase);
+    const { data, error } = await supabase.from("saved_products").select("product_id").eq("buyer_id", buyerId);
+    if (error) throw error;
+    return [...new Set((data ?? []).map((row) => row.product_id))];
+  } catch {
+    throw toBuyerFavoritesError();
+  }
+}
+
+export async function addBuyerFavorite(productId: string, client: SupabaseClient | null = supabase): Promise<void> {
+  if (!client || !isLiveRecordId(productId)) throw toAddBuyerFavoriteError();
+  try {
+    const buyerId = await requireActiveBuyer(client);
+    const { data: product, error: productError } = await client
+      .from("marketplace_products")
+      .select("id")
+      .eq("id", productId)
+      .maybeSingle();
+    if (productError || !product) throw new Error("Published product required");
+
+    const { error: insertError } = await client.from("saved_products").insert({ buyer_id: buyerId, product_id: productId });
+    if (insertError?.code === "23505") return;
+    if (insertError) throw insertError;
+  } catch {
+    throw toAddBuyerFavoriteError();
+  }
+}
+
 export async function fetchBuyerFavorites(): Promise<BuyerFavorite[]> {
   if (!isSupabaseConfigured || !supabase) return [];
   try {
-    const buyerId = await requireActiveBuyer();
+    const buyerId = await requireActiveBuyer(supabase);
     const { data, error } = await supabase
       .from("saved_products")
       .select("product_id,created_at")
@@ -78,7 +115,7 @@ export async function fetchBuyerFavorites(): Promise<BuyerFavorite[]> {
 export async function removeBuyerFavorite(productId: string): Promise<void> {
   if (!isSupabaseConfigured || !supabase) throw toBuyerFavoritesError();
   try {
-    const buyerId = await requireActiveBuyer();
+    const buyerId = await requireActiveBuyer(supabase);
     const { error } = await supabase
       .from("saved_products")
       .delete()
@@ -90,11 +127,10 @@ export async function removeBuyerFavorite(productId: string): Promise<void> {
   }
 }
 
-async function requireActiveBuyer(): Promise<string> {
-  if (!supabase) throw new Error("Authentication unavailable");
-  const { data: authData, error: authError } = await supabase.auth.getUser();
+async function requireActiveBuyer(client: SupabaseClient): Promise<string> {
+  const { data: authData, error: authError } = await client.auth.getUser();
   if (authError || !authData.user) throw new Error("Authentication required");
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile, error: profileError } = await client
     .from("profiles")
     .select("id,role,status")
     .eq("id", authData.user.id)
