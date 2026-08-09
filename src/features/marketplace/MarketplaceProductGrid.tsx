@@ -6,7 +6,7 @@ interface MarketplaceProductGridProps {
   onSelectProduct: (product: MarketplaceProduct) => void;
   favoriteEligible: boolean;
   favoriteIds: ReadonlySet<string>;
-  pendingFavoriteIds: ReadonlySet<string>;
+  pendingFavoriteId: string | null;
   onAddFavorite: (product: MarketplaceProduct) => void;
 }
 
@@ -15,7 +15,7 @@ export function MarketplaceProductGrid({
   onSelectProduct,
   favoriteEligible,
   favoriteIds,
-  pendingFavoriteIds,
+  pendingFavoriteId,
   onAddFavorite,
 }: MarketplaceProductGridProps) {
   return (
@@ -28,7 +28,7 @@ export function MarketplaceProductGrid({
           onSelect={onSelectProduct}
           favoriteEligible={favoriteEligible}
           favoriteSaved={favoriteIds.has(product.id)}
-          favoritePending={pendingFavoriteIds.has(product.id)}
+          favoritePending={pendingFavoriteId === product.id}
           onAddFavorite={onAddFavorite}
         />
       ))}

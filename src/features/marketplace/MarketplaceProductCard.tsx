@@ -1,5 +1,4 @@
 import type { MarketplaceProduct } from "../../types";
-import { MarketplaceFavoriteButton } from "./MarketplaceFavoriteButton";
 
 interface MarketplaceProductCardProps {
   product: MarketplaceProduct;
@@ -57,7 +56,7 @@ export function MarketplaceProductCard({ product, priority = false, onSelect, fa
           <button type="button" onClick={() => onSelect(product)}>
             Details
           </button>
-          <MarketplaceFavoriteButton product={product} eligible={favoriteEligible} saved={favoriteSaved} pending={favoritePending} onAdd={onAddFavorite} />
+          {favoriteEligible && <button type="button" className="secondary" disabled={favoriteSaved || favoritePending} aria-label={favoriteSaved ? `${title} is saved to favorites` : `Add ${title} to favorites`} onClick={() => onAddFavorite(product)}>{favoritePending ? "Saving..." : favoriteSaved ? "Saved" : "Add Favorite"}</button>}
         </div>
       </div>
     </article>

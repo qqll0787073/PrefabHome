@@ -50,7 +50,7 @@ export function MarketplacePage({ user, onViewChange }: MarketplacePageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
-  const [pendingFavoriteIds, setPendingFavoriteIds] = useState<Set<string>>(new Set());
+  const [pendingFavoriteId, setPendingFavoriteId] = useState<string | null>(null);
   const [favoriteError, setFavoriteError] = useState("");
   const favoriteGeneration = useRef(0);
   const filterKey = useMemo(() => marketplaceFiltersKey(filters), [filters]);
@@ -75,18 +75,15 @@ export function MarketplacePage({ user, onViewChange }: MarketplacePageProps) {
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
     const generation = ++favoriteGeneration.current;
     setFavoriteIds(new Set());
-    setPendingFavoriteIds(new Set());
+    setPendingFavoriteId(null);
     setFavoriteError("");
-    if (!favoriteEligible) {
-      return () => { isMounted = false; };
-    }
+    if (!favoriteEligible) return;
     fetchBuyerFavoriteProductIds()
-      .then((ids) => { if (isMounted && generation === favoriteGeneration.current) setFavoriteIds(new Set(ids)); })
-      .catch(() => { if (isMounted && generation === favoriteGeneration.current) setFavoriteError("Favorite status could not be loaded. Please try again."); });
-    return () => { isMounted = false; favoriteGeneration.current += 1; };
+      .then((ids) => { if (generation === favoriteGeneration.current) setFavoriteIds(new Set(ids)); })
+      .catch(() => { if (generation === favoriteGeneration.current) setFavoriteError("Favorite status could not be loaded. Please try again."); });
+    return () => { favoriteGeneration.current += 1; };
   }, [favoriteEligible, user?.id]);
 
   useEffect(() => {
@@ -145,10 +142,10 @@ export function MarketplacePage({ user, onViewChange }: MarketplacePageProps) {
   }
 
   async function addFavorite(product: MarketplaceProduct) {
-    if (!favoriteEligible || pendingFavoriteIds.has(product.id)) return;
+    if (!favoriteEligible || pendingFavoriteId) return;
     const generation = favoriteGeneration.current;
     setFavoriteError("");
-    setPendingFavoriteIds((current) => new Set(current).add(product.id));
+    setPendingFavoriteId(product.id);
     try {
       await addBuyerFavorite(product.id);
       if (generation !== favoriteGeneration.current) return;
@@ -156,7 +153,7 @@ export function MarketplacePage({ user, onViewChange }: MarketplacePageProps) {
     } catch (error) {
       if (generation === favoriteGeneration.current) setFavoriteError((error as Error).message);
     } finally {
-      if (generation === favoriteGeneration.current) setPendingFavoriteIds((current) => { const next = new Set(current); next.delete(product.id); return next; });
+      if (generation === favoriteGeneration.current) setPendingFavoriteId(null);
     }
   }
 
@@ -230,7 +227,7 @@ export function MarketplacePage({ user, onViewChange }: MarketplacePageProps) {
                 onSelectProduct={openProduct}
                 favoriteEligible={favoriteEligible}
                 favoriteIds={favoriteIds}
-                pendingFavoriteIds={pendingFavoriteIds}
+                pendingFavoriteId={pendingFavoriteId}
                 onAddFavorite={(product) => void addFavorite(product)}
               />
               <MarketplacePagination
