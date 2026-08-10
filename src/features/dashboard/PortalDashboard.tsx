@@ -9,6 +9,7 @@ import { PortalOverview } from "./PortalOverview";
 import { PortalWorkspaceNavigation } from "./PortalWorkspaceNavigation";
 
 const BuyerRFQDashboard = lazy(() => import("../rfqs/BuyerRFQDashboard").then((module) => ({ default: module.BuyerRFQDashboard })));
+const BuyerFavoritesWorkspace = lazy(() => import("../favorites/BuyerFavoritesWorkspace").then((module) => ({ default: module.BuyerFavoritesWorkspace })));
 const ManufacturerRFQInbox = lazy(() => import("../rfqs/ManufacturerRFQInbox").then((module) => ({ default: module.ManufacturerRFQInbox })));
 const AdminRFQManagement = lazy(() => import("../rfqs/AdminRFQManagement").then((module) => ({ default: module.AdminRFQManagement })));
 const BuyerPurchaseOrders = lazy(() => import("../purchase-orders/BuyerPurchaseOrders").then((module) => ({ default: module.BuyerPurchaseOrders })));
@@ -86,6 +87,7 @@ export function PortalDashboard({
     if (workspace === "overview") return <PortalOverview role={role} onWorkspaceChange={onWorkspaceChange} />;
 
     if (role === "buyer") {
+      if (workspace === "favorites") return <BuyerFavoritesWorkspace />;
       if (workspace === "rfqs" || workspace === "quotes") return <BuyerRFQDashboard user={auth.user} authMode={auth.mode} showPurchaseOrders={false} selectedRFQId={selectedWorkflowRecordId} onSelectedRFQChange={onWorkflowRecordChange} />;
       if (workspace === "purchase-orders") return <BuyerPurchaseOrders authMode={auth.mode} />;
       if (workspace === "contracts") return <><BuyerContracts authMode={auth.mode} /><BuyerSignaturePreparation authMode={auth.mode} /><BuyerSignatureDelivery authMode={auth.mode} /></>;

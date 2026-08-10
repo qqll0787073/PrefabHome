@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   defaultMarketplaceFilters,
   fetchMarketplaceFilterOptions,
@@ -26,6 +26,7 @@ import { MarketplaceProductDetail } from "./MarketplaceProductDetail";
 import { MarketplaceProductGrid } from "./MarketplaceProductGrid";
 import { MarketplaceSearch } from "./MarketplaceSearch";
 import { MarketplaceSort as MarketplaceSortControl } from "./MarketplaceSort";
+import { addBuyerFavorite, fetchBuyerFavoriteProductIds } from "../../lib/buyerFavorites";
 
 interface MarketplacePageProps {
   user: AuthUser | null;
@@ -48,7 +49,12 @@ export function MarketplacePage({ user, onViewChange }: MarketplacePageProps) {
   const [selectedProduct, setSelectedProduct] = useState<MarketplaceProduct | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  const [pendingFavoriteId, setPendingFavoriteId] = useState<string | null>(null);
+  const [favoriteError, setFavoriteError] = useState("");
+  const favoriteGeneration = useRef(0);
   const filterKey = useMemo(() => marketplaceFiltersKey(filters), [filters]);
+  const favoriteEligible = !isDemo && user?.role === "buyer";
 
   useEffect(() => {
     setPage(1);
@@ -67,6 +73,18 @@ export function MarketplacePage({ user, onViewChange }: MarketplacePageProps) {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    const generation = ++favoriteGeneration.current;
+    setFavoriteIds(new Set());
+    setPendingFavoriteId(null);
+    setFavoriteError("");
+    if (!favoriteEligible) return;
+    fetchBuyerFavoriteProductIds()
+      .then((ids) => { if (generation === favoriteGeneration.current) setFavoriteIds(new Set(ids)); })
+      .catch(() => { if (generation === favoriteGeneration.current) setFavoriteError("Favorite status could not be loaded. Please try again."); });
+    return () => { favoriteGeneration.current += 1; };
+  }, [favoriteEligible, user?.id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -123,6 +141,22 @@ export function MarketplacePage({ user, onViewChange }: MarketplacePageProps) {
     window.history.pushState({}, "", "/marketplace?view=browse");
   }
 
+  async function addFavorite(product: MarketplaceProduct) {
+    if (!favoriteEligible || pendingFavoriteId) return;
+    const generation = favoriteGeneration.current;
+    setFavoriteError("");
+    setPendingFavoriteId(product.id);
+    try {
+      await addBuyerFavorite(product.id);
+      if (generation !== favoriteGeneration.current) return;
+      setFavoriteIds((current) => new Set(current).add(product.id));
+    } catch (error) {
+      if (generation === favoriteGeneration.current) setFavoriteError((error as Error).message);
+    } finally {
+      if (generation === favoriteGeneration.current) setPendingFavoriteId(null);
+    }
+  }
+
   if (selectedProduct) {
     return <MarketplaceProductDetail product={selectedProduct} user={user} onBack={closeProduct} />;
   }
@@ -153,6 +187,7 @@ export function MarketplacePage({ user, onViewChange }: MarketplacePageProps) {
           onReset={resetFilters}
         />
         <div className="marketplace-results" aria-busy={isLoading}>
+          {favoriteError && <p className="workspace-error" role="alert">{favoriteError}</p>}
           {isDemo && (
             <section className="panel marketplace-demo-banner" role="status">
               <p className="eyebrow">Demo data</p>
@@ -190,6 +225,10 @@ export function MarketplacePage({ user, onViewChange }: MarketplacePageProps) {
               <MarketplaceProductGrid
                 products={result.products}
                 onSelectProduct={openProduct}
+                favoriteEligible={favoriteEligible}
+                favoriteIds={favoriteIds}
+                pendingFavoriteId={pendingFavoriteId}
+                onAddFavorite={(product) => void addFavorite(product)}
               />
               <MarketplacePagination
                 page={result.page}

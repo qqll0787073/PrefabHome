@@ -372,6 +372,27 @@ export async function fetchMarketplaceProductById(id: string): Promise<Marketpla
   return resolveSingleMarketplaceProduct(mapMarketplaceProduct(data as unknown as MarketplaceProductRow));
 }
 
+export async function fetchMarketplaceProductsByIds(ids: string[]): Promise<MarketplaceProduct[]> {
+  const uniqueIds = [...new Set(ids.filter(Boolean))];
+  if (uniqueIds.length === 0) return [];
+
+  const client = ensureMarketplaceDataSource();
+  if (!client) {
+    return demoMarketplaceRows()
+      .map(mapMarketplaceProduct)
+      .filter((product) => uniqueIds.includes(product.id))
+      .map(withDemoImage);
+  }
+
+  const { data, error } = await client
+    .from("marketplace_products")
+    .select(marketplaceProductSelect)
+    .in("id", uniqueIds);
+
+  if (error) throw toReadableMarketplaceError(error);
+  return resolveMarketplaceProducts((data ?? []).map((row) => mapMarketplaceProduct(row as unknown as MarketplaceProductRow)));
+}
+
 export async function fetchMarketplaceProductImages(
   productId: string,
   cachedImages: MarketplaceProductImage[] = []
@@ -441,6 +462,17 @@ async function resolveSingleMarketplaceProduct(
     primary_image: image ?? null,
     image_url: image?.signed_url ?? null,
   };
+}
+
+async function resolveMarketplaceProducts(products: MarketplaceProduct[]): Promise<MarketplaceProduct[]> {
+  const images = await resolveMarketplaceImageUrls(
+    products.flatMap((product) => (product.primary_image ? [product.primary_image] : []))
+  );
+  const imagesByProduct = new Map(images.map((image) => [image.product_id, image]));
+  return products.map((product) => {
+    const image = imagesByProduct.get(product.id) ?? null;
+    return { ...product, primary_image: image, image_url: image?.signed_url ?? null };
+  });
 }
 
 function applyMarketplaceFilters(query: any, filters: ReturnType<typeof marketplaceFilterPayload>) {
