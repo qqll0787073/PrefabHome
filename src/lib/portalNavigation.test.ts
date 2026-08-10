@@ -21,6 +21,10 @@ test("builds and restores the canonical Buyer Favorites workspace route", () => 
   assert.deepEqual(readPortalLocation("?view=dashboard&workspace=favorites"), { view: "dashboard", workspace: "favorites", requestId: null, recordId: null });
   assert.equal(buildPortalSearch({ view: "dashboard", workspace: "favorites", requestId: null, recordId: null }), "?view=dashboard&workspace=favorites");
   assert.equal(normalizePortalWorkspace("buyer", "favorites"), "favorites");
+  assert.deepEqual(readPortalLocation("?view=dashboard&workspace=messages&record=11111111-1111-4111-8111-111111111111"), { view: "dashboard", workspace: "messages", requestId: null, recordId: "11111111-1111-4111-8111-111111111111" });
+  assert.equal(buildPortalSearch({ view: "dashboard", workspace: "messages", requestId: null, recordId: "11111111-1111-4111-8111-111111111111" }), "?view=dashboard&workspace=messages&record=11111111-1111-4111-8111-111111111111");
+  assert.equal(normalizePortalWorkspace("buyer", "messages"), "messages");
+  assert.equal(normalizePortalWorkspace("manufacturer", "messages"), "overview");
   assert.equal(normalizePortalWorkspace("manufacturer", "favorites"), "overview");
 });
 

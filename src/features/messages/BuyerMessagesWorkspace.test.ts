@@ -1,0 +1,27 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import type { RFQWithDetails } from "../../types";
+import type { BuyerConversation } from "../../lib/buyerMessages";
+import { BuyerConversationThread, BuyerMessagesEmptyState, BuyerMessagesErrorState, BuyerMessagesLoadingState, BuyerMessagesWorkspace } from "./BuyerMessagesWorkspace";
+
+const record = { id: "11111111-1111-4111-8111-111111111111", buyer_id: "buyer", manufacturer_id: "maker", product_id: "product", product_snapshot: { model_name: "Cedar", manufacturer_display_name: "Acme" }, status: "submitted", requested_quantity: 1, requested_currency: "USD", incoterm: null, destination_country: "US", destination_port: null, target_delivery_date: null, buyer_message: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" } as RFQWithDetails;
+const conversation = { rfq: record, messages: [{ id: "m1", rfq_id: record.id, sender_profile_id: "buyer", sender_role: "buyer", message: "Hello", attachment_path: null, created_at: "2026-01-01T00:00:00Z" }], latestMessage: null } as BuyerConversation;
+
+test("loading state is announced and busy", () => { const html = renderToStaticMarkup(createElement(BuyerMessagesLoadingState)); assert.match(html, /role="status"/); assert.match(html, /aria-busy="true"/); });
+test("empty state explains RFQ source and links Marketplace", () => { const html = renderToStaticMarkup(createElement(BuyerMessagesEmptyState)); assert.match(html, /No conversations yet/); assert.match(html, /marketplace\?view=browse/); });
+test("error state is sanitized and offers retry", () => { const html = renderToStaticMarkup(createElement(BuyerMessagesErrorState, { onRetry() {} })); assert.match(html, /role="alert"/); assert.match(html, />Retry</); assert.doesNotMatch(html, /supabase|sql|jwt|policy/i); });
+test("workspace initially renders accessible loading", () => { const html = renderToStaticMarkup(createElement(BuyerMessagesWorkspace)); assert.match(html, /aria-labelledby="buyer-messages-heading"/); assert.match(html, /Loading your conversations/); });
+test("thread renders participant labels and semantic time", () => { const html = renderToStaticMarkup(createElement(BuyerConversationThread, { conversation, sending: false, onSend: async () => {} })); assert.match(html, />You</); assert.match(html, /<time dateTime=/); });
+test("thread links canonical RFQ context", () => { const html = renderToStaticMarkup(createElement(BuyerConversationThread, { conversation, sending: false, onSend: async () => {} })); assert.match(html, /workspace=rfqs&amp;record=11111111/); });
+test("thread has a schema-aligned bounded labeled composer", () => { const html = renderToStaticMarkup(createElement(BuyerConversationThread, { conversation, sending: false, onSend: async () => {} })); assert.match(html, /for="buyer-message-reply"/); assert.match(html, /maxLength="4000"/); assert.match(html, /Send Message/); });
+test("terminal thread is read only", () => { const terminal = { ...conversation, rfq: { ...record, status: "accepted" as const } }; const html = renderToStaticMarkup(createElement(BuyerConversationThread, { conversation: terminal, sending: false, onSend: async () => {} })); assert.match(html, /conversation is read-only/); assert.doesNotMatch(html, /<textarea/); });
+test("malformed message date is safely displayed", () => { const malformed = { ...conversation, messages: [{ ...conversation.messages[0], created_at: "bad" }] }; const html = renderToStaticMarkup(createElement(BuyerConversationThread, { conversation: malformed, sending: false, onSend: async () => {} })); assert.match(html, /Date unavailable/); });
+test("source uses request generations against stale loads", () => { const source = readFileSync(new URL("./BuyerMessagesWorkspace.tsx", import.meta.url), "utf8"); assert.match(source, /loadSequence/); assert.match(source, /sequence === loadSequence\.current/); });
+test("source contains in-flight send state after unmount", () => { const source = readFileSync(new URL("./BuyerMessagesWorkspace.tsx", import.meta.url), "utf8"); assert.match(source, /active\.current = false/); assert.match(source, /if \(active\.current\) setConversations/); });
+test("source sends only through the trusted service wrapper", () => { const source = readFileSync(new URL("../../lib/buyerMessages.ts", import.meta.url), "utf8"); assert.match(source, /return postRFQMessage\(rfqId, message\)/); assert.doesNotMatch(source, /\.from\("rfq_messages"\)\.insert/); });
+test("responsive layout reuses the existing tablet-safe split view", () => { const source = readFileSync(new URL("./BuyerMessagesWorkspace.tsx", import.meta.url), "utf8"); const styles = readFileSync(new URL("../../styles.css", import.meta.url), "utf8"); assert.match(source, /className="logistics-split-view"/); assert.match(styles, /@media \(max-width: 900px\)[\s\S]*?\.logistics-split-view[\s\S]*?grid-template-columns: 1fr/); });
+test("no unread state is invented", () => { const source = readFileSync(new URL("./BuyerMessagesWorkspace.tsx", import.meta.url), "utf8"); assert.doesNotMatch(source, /unread|read_at/i); });
+test("no client storage or route-derived buyer authority is used", () => { const source = readFileSync(new URL("../../lib/buyerMessages.ts", import.meta.url), "utf8"); assert.doesNotMatch(source, /localStorage|sessionStorage|buyer_id.*URLSearchParams/); });

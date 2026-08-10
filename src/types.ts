@@ -311,7 +311,7 @@ export interface RFQProductSnapshot {
 }
 
 export interface RFQWithDetails extends RFQRecord {
-  product?: Pick<ProductRecord, "id" | "name" | "model_name" | "category"> | null;
+  product?: Pick<ProductRecord, "id" | "slug" | "name" | "model_name" | "category"> | null;
   manufacturer?: Pick<
     ManufacturerApplication,
     "id" | "company_name" | "company_display_name" | "country"
