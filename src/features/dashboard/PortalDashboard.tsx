@@ -89,7 +89,7 @@ export function PortalDashboard({
 
     if (role === "buyer") {
       if (workspace === "favorites") return <BuyerFavoritesWorkspace />;
-      if (workspace === "messages") return <BuyerMessagesWorkspace selectedConversationId={selectedWorkflowRecordId} onSelectedConversationChange={onWorkflowRecordChange} />;
+      if (workspace === "messages") return <BuyerMessagesWorkspace key={auth.user.id} selectedConversationId={selectedWorkflowRecordId} onSelectedConversationChange={onWorkflowRecordChange} />;
       if (workspace === "rfqs" || workspace === "quotes") return <BuyerRFQDashboard user={auth.user} authMode={auth.mode} showPurchaseOrders={false} selectedRFQId={selectedWorkflowRecordId} onSelectedRFQChange={onWorkflowRecordChange} />;
       if (workspace === "purchase-orders") return <BuyerPurchaseOrders authMode={auth.mode} />;
       if (workspace === "contracts") return <><BuyerContracts authMode={auth.mode} /><BuyerSignaturePreparation authMode={auth.mode} /><BuyerSignatureDelivery authMode={auth.mode} /></>;
