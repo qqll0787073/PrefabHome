@@ -80,10 +80,12 @@ test("signup relies on the trusted Auth trigger instead of browser profile upser
   assert.doesNotMatch(authService, /profilePayload/);
 });
 
-test("Buyer Profile frontend remains read-only and does not call the new RPC", () => {
+test("Buyer Profile frontend uses the narrow RPC and never writes profiles directly", () => {
   const combined = `${buyerProfileService}\n${buyerProfileWorkspace}`;
-  assert.doesNotMatch(combined, /update_my_buyer_profile|\.update\(|\.insert\(|\.upsert\(/);
-  assert.doesNotMatch(buyerProfileWorkspace, /Save Changes|Edit Profile|Change Email|Change Password/);
+  assert.match(buyerProfileService, /supabase\.rpc\("update_my_buyer_profile", \{ full_name_text: fullName \}\)/);
+  assert.doesNotMatch(combined, /from\("profiles"\)[\s\S]{0,120}\.(?:update|insert|upsert|delete)\(/);
+  assert.doesNotMatch(buyerProfileWorkspace, /Change Email|Change Password|Enable MFA|Delete Account/);
+  assert.match(buyerProfileWorkspace, /Save Changes/);
 });
 
 test("database regression suite covers approved, protected, cross-Buyer, and actor cases", () => {
