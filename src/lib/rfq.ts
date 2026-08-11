@@ -49,6 +49,7 @@ export const buyerRFQDashboardStatuses: RFQStatus[] = [
 ];
 
 export const rfqMessageMaxLength = 2000;
+export const rfqConversationMessageMaxLength = 4000;
 export const rfqCountryMaxLength = 120;
 export const rfqPortMaxLength = 160;
 
@@ -279,9 +280,9 @@ function toRFQRpcArgs(values: RFQFormValues) {
   };
 }
 
-const participantRFQDetailSelect = "*, product:products(id,name,model_name,category)";
+const participantRFQDetailSelect = "*, product:products(id,slug,name,model_name,category)";
 const adminRFQDetailSelect =
-  "*, product:products(id,name,model_name,category), manufacturer:manufacturers(id,company_name,company_display_name,country), buyer:profiles(id,full_name,email)";
+  "*, product:products(id,slug,name,model_name,category), manufacturer:manufacturers(id,company_name,company_display_name,country), buyer:profiles(id,full_name,email)";
 
 export async function createDraftRFQ(
   product: Pick<MarketplaceProduct, "id" | "manufacturer_id" | "currency">,
@@ -448,6 +449,18 @@ export async function fetchRFQMessages(rfqId: string): Promise<RFQMessageRecord[
     .eq("rfq_id", rfqId)
     .order("created_at", { ascending: true });
 
+  if (error) throw toReadableRFQError(error);
+  return (data ?? []) as RFQMessageRecord[];
+}
+
+export async function fetchRFQMessagesForRFQs(rfqIds: readonly string[]): Promise<RFQMessageRecord[]> {
+  if (!supabase || rfqIds.length === 0) return [];
+  rfqIds.forEach((rfqId) => assertLiveRecordId(rfqId, "RFQ"));
+  const { data, error } = await supabase
+    .from("rfq_messages")
+    .select("*")
+    .in("rfq_id", [...rfqIds])
+    .order("created_at", { ascending: true });
   if (error) throw toReadableRFQError(error);
   return (data ?? []) as RFQMessageRecord[];
 }

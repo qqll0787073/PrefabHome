@@ -8,6 +8,7 @@ export type PortalWorkspace =
   | "manufacturers"
   | "products"
   | "favorites"
+  | "messages"
   | "rfqs"
   | "quotes"
   | "purchase-orders"
@@ -36,6 +37,7 @@ export const portalWorkspaces: Record<Role, PortalWorkspaceDefinition[]> = {
   buyer: [
     { id: "overview", label: "Dashboard", description: "Buyer activity and next steps." },
     { id: "favorites", label: "Favorites", description: "Saved Marketplace products." },
+    { id: "messages", label: "Messages", description: "Buyer conversations connected to your RFQs." },
     ...sharedTransactionWorkspaces,
   ],
   manufacturer: [
@@ -84,7 +86,7 @@ export function readPortalLocation(search: string): PortalLocationState {
     workspace,
     requestId: params.get("request"),
     recordId:
-      ["rfqs", "quotes"].includes(workspace ?? "") && recordId && isLiveRecordId(recordId)
+      ["rfqs", "quotes", "messages"].includes(workspace ?? "") && recordId && isLiveRecordId(recordId)
         ? recordId
         : null,
   };
@@ -99,7 +101,7 @@ export function buildPortalSearch(state: PortalLocationState): string {
   }
   if (
     state.view === "dashboard" &&
-    ["rfqs", "quotes"].includes(state.workspace ?? "") &&
+    ["rfqs", "quotes", "messages"].includes(state.workspace ?? "") &&
     state.recordId &&
     isLiveRecordId(state.recordId)
   ) {
