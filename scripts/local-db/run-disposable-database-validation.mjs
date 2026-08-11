@@ -34,8 +34,8 @@ const migrationFiles = (await readdir(migrationsDirectory))
   .filter((file) => /^\d{4}_.+\.sql$/.test(file))
   .sort();
 
-assert.equal(migrationFiles.length, 27, "Expected exactly migrations 0001-0027.");
-assert.equal(migrationFiles.at(-1), "0027_buyer_manufacturer_directory.sql");
+assert.equal(migrationFiles.length, 28, "Expected exactly migrations 0001-0028.");
+assert.equal(migrationFiles.at(-1), "0028_restrict_buyer_manufacturer_directory_grants.sql");
 
 const client = new Client({ connectionString: databaseUrl, application_name: "prefab-disposable-validation" });
 const results = [];
@@ -76,6 +76,20 @@ try {
       });
       throw error;
     }
+  }
+
+  const directoryPrivileges = await client.query(`
+    select grantee, privilege_type
+    from information_schema.role_table_grants
+    where table_schema = 'public' and table_name = 'buyer_manufacturer_directory'
+      and grantee in ('anon', 'authenticated')
+    order by grantee, privilege_type
+  `);
+  assert.deepEqual(directoryPrivileges.rows, [{ grantee: "authenticated", privilege_type: "SELECT" }]);
+  assert.equal((await client.query("select has_table_privilege('anon', 'public.buyer_manufacturer_directory', 'select') as allowed")).rows[0].allowed, false);
+  assert.equal((await client.query("select has_table_privilege('authenticated', 'public.buyer_manufacturer_directory', 'select') as allowed")).rows[0].allowed, true);
+  for (const privilege of ["insert", "update", "delete", "truncate", "references", "trigger"]) {
+    assert.equal((await client.query("select has_table_privilege('authenticated', 'public.buyer_manufacturer_directory', $1) as allowed", [privilege])).rows[0].allowed, false);
   }
 
   console.log(JSON.stringify({
