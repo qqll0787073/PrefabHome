@@ -14,6 +14,16 @@ interface AuthIdentity {
 export interface BuyerProfileOperations {
   getAuthIdentity: () => Promise<AuthIdentity>;
   fetchProfile: (userId: string) => Promise<ProfileRecord | null>;
+  updateFullName: (fullName: string, signal?: AbortSignal) => Promise<void>;
+}
+
+export const BUYER_FULL_NAME_MAX_LENGTH = 160;
+
+export function validateBuyerFullName(value: string): string | null {
+  const normalized = value.trim();
+  if (!normalized) return "Full name is required.";
+  if ([...normalized].length > BUYER_FULL_NAME_MAX_LENGTH) return "Full name must be 160 characters or fewer.";
+  return null;
 }
 
 function normalizedEmail(value: string): string {
@@ -38,7 +48,15 @@ async function fetchProfile(userId: string): Promise<ProfileRecord | null> {
   return data as ProfileRecord | null;
 }
 
-const defaultOperations: BuyerProfileOperations = { getAuthIdentity, fetchProfile };
+async function updateFullName(fullName: string, signal?: AbortSignal): Promise<void> {
+  if (!supabase) throw new Error("Profile service is unavailable.");
+  let request = supabase.rpc("update_my_buyer_profile", { full_name_text: fullName });
+  if (signal) request = request.abortSignal(signal);
+  const { error } = await request;
+  if (error) throw new Error("Profile service is unavailable.");
+}
+
+const defaultOperations: BuyerProfileOperations = { getAuthIdentity, fetchProfile, updateFullName };
 
 export async function fetchBuyerProfile(
   expectedUserId: string,
@@ -59,5 +77,23 @@ export async function fetchBuyerProfile(
     const message = error instanceof Error ? error.message : "";
     if (["Your account changed. Reload Profile and try again.", "Your Buyer profile is unavailable.", "Your account profile needs support before it can be edited."].includes(message)) throw error;
     throw new Error("Profile service is unavailable.");
+  }
+}
+
+export async function updateBuyerFullName(
+  expectedUserId: string,
+  fullName: string,
+  operations: BuyerProfileOperations = defaultOperations,
+  signal?: AbortSignal,
+): Promise<BuyerProfileView> {
+  const normalized = fullName.trim();
+  if (validateBuyerFullName(normalized)) throw new Error("Profile could not be updated. Please try again.");
+  try {
+    const identity = await operations.getAuthIdentity();
+    if (identity.id !== expectedUserId) throw new Error("account-changed");
+    await operations.updateFullName(normalized, signal);
+    return await fetchBuyerProfile(expectedUserId, operations);
+  } catch {
+    throw new Error("Profile could not be updated. Please try again.");
   }
 }
