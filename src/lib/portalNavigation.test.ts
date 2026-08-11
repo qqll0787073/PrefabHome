@@ -12,6 +12,7 @@ import {
 test("provides focused role-aware portal navigation", () => {
   assert.equal(portalWorkspaces.buyer.some((item) => item.id === "favorites"), true);
   assert.equal(portalWorkspaces.buyer.some((item) => item.id === "logistics"), true);
+  assert.equal(portalWorkspaces.buyer.some((item) => item.id === "profile"), true);
   assert.equal(portalWorkspaces.manufacturer.some((item) => item.id === "products"), true);
   assert.equal(portalWorkspaces.admin.some((item) => item.id === "users"), true);
   assert.equal(portalWorkspaces.buyer.some((item) => item.id === "users"), false);
@@ -26,6 +27,11 @@ test("builds and restores the canonical Buyer Favorites workspace route", () => 
   assert.equal(normalizePortalWorkspace("buyer", "messages"), "messages");
   assert.equal(normalizePortalWorkspace("manufacturer", "messages"), "overview");
   assert.equal(normalizePortalWorkspace("manufacturer", "favorites"), "overview");
+  assert.deepEqual(readPortalLocation("?view=dashboard&workspace=profile"), { view: "dashboard", workspace: "profile", requestId: null, recordId: null });
+  assert.equal(buildPortalSearch({ view: "dashboard", workspace: "profile", requestId: null, recordId: null }), "?view=dashboard&workspace=profile");
+  assert.equal(normalizePortalWorkspace("buyer", "profile"), "profile");
+  assert.equal(normalizePortalWorkspace("manufacturer", "profile"), "overview");
+  assert.equal(normalizePortalWorkspace("admin", "profile"), "overview");
 });
 
 test("normalizes workspaces to the signed-in role", () => {
