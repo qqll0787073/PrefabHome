@@ -12,7 +12,7 @@ const BuyerRFQDashboard = lazy(() => import("../rfqs/BuyerRFQDashboard").then((m
 const BuyerFavoritesWorkspace = lazy(() => import("../favorites/BuyerFavoritesWorkspace").then((module) => ({ default: module.BuyerFavoritesWorkspace })));
 const BuyerMessagesWorkspace = lazy(() => import("../messages/BuyerMessagesWorkspace").then((module) => ({ default: module.BuyerMessagesWorkspace })));
 const BuyerProfileWorkspace = lazy(() => import("../profile/BuyerProfileWorkspace").then((module) => ({ default: module.BuyerProfileWorkspace })));
-const BuyerManufacturersWorkspace = lazy(() => import("../manufacturers/BuyerManufacturersWorkspace").then((module) => ({ default: module.BuyerManufacturersWorkspace })));
+const BuyerManufacturersWorkspace = lazy(() => import("../manufacturers/ManufacturerWorkspace").then((module) => ({ default: module.BuyerManufacturersWorkspace })));
 const ManufacturerRFQInbox = lazy(() => import("../rfqs/ManufacturerRFQInbox").then((module) => ({ default: module.ManufacturerRFQInbox })));
 const AdminRFQManagement = lazy(() => import("../rfqs/AdminRFQManagement").then((module) => ({ default: module.AdminRFQManagement })));
 const BuyerPurchaseOrders = lazy(() => import("../purchase-orders/BuyerPurchaseOrders").then((module) => ({ default: module.BuyerPurchaseOrders })));
