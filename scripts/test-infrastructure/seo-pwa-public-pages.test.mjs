@@ -125,18 +125,18 @@ test("build-time public URL replacement is deterministic and non-networking", ()
   assert.doesNotMatch(vite, /\bfetch\s*\(|node:(?:http|https|net|tls)|\bdeploy\b/i);
 });
 
-test("CI stays read-only with unchanged baseline migrations and reviewed 0026", () => {
+test("CI stays read-only with unchanged baseline migrations and reviewed 0027", () => {
   const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
   assert.match(workflow, /^\s*- production-sprint-2d\s*$/m);
   assert.match(workflow, /permissions:\s*\n\s+contents: read/);
   const executableLines = workflow.split(/\r?\n/).filter((line) => /^\s*run:/.test(line)).join("\n");
   assert.doesNotMatch(executableLines, /\bdeploy\b|supabase\s+db|migration\s+(?:apply|repair)|git\s+tag|create[- ]release/i);
   const migrations = readdirSync("supabase/migrations").filter((file) => /^\d{4}_.+\.sql$/.test(file)).sort();
-  assert.equal(migrations.length, 26);
+  assert.equal(migrations.length, 27);
   assert.equal(migrations[0].slice(0, 4), "0001");
-  assert.equal(migrations.at(-1), "0026_secure_buyer_profile_self_update.sql");
+  assert.equal(migrations.at(-1), "0027_buyer_manufacturer_directory.sql");
   const changed = execFileSync("git", [
     "diff", "--name-only", resolveAuthProfilesMigrationBaseline(), "--", "supabase/migrations",
   ], { encoding: "utf8", windowsHide: true }).trim();
-  assert.ok(changed === "" || changed === "supabase/migrations/0026_secure_buyer_profile_self_update.sql");
+  assert.ok(changed === "" || changed === "supabase/migrations/0027_buyer_manufacturer_directory.sql");
 });

@@ -12,6 +12,7 @@ const BuyerRFQDashboard = lazy(() => import("../rfqs/BuyerRFQDashboard").then((m
 const BuyerFavoritesWorkspace = lazy(() => import("../favorites/BuyerFavoritesWorkspace").then((module) => ({ default: module.BuyerFavoritesWorkspace })));
 const BuyerMessagesWorkspace = lazy(() => import("../messages/BuyerMessagesWorkspace").then((module) => ({ default: module.BuyerMessagesWorkspace })));
 const BuyerProfileWorkspace = lazy(() => import("../profile/BuyerProfileWorkspace").then((module) => ({ default: module.BuyerProfileWorkspace })));
+const BuyerManufacturersWorkspace = lazy(() => import("../manufacturers/BuyerManufacturersWorkspace").then((module) => ({ default: module.BuyerManufacturersWorkspace })));
 const ManufacturerRFQInbox = lazy(() => import("../rfqs/ManufacturerRFQInbox").then((module) => ({ default: module.ManufacturerRFQInbox })));
 const AdminRFQManagement = lazy(() => import("../rfqs/AdminRFQManagement").then((module) => ({ default: module.AdminRFQManagement })));
 const BuyerPurchaseOrders = lazy(() => import("../purchase-orders/BuyerPurchaseOrders").then((module) => ({ default: module.BuyerPurchaseOrders })));
@@ -89,6 +90,7 @@ export function PortalDashboard({
     if (workspace === "overview") return <PortalOverview role={role} onWorkspaceChange={onWorkspaceChange} />;
 
     if (role === "buyer") {
+      if (workspace === "manufacturers") return <BuyerManufacturersWorkspace selectedManufacturerId={selectedWorkflowRecordId} onSelectedManufacturerChange={onWorkflowRecordChange} />;
       if (workspace === "favorites") return <BuyerFavoritesWorkspace />;
       if (workspace === "messages") return <BuyerMessagesWorkspace key={auth.user.id} selectedConversationId={selectedWorkflowRecordId} onSelectedConversationChange={onWorkflowRecordChange} />;
       if (workspace === "profile") return <BuyerProfileWorkspace key={auth.user.id} user={auth.user} />;

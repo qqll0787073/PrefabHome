@@ -10,10 +10,10 @@ const buyerProfileService = readFileSync("src/lib/buyerProfile.ts", "utf8");
 const buyerProfileWorkspace = readFileSync("src/features/profile/BuyerProfileWorkspace.tsx", "utf8");
 const databaseSecurityTest = readFileSync("supabase/tests/buyer_profile_self_update_security.sql", "utf8");
 
-test("migration inventory is exactly 0001 through 0026 and prior migrations are unchanged", () => {
+test("migration inventory is exactly 0001 through 0027 and profile migration remains unchanged", () => {
   const migrations = readdirSync("supabase/migrations").filter((file) => /^\d{4}_.+\.sql$/.test(file)).sort();
-  assert.equal(migrations.length, 26);
-  assert.equal(migrations.at(-1), "0026_secure_buyer_profile_self_update.sql");
+  assert.equal(migrations.length, 27);
+  assert.equal(migrations.at(-1), "0027_buyer_manufacturer_directory.sql");
   for (const file of migrations.slice(0, 25)) {
     const baseline = execFileSync("git", ["show", `origin/auth-profiles:supabase/migrations/${file}`], { encoding: "utf8", windowsHide: true }).replace(/\r\n/g, "\n");
     assert.equal(readFileSync(`supabase/migrations/${file}`, "utf8").replace(/\r\n/g, "\n"), baseline, `${file} changed`);
