@@ -1,0 +1,20 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import type { BuyerProfileView } from "../../lib/buyerProfile";
+import { BuyerProfileDetails, BuyerProfileErrorState, BuyerProfileLoadingState, BuyerProfileWorkspace } from "./BuyerProfileWorkspace";
+
+const view: BuyerProfileView = { accountEmail: "buyer@example.test", profile: { id: "secret-uuid", role: "buyer", full_name: "Buyer Name", email: "buyer@example.test", status: "active", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-02T00:00:00Z" } };
+const details = () => renderToStaticMarkup(createElement(BuyerProfileDetails, { view }));
+test("loading is accessible and busy", () => { const html = renderToStaticMarkup(createElement(BuyerProfileLoadingState)); assert.match(html, /role="status"/); assert.match(html, /aria-busy="true"/); });
+test("sanitized load error offers retry", () => { const html = renderToStaticMarkup(createElement(BuyerProfileErrorState, { onRetry() {} })); assert.match(html, /role="alert"/); assert.match(html, />Retry</); assert.doesNotMatch(html, /sql|jwt|policy|supabase/i); });
+test("workspace begins with loading and a semantic heading", () => { const html = renderToStaticMarkup(createElement(BuyerProfileWorkspace, { user: { id: "u", email: "buyer@example.test", fullName: "Buyer", role: "buyer" } })); assert.match(html, /aria-labelledby="buyer-profile-heading"/); assert.match(html, /Profile &amp; Account Settings/); assert.match(html, /Loading your profile/); });
+test("account view uses Auth email and hides internal UUID", () => { const html = details(); assert.match(html, /buyer@example\.test/); assert.doesNotMatch(html, /secret-uuid/); });
+test("supported profile fields render as read only", () => { const html = details(); assert.match(html, /<dt>Full name<\/dt><dd>Buyer Name/); assert.match(html, /<dt>Role<\/dt><dd>Buyer/); assert.match(html, /<dt>Status<\/dt><dd>active/); assert.match(html, /Profile fields are read-only/); });
+test("unsupported mutation controls are absent", () => { const html = details(); assert.doesNotMatch(html, /<form|<input|Save Changes|Change Email|Change Password|Delete Account|Enable MFA/); assert.match(html, /Password management, email changes, MFA, passkeys/); });
+test("source guards stale load responses and clears data before retry", () => { const source = readFileSync(new URL("./BuyerProfileWorkspace.tsx", import.meta.url), "utf8"); assert.match(source, /generation\.current/); assert.match(source, /active\.current && request === generation\.current/); assert.match(source, /active\.current = false/); assert.match(source, /setView\(null\)/); });
+test("dashboard keys Profile by authenticated identity", () => { const source = readFileSync(new URL("../dashboard/PortalDashboard.tsx", import.meta.url), "utf8"); assert.match(source, /<BuyerProfileWorkspace key=\{auth\.user\.id\} user=\{auth\.user\}/); });
+test("profile service derives Auth identity and contains no write path", () => { const source = readFileSync(new URL("../../lib/buyerProfile.ts", import.meta.url), "utf8"); assert.match(source, /supabase\.auth\.getUser\(\)/); assert.doesNotMatch(source, /localStorage|sessionStorage|service.?role|\.update\(|\.insert\(|\.upsert\(/i); });
+test("responsive behavior reuses existing workspace and detail systems without new CSS", () => { const source = readFileSync(new URL("./BuyerProfileWorkspace.tsx", import.meta.url), "utf8"); assert.match(source, /className="workspace-toolbar"/); assert.match(source, /className="internal-detail-grid"/); });
