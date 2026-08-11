@@ -34,8 +34,8 @@ const migrationFiles = (await readdir(migrationsDirectory))
   .filter((file) => /^\d{4}_.+\.sql$/.test(file))
   .sort();
 
-assert.equal(migrationFiles.length, 25, "Expected exactly migrations 0001-0025.");
-assert.equal(migrationFiles.at(-1), "0025_restore_rfq_quote_authority.sql");
+assert.equal(migrationFiles.length, 26, "Expected exactly migrations 0001-0026.");
+assert.equal(migrationFiles.at(-1), "0026_secure_buyer_profile_self_update.sql");
 
 const client = new Client({ connectionString: databaseUrl, application_name: "prefab-disposable-validation" });
 const results = [];

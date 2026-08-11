@@ -88,17 +88,17 @@ test("Vite source maps are disabled and public CI/environment examples are non-c
   assert.match(environmentExample, /VITE_ENABLE_MARKETPLACE_DEMO=false/);
 });
 
-test("migration baseline 0001 through 0024 is unchanged and 0025 is review-only", () => {
+test("migration baseline 0001 through 0025 is unchanged and 0026 is review-only", () => {
   const migrations = readdirSync("supabase/migrations")
     .filter((file) => /^\d{4}_.+\.sql$/.test(file))
     .sort();
-  assert.equal(migrations.length, 25);
+  assert.equal(migrations.length, 26);
   assert.equal(migrations[0].slice(0, 4), "0001");
-  assert.equal(migrations.at(-1), "0025_restore_rfq_quote_authority.sql");
+  assert.equal(migrations.at(-1), "0026_secure_buyer_profile_self_update.sql");
   const changed = execFileSync(
     "git",
     ["diff", "--name-only", resolveAuthProfilesMigrationBaseline(), "--", "supabase/migrations"],
     { encoding: "utf8", windowsHide: true },
   ).trim();
-  assert.ok(changed === "" || changed === "supabase/migrations/0025_restore_rfq_quote_authority.sql");
+  assert.ok(changed === "" || changed === "supabase/migrations/0026_secure_buyer_profile_self_update.sql");
 });

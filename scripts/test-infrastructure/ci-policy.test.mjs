@@ -41,11 +41,15 @@ test("CI contains no deployment, release, Supabase, or database-write commands",
   assert.doesNotMatch(workflow, /eoyrfrjbjglfudfuwxdf|bvzbkjpbnczquecwqvlm/);
 });
 
-test("beta migrations are unchanged and 0025 is the sole review migration", () => {
+test("beta migrations are unchanged and 0025-0026 are the reviewed migrations", () => {
   const changed = execFileSync(
     "git",
     ["diff", "--name-only", "beta-v1.0.0", "--", "supabase/migrations"],
     { encoding: "utf8", windowsHide: true }
   ).trim();
-  assert.equal(changed, "supabase/migrations/0025_restore_rfq_quote_authority.sql");
+  const expectedWith0026 = [
+    "supabase/migrations/0025_restore_rfq_quote_authority.sql",
+    "supabase/migrations/0026_secure_buyer_profile_self_update.sql",
+  ].join("\n");
+  assert.ok(changed === "supabase/migrations/0025_restore_rfq_quote_authority.sql" || changed === expectedWith0026);
 });

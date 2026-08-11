@@ -190,16 +190,14 @@ begin
   perform set_config('request.jwt.claim.sub', buyer_id::text, true);
   perform set_config('request.jwt.claim.role', 'authenticated', true);
 
-  update public.profiles
-  set full_name = 'Audit Buyer Updated'
-  where id = buyer_id;
+  perform public.update_my_buyer_profile('Audit Buyer Updated');
 
   select full_name into updated_name
   from public.profiles
   where id = buyer_id;
 
   insert into security_verification_results
-  values ('normal profile fields can still be updated', updated_name = 'Audit Buyer Updated', 'full_name after update: ' || coalesce(updated_name, 'null'));
+  values ('Buyer full name can be updated through the approved RPC', updated_name = 'Audit Buyer Updated', 'full_name after update: ' || coalesce(updated_name, 'null'));
 end;
 $$;
 
@@ -221,10 +219,14 @@ begin
   perform set_config('request.jwt.claim.sub', admin_id::text, true);
   perform set_config('request.jwt.claim.role', 'authenticated', true);
 
-  update public.profiles
-  set role = 'manufacturer',
-      status = 'suspended'
-  where id = buyer_id;
+  begin
+    update public.profiles
+    set role = 'manufacturer',
+        status = 'suspended'
+    where id = buyer_id;
+  exception when insufficient_privilege then
+    null;
+  end;
 
   select role, status
   into actual_role, actual_status
@@ -232,7 +234,7 @@ begin
   where id = buyer_id;
 
   insert into security_verification_results
-  values ('legitimate admin update remains possible', actual_role = 'manufacturer' and actual_status = 'suspended', 'role/status after admin update: ' || coalesce(actual_role, 'null') || '/' || coalesce(actual_status, 'null'));
+  values ('browser admin direct update is blocked', actual_role = 'buyer' and actual_status = 'active', 'role/status after blocked admin update: ' || coalesce(actual_role, 'null') || '/' || coalesce(actual_status, 'null'));
 end;
 $$;
 

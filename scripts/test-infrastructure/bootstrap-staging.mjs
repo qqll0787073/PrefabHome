@@ -13,18 +13,18 @@ export function listMigrationVersions(migrationsDir = "supabase/migrations") {
 }
 
 export function assertExpectedMigrations(versions) {
-  const expected = Array.from({ length: 25 }, (_, index) => String(index + 1).padStart(4, "0"));
+  const expected = Array.from({ length: 26 }, (_, index) => String(index + 1).padStart(4, "0"));
   const actual = [...versions].sort();
   if (actual.join(",") !== expected.join(",")) {
-    throw new Error(`Expected migrations 0001 through 0025, found ${actual.join(",") || "none"}.`);
+    throw new Error(`Expected migrations 0001 through 0026, found ${actual.join(",") || "none"}.`);
   }
   return true;
 }
 
 export function resolveAuthProfilesMigrationBaseline() {
   const candidates = [
-    "refs/heads/auth-profiles",
     "refs/remotes/origin/auth-profiles",
+    "refs/heads/auth-profiles",
     "refs/tags/beta-v1.0.0",
   ];
   for (const candidate of candidates) {

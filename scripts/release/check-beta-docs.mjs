@@ -19,7 +19,7 @@ export const REQUIRED_BETA_FILES = [
 ];
 
 export const EXPECTED_MIGRATIONS = Array.from(
-  { length: 25 },
+  { length: 26 },
   (_, index) => String(index + 1).padStart(4, "0")
 );
 
@@ -79,7 +79,7 @@ export function auditBetaDocs(root = process.cwd()) {
       .sort();
     const versions = migrations.map((name) => name.slice(0, 4));
     if (JSON.stringify(versions) !== JSON.stringify(EXPECTED_MIGRATIONS)) {
-      errors.push(`Migration versions must be exactly 0001-0025; found ${versions.join(", ") || "none"}.`);
+      errors.push(`Migration versions must be exactly 0001-0026; found ${versions.join(", ") || "none"}.`);
     }
   }
 
@@ -93,7 +93,7 @@ function main() {
     process.exitCode = 1;
     return;
   }
-  console.log(`Beta release document audit passed (${REQUIRED_BETA_FILES.length} required files, 25 migrations).`);
+  console.log(`Beta release document audit passed (${REQUIRED_BETA_FILES.length} required files, ${EXPECTED_MIGRATIONS.length} migrations).`);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

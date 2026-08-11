@@ -18,7 +18,7 @@ Never expose a service-role key through Vite. The client persists and refreshes 
 
 | Area | Frontend module | Read/write model |
 | --- | --- | --- |
-| Auth/profile | `src/lib/auth.ts` | Supabase Auth plus protected `profiles` row |
+| Auth/profile | `src/lib/auth.ts`, `src/lib/buyerProfile.ts` | Supabase Auth plus read-protected `profiles`; Buyer writes only through the approved RPC boundary |
 | Manufacturer onboarding | `src/lib/manufacturers.ts` | RLS-protected table operations and database lifecycle trigger |
 | Products | `src/lib/products.ts` | Private table workflows plus public-safe published projection |
 | Product media | `src/lib/productMedia.ts` | Private buckets, protected metadata, atomic primary-image RPC, signed URLs |
@@ -58,6 +58,7 @@ The caller must have a valid authenticated session and the role/ownership/status
 
 | Domain | Migration source | RPCs | Inputs/result and lifecycle authority |
 | --- | --- | --- | --- |
+| Buyer profile | `0026_secure_buyer_profile_self_update.sql` | `update_my_buyer_profile` | Full name only; derives the active Buyer from `auth.uid()`, trims and validates the name, and returns safe profile fields. Frontend editing remains deferred. |
 | Product media | `0008_product_media_foundation.sql` | `set_primary_product_media` | Product/media UUID; returns selected media. Owner/Admin only, valid image in same Product; atomically replaces primary. |
 | Quote authoring | `0012_quote_builder.sql` | `create_rfq_quote_draft`, `submit_rfq_quote`, `create_rfq_quote_revision`, `delete_rfq_quote_draft` | RFQ/Quote UUID and draft metadata; returns versioned Quote. Assigned Manufacturer; only draft submits, revision supersedes current atomically. |
 | Quote review | `0013_buyer_quote_review.sql` | `record_rfq_quote_opened`, `accept_rfq_quote`, `reject_rfq_quote`, `request_rfq_quote_revision` | Current Quote UUID and optional reason; returns decision/transition. Owning Buyer only; opened events deduplicate per version. |
