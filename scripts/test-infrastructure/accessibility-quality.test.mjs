@@ -163,13 +163,13 @@ test("quality gate is non-networking, non-deploying, and CI remains read-only", 
   assert.doesNotMatch(workflow, /\bsupabase\b|\bdeploy\b|git\s+tag|create[- ]release/i);
 });
 
-test("migrations contain unchanged 0001 through 0025 plus secure profile boundary 0026", () => {
+test("migrations contain unchanged 0001 through 0027 plus grant remediation 0028", () => {
   const migrations = readdirSync("supabase/migrations").filter((file) => /^\d{4}_.+\.sql$/.test(file)).sort();
-  assert.equal(migrations.length, 26);
+  assert.equal(migrations.length, 28);
   assert.equal(migrations[0].slice(0, 4), "0001");
-  assert.equal(migrations.at(-1), "0026_secure_buyer_profile_self_update.sql");
+  assert.equal(migrations.at(-1), "0028_restrict_buyer_manufacturer_directory_grants.sql");
   const changed = execFileSync("git", [
     "diff", "--name-only", resolveAuthProfilesMigrationBaseline(), "--", "supabase/migrations",
   ], { encoding: "utf8", windowsHide: true }).trim();
-  assert.ok(changed === "" || changed === "supabase/migrations/0026_secure_buyer_profile_self_update.sql");
+  assert.equal(changed, ["supabase/migrations/0027_buyer_manufacturer_directory.sql", "supabase/migrations/0028_restrict_buyer_manufacturer_directory_grants.sql"].join("\n"));
 });

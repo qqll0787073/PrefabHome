@@ -40,8 +40,14 @@ test("keeps Admin-only workspace routes out of other portal navigation", () => {
     }));
 
     assert.doesNotMatch(markup, />Users<\/a>/);
-    assert.doesNotMatch(markup, />Manufacturers<\/a>/);
+    if (role === "manufacturer") assert.doesNotMatch(markup, />Manufacturers<\/a>/);
   }
+});
+
+test("renders the canonical Buyer Manufacturers navigation entry", () => {
+  const markup = renderToStaticMarkup(createElement(PortalWorkspaceNavigation, { role: "buyer", workspace: "manufacturers", onWorkspaceChange: () => undefined }));
+  assert.match(markup, /href="\/marketplace\?view=dashboard&amp;workspace=manufacturers"/);
+  assert.match(markup, /aria-current="page"[^>]*>Manufacturers<\/a>/);
 });
 
 function navigationEvent(overrides: Record<string, unknown> = {}) {

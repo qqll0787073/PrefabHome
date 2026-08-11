@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+export { BuyerManufacturersWorkspace } from "./BuyerManufacturersWorkspace";
 import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
 import {

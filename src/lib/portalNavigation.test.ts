@@ -13,9 +13,19 @@ test("provides focused role-aware portal navigation", () => {
   assert.equal(portalWorkspaces.buyer.some((item) => item.id === "favorites"), true);
   assert.equal(portalWorkspaces.buyer.some((item) => item.id === "logistics"), true);
   assert.equal(portalWorkspaces.buyer.some((item) => item.id === "profile"), true);
+  assert.equal(portalWorkspaces.buyer.some((item) => item.id === "manufacturers"), true);
   assert.equal(portalWorkspaces.manufacturer.some((item) => item.id === "products"), true);
   assert.equal(portalWorkspaces.admin.some((item) => item.id === "users"), true);
   assert.equal(portalWorkspaces.buyer.some((item) => item.id === "users"), false);
+});
+
+test("builds and restores canonical Manufacturer directory and detail routes", () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  assert.equal(buildPortalSearch({ view: "dashboard", workspace: "manufacturers", requestId: null, recordId: id }), `?view=dashboard&workspace=manufacturers&record=${id}`);
+  assert.equal(readPortalLocation(`?view=dashboard&workspace=manufacturers&record=${id}`).recordId, id);
+  assert.equal(readPortalLocation("?view=dashboard&workspace=manufacturers&record=not-a-uuid").recordId, null);
+  assert.equal(normalizePortalWorkspace("buyer", "manufacturers"), "manufacturers");
+  assert.equal(normalizePortalWorkspace("manufacturer", "manufacturers"), "overview");
 });
 
 test("builds and restores the canonical Buyer Favorites workspace route", () => {
