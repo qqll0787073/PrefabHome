@@ -8,6 +8,7 @@ import {
 } from "../../lib/rfq";
 import type { AuthUser } from "../../lib/auth";
 import type { MarketplaceProduct, RFQFormValues } from "../../types";
+import { buyerRFQHref } from "../../lib/buyerRfqList";
 
 interface RFQRequestDialogProps {
   product: MarketplaceProduct;
@@ -26,6 +27,8 @@ export function RFQRequestDialog({ product, user, onClose }: RFQRequestDialogPro
   const firstFieldRef = useRef<HTMLInputElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
+  const requestGeneration = useRef(0);
+  const savingRef = useRef(false);
 
   const canRequest = Boolean(user && user.role === "buyer");
 
@@ -37,29 +40,49 @@ export function RFQRequestDialog({ product, user, onClose }: RFQRequestDialogPro
     return () => returnFocusRef.current?.focus();
   }, []);
 
+  useEffect(() => {
+    requestGeneration.current += 1;
+    savingRef.current = false;
+    setIsSaving(false);
+    setDraftId(null);
+    setErrors([]);
+    setMessage("");
+    setValues(emptyRFQForm(product.currency));
+  }, [product.id, user?.id]);
+
+  useEffect(() => () => { requestGeneration.current += 1; savingRef.current = false; }, []);
+
   function updateField(field: keyof RFQFormValues, value: string) {
     setValues((current) => ({ ...current, [field]: value }));
   }
 
   async function save(action: "draft" | "submit") {
+    if (savingRef.current || !canRequest || !user) return;
     const validationErrors = validateRFQForm(values);
     setErrors(validationErrors);
     setMessage("");
-    if (validationErrors.length > 0 || !user) return;
+    if (validationErrors.length > 0) return;
 
+    const generation = requestGeneration.current;
+    const identity = user.id;
+    savingRef.current = true;
     setIsSaving(true);
     try {
       const saved = await persistProductRFQ(product, values, action, draftId);
+      if (generation !== requestGeneration.current || user.id !== identity) return;
       if (action === "submit") {
-        setMessage("RFQ submitted to the manufacturer.");
+        window.location.assign(buyerRFQHref(saved.id));
       } else {
         setDraftId(saved.id);
         setMessage("RFQ draft saved.");
       }
     } catch (error) {
-      setErrors([error instanceof Error ? error.message : "Unable to save RFQ."]);
+      if (generation === requestGeneration.current) setErrors([error instanceof Error ? error.message : "Unable to save RFQ."]);
     } finally {
-      setIsSaving(false);
+      if (generation === requestGeneration.current) {
+        savingRef.current = false;
+        setIsSaving(false);
+      }
     }
   }
 

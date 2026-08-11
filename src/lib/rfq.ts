@@ -285,12 +285,11 @@ const adminRFQDetailSelect =
   "*, product:products(id,slug,name,model_name,category), manufacturer:manufacturers(id,company_name,company_display_name,country), buyer:profiles(id,full_name,email)";
 
 export async function createDraftRFQ(
-  product: Pick<MarketplaceProduct, "id" | "manufacturer_id" | "currency">,
+  product: Pick<MarketplaceProduct, "id" | "currency">,
   values: RFQFormValues
 ): Promise<RFQRecord> {
   const client = ensureSupabase();
   assertLiveRecordId(product.id, "Product");
-  assertLiveRecordId(product.manufacturer_id, "Manufacturer");
   const { data, error } = await client.rpc("create_rfq_draft", {
     product_uuid: product.id,
     ...toRFQRpcArgs(values),
@@ -319,7 +318,7 @@ interface RFQRequestOperations {
 }
 
 export async function persistProductRFQ(
-  product: Pick<MarketplaceProduct, "id" | "manufacturer_id" | "currency">,
+  product: Pick<MarketplaceProduct, "id" | "currency">,
   values: RFQFormValues,
   action: "draft" | "submit",
   existingDraftId: string | null,

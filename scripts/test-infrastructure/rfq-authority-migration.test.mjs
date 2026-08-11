@@ -23,12 +23,12 @@ const approvedTriggers = [
   ["rfq_quote_decisions", "protect_rfq_quote_decision_write"],
 ];
 
-test("0025 remains unchanged beneath reviewed 0026 through 0028 migrations", () => {
+test("0025 remains unchanged beneath reviewed 0026 through 0029 migrations", () => {
   const migrations = readdirSync("supabase/migrations")
     .filter((file) => /^\d{4}_.+\.sql$/.test(file))
     .sort();
-  assert.equal(migrations.length, 28);
-  assert.equal(migrations.at(-1), "0028_restrict_buyer_manufacturer_directory_grants.sql");
+  assert.equal(migrations.length, 29);
+  assert.equal(migrations.at(-1), "0029_require_active_buyer_for_rfq_drafts.sql");
 
   const baseline = resolveAuthProfilesMigrationBaseline();
   for (const migrationFile of migrations.slice(0, 25)) {

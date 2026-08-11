@@ -13,10 +13,10 @@ export function listMigrationVersions(migrationsDir = "supabase/migrations") {
 }
 
 export function assertExpectedMigrations(versions) {
-  const expected = Array.from({ length: 28 }, (_, index) => String(index + 1).padStart(4, "0"));
+  const expected = Array.from({ length: 29 }, (_, index) => String(index + 1).padStart(4, "0"));
   const actual = [...versions].sort();
   if (actual.join(",") !== expected.join(",")) {
-    throw new Error(`Expected migrations 0001 through 0028, found ${actual.join(",") || "none"}.`);
+    throw new Error(`Expected migrations 0001 through 0029, found ${actual.join(",") || "none"}.`);
   }
   return true;
 }
