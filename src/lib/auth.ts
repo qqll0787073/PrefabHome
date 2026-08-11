@@ -233,20 +233,8 @@ export function useAuth(): AuthState {
     }
 
     if (data.user && data.session) {
-      const profilePayload = {
-        id: data.user.id,
-        email,
-        full_name: fullName?.trim() || null,
-        role: registrationRole,
-        status: "active",
-      };
-
-      const { error: profileError } = await supabase.from("profiles").upsert(profilePayload);
-      if (profileError) {
-        setError(profileError.message);
-        throw profileError;
-      }
-
+      // public.handle_new_auth_user creates the profile in the Auth transaction.
+      // Browser clients intentionally have no direct public.profiles write grant.
       setUser({
         id: data.user.id,
         email,

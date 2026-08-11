@@ -1,4 +1,4 @@
--- Minimal Supabase-managed database surface required by migrations 0001-0025.
+-- Minimal Supabase-managed database surface required by migrations 0001-0026.
 -- This bootstrap is for a new disposable PostgreSQL cluster only.
 
 do $$

@@ -23,15 +23,15 @@ const approvedTriggers = [
   ["rfq_quote_decisions", "protect_rfq_quote_decision_write"],
 ];
 
-test("0025 is the sole migration after the immutable 0001-0024 baseline", () => {
+test("0025 remains unchanged beneath the reviewed 0026 migration", () => {
   const migrations = readdirSync("supabase/migrations")
     .filter((file) => /^\d{4}_.+\.sql$/.test(file))
     .sort();
-  assert.equal(migrations.length, 25);
-  assert.equal(migrations.at(-1), "0025_restore_rfq_quote_authority.sql");
+  assert.equal(migrations.length, 26);
+  assert.equal(migrations.at(-1), "0026_secure_buyer_profile_self_update.sql");
 
   const baseline = resolveAuthProfilesMigrationBaseline();
-  for (const migrationFile of migrations.slice(0, 24)) {
+  for (const migrationFile of migrations.slice(0, 25)) {
     const baselineContents = execFileSync(
       "git",
       ["show", `${baseline}:supabase/migrations/${migrationFile}`],
