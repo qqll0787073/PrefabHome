@@ -35,6 +35,7 @@ const detailSource = readFileSync(new URL("./MarketplaceProductDetail.tsx", impo
 const dialogSource = readFileSync(new URL("../rfqs/RFQRequestDialog.tsx", import.meta.url), "utf8");
 const rfqSource = readFileSync(new URL("../../lib/rfq.ts", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../../../supabase/migrations/0029_require_active_buyer_for_rfq_drafts.sql", import.meta.url), "utf8");
+const styles = readFileSync(new URL("../../styles.css", import.meta.url), "utf8");
 
 test("published Product Detail renders safe Marketplace fields, accessible CTA, and directory context", () => {
   const markup = renderToStaticMarkup(createElement(MarketplaceProductDetail, { product, user: null, onBack: () => {} }));
@@ -95,4 +96,11 @@ test("Marketplace source remains the only Product Detail data projection", () =>
   assert.match(pageSource, /fetchMarketplaceProductBySlug/);
   assert.doesNotMatch(pageSource + detailSource, /\.from\("products"\)|\.from\("manufacturers"\)|\.from\("profiles"\)/);
   assert.doesNotMatch(detailSource, /dangerouslySetInnerHTML/);
+});
+
+test("long Product and Manufacturer text cannot expand the responsive detail grid", () => {
+  assert.match(
+    styles,
+    /\.marketplace-detail-copy\s*\{[\s\S]*?overflow-wrap: anywhere;/,
+  );
 });
