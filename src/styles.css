@@ -976,8 +976,8 @@ main {
 
 .marketplace-detail-copy {
   display: grid;
-  align-content: start;
   gap: 18px;
+  overflow-wrap: anywhere;
 }
 
 .marketplace-detail-copy h2 {

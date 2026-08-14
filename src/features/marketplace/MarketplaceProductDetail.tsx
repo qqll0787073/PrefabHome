@@ -46,6 +46,14 @@ export function MarketplaceProductDetail({ product, user, onBack }: MarketplaceP
   const title = product.model_name || product.name;
   const country = marketplaceManufacturerCountry(product);
 
+  function requestQuote() {
+    if (!user) {
+      window.location.assign("/marketplace?view=dashboard&workspace=rfqs");
+      return;
+    }
+    setIsRFQOpen(true);
+  }
+
   return (
     <section className="panel marketplace-detail">
       <button type="button" className="close-button" onClick={onBack}>
@@ -74,9 +82,12 @@ export function MarketplaceProductDetail({ product, user, onBack }: MarketplaceP
             <h3>Manufacturer</h3>
             <p>{product.manufacturer_display_name}</p>
             {country && <p>{country}</p>}
+            <a href={`/marketplace?view=dashboard&workspace=manufacturers&record=${encodeURIComponent(product.manufacturer_id)}`}>
+              View {product.manufacturer_display_name} in the Manufacturer directory
+            </a>
           </div>
           <div className="actions">
-            <button type="button" onClick={() => setIsRFQOpen(true)}>
+            <button type="button" onClick={requestQuote}>
               Request Quote
             </button>
           </div>

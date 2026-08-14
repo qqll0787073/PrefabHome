@@ -47,6 +47,8 @@ export function MarketplacePage({ user, onViewChange }: MarketplacePageProps) {
   const [result, setResult] = useState<MarketplacePageResult | null>(null);
   const [options, setOptions] = useState<MarketplaceFilterOptions>(emptyOptions);
   const [selectedProduct, setSelectedProduct] = useState<MarketplaceProduct | null>(null);
+  const [detailStatus, setDetailStatus] = useState<"idle" | "loading" | "ready" | "unavailable" | "error">("idle");
+  const detailGeneration = useRef(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
@@ -109,22 +111,35 @@ export function MarketplacePage({ user, onViewChange }: MarketplacePageProps) {
 
   useEffect(() => {
     function selectFromPath() {
+      const generation = ++detailGeneration.current;
       const match = window.location.pathname.match(/^\/products\/([^/]+)$/);
       const slug = match?.[1] ? decodeURIComponent(match[1]) : "";
       if (!slug) {
         setSelectedProduct(null);
+        setDetailStatus("idle");
         return;
       }
+      setSelectedProduct(null);
+      setDetailStatus("loading");
+      setError("");
       fetchMarketplaceProductBySlug(slug)
-        .then((product) => setSelectedProduct(product))
-        .catch((loadError) =>
-          setError(loadError instanceof Error ? loadError.message : "Product details could not be loaded.")
-        );
+        .then((product) => {
+          if (generation !== detailGeneration.current) return;
+          setSelectedProduct(product);
+          setDetailStatus(product ? "ready" : "unavailable");
+        })
+        .catch(() => {
+          if (generation !== detailGeneration.current) return;
+          setDetailStatus("error");
+        });
     }
 
     selectFromPath();
     window.addEventListener("popstate", selectFromPath);
-    return () => window.removeEventListener("popstate", selectFromPath);
+    return () => {
+      detailGeneration.current += 1;
+      window.removeEventListener("popstate", selectFromPath);
+    };
   }, []);
 
   function resetFilters() {
@@ -133,11 +148,13 @@ export function MarketplacePage({ user, onViewChange }: MarketplacePageProps) {
 
   function openProduct(product: MarketplaceProduct) {
     setSelectedProduct(product);
+    setDetailStatus("ready");
     window.history.pushState({}, "", `/products/${encodeURIComponent(marketplaceProductSlug(product))}`);
   }
 
   function closeProduct() {
     setSelectedProduct(null);
+    setDetailStatus("idle");
     window.history.pushState({}, "", "/marketplace?view=browse");
   }
 
@@ -157,7 +174,15 @@ export function MarketplacePage({ user, onViewChange }: MarketplacePageProps) {
     }
   }
 
-  if (selectedProduct) {
+  if (detailStatus === "loading") {
+    return <section className="panel marketplace-state" role="status" aria-live="polite" aria-busy="true"><h2>Loading product</h2><p>Loading published product details...</p></section>;
+  }
+
+  if (detailStatus === "unavailable" || detailStatus === "error") {
+    return <section className="panel marketplace-state"><p className="eyebrow">Marketplace</p><h2>Product not available</h2><p>{detailStatus === "error" ? "Product details could not be loaded. Please return to Marketplace and try again." : "This product is not published or is no longer available."}</p><button type="button" onClick={closeProduct}>Return to Marketplace</button></section>;
+  }
+
+  if (detailStatus === "ready" && selectedProduct) {
     return <MarketplaceProductDetail product={selectedProduct} user={user} onBack={closeProduct} />;
   }
 
