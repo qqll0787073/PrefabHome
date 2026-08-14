@@ -1,8 +1,11 @@
 import type { Role } from "../../types";
 import { portalWorkspaces, type PortalWorkspace } from "../../lib/portalNavigation";
+import type { AuthUser } from "../../lib/auth";
+import { BuyerOverview } from "./BuyerOverview";
 
 interface PortalOverviewProps {
   role: Role;
+  user: AuthUser;
   onWorkspaceChange: (workspace: PortalWorkspace) => void;
 }
 
@@ -21,7 +24,8 @@ const roleCopy: Record<Role, { title: string; body: string }> = {
   },
 };
 
-export function PortalOverview({ role, onWorkspaceChange }: PortalOverviewProps) {
+export function PortalOverview({ role, user, onWorkspaceChange }: PortalOverviewProps) {
+  if (role === "buyer") return <BuyerOverview user={user} />;
   const workspaces = portalWorkspaces[role].filter((item) => item.id !== "overview");
   return (
     <section className="portal-overview" aria-labelledby="portal-overview-title">
