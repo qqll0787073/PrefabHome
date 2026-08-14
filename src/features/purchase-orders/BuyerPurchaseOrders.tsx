@@ -1,262 +1,126 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
 import {
   canCreatePurchaseOrderForQuote,
-  cancelPurchaseOrderDraft,
-  canBuyerRevisePurchaseOrder,
   createPurchaseOrderFromQuote,
-  emptyPurchaseOrderDraftValues,
-  fetchPurchaseOrderDecisions,
   fetchBuyerPurchaseOrders,
-  isPurchaseOrderReadOnly,
-  purchaseOrderConfirmationText,
-  purchaseOrderResubmitConfirmationText,
-  resubmitPurchaseOrder,
-  submitPurchaseOrder,
-  updatePurchaseOrderDraft,
-  updatePurchaseOrderRevision,
-  validatePurchaseOrderDraft,
+  purchaseOrderManufacturerName,
+  purchaseOrderProductName,
+  purchaseOrderStatuses,
+  purchaseOrderStatusLabels,
+  selectBuyerOrders,
+  type BuyerOrderFilter,
+  type BuyerOrderSort,
 } from "../../lib/purchaseOrders";
 import { fetchBuyerQuotes } from "../../lib/quotes";
-import type {
-  PurchaseOrderDecisionRecord,
-  PurchaseOrderDraftValues,
-  PurchaseOrderWithItems,
-  RFQQuoteWithItems,
-} from "../../types";
-import { PurchaseOrderSummary } from "./PurchaseOrderSummary";
+import type { PortalWorkspace } from "../../lib/portalNavigation";
+import type { PurchaseOrderWithItems, RFQQuoteWithItems } from "../../types";
 
 interface BuyerPurchaseOrdersProps {
   authMode: "supabase" | "demo";
-  quotes?: RFQQuoteWithItems[];
+  selectedPOId?: string | null;
+  onSelectedPOChange?: (id: string | null) => void;
+  onWorkspaceChange?: (workspace: PortalWorkspace) => void;
 }
 
-export function BuyerPurchaseOrders({ authMode, quotes }: BuyerPurchaseOrdersProps) {
-  const [workspaceQuotes, setWorkspaceQuotes] = useState<RFQQuoteWithItems[]>(quotes ?? []);
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderWithItems[]>([]);
-  const [decisionsByPO, setDecisionsByPO] = useState<Record<string, PurchaseOrderDecisionRecord[]>>({});
-  const [selectedPO, setSelectedPO] = useState<PurchaseOrderWithItems | null>(null);
-  const [values, setValues] = useState<PurchaseOrderDraftValues>(() => emptyPurchaseOrderDraftValues());
-  const [isLoading, setIsLoading] = useState(authMode === "supabase");
-  const [isSaving, setIsSaving] = useState(false);
+export function BuyerPurchaseOrders({ authMode, selectedPOId = null, onSelectedPOChange, onWorkspaceChange }: BuyerPurchaseOrdersProps) {
+  const [orders, setOrders] = useState<PurchaseOrderWithItems[]>([]);
+  const [quotes, setQuotes] = useState<RFQQuoteWithItems[]>([]);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<BuyerOrderFilter>("all");
+  const [sort, setSort] = useState<BuyerOrderSort>("updated");
+  const [loading, setLoading] = useState(authMode === "supabase");
+  const [creatingQuoteId, setCreatingQuoteId] = useState<string | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
+  const generation = useRef(0);
 
-  async function loadPurchaseOrders() {
+  async function load() {
+    const request = ++generation.current;
+    setLoading(true);
     setErrors([]);
-    setIsLoading(true);
     try {
       if (authMode === "demo") {
-        setPurchaseOrders([]);
-        if (!quotes) setWorkspaceQuotes([]);
-        setDecisionsByPO({});
-      } else {
-        const [items, quoteRows] = await Promise.all([
-          fetchBuyerPurchaseOrders(),
-          quotes ? Promise.resolve(quotes) : fetchBuyerQuotes(),
-        ]);
-        setWorkspaceQuotes(quoteRows);
-        const decisionEntries = await Promise.all(
-          items.map(async (po) => [po.id, await fetchPurchaseOrderDecisions(po.id)] as const)
-        );
-        setPurchaseOrders(items);
-        setDecisionsByPO(Object.fromEntries(decisionEntries));
+        if (request === generation.current) { setOrders([]); setQuotes([]); }
+        return;
       }
-    } catch (error) {
-      setErrors([error instanceof Error ? error.message : "Unable to load purchase orders."]);
+      const [orderRows, quoteRows] = await Promise.all([fetchBuyerPurchaseOrders(), fetchBuyerQuotes()]);
+      if (request !== generation.current) return;
+      setOrders(orderRows);
+      setQuotes(quoteRows);
+    } catch {
+      if (request === generation.current) {
+        setOrders([]); setQuotes([]);
+        setErrors(["Unable to load your orders."]);
+      }
     } finally {
-      setIsLoading(false);
+      if (request === generation.current) setLoading(false);
     }
   }
 
   useEffect(() => {
-    void loadPurchaseOrders();
+    void load();
+    return () => { generation.current += 1; };
   }, [authMode]);
 
-  useEffect(() => {
-    if (quotes) setWorkspaceQuotes(quotes);
-  }, [quotes]);
+  const visible = useMemo(() => selectBuyerOrders(orders, search, filter, sort), [orders, search, filter, sort]);
+  const selected = selectedPOId ? orders.find((order) => order.id === selectedPOId) ?? null : null;
+  const eligibleQuotes = quotes.filter((quote) => canCreatePurchaseOrderForQuote(quote, orders));
 
-  const eligibleQuotes = useMemo(
-    () => workspaceQuotes.filter((quote) => canCreatePurchaseOrderForQuote(quote, purchaseOrders)),
-    [workspaceQuotes, purchaseOrders]
-  );
-
-  async function createPO(quoteId: string) {
-    setIsSaving(true);
+  async function createOrder(quoteId: string) {
+    if (creatingQuoteId) return;
+    const request = generation.current;
+    setCreatingQuoteId(quoteId);
     setErrors([]);
-    setMessage(null);
     try {
-      const created = await createPurchaseOrderFromQuote(quoteId);
-      await loadPurchaseOrders();
-      setSelectedPO({ ...created, items: [] });
-      setValues(emptyPurchaseOrderDraftValues(created));
-      setMessage("Purchase order draft created.");
-    } catch (error) {
-      setErrors([error instanceof Error ? error.message : "Unable to create purchase order."]);
+      const order = await createPurchaseOrderFromQuote(quoteId);
+      if (request !== generation.current) return;
+      onSelectedPOChange?.(order.id);
+      await load();
+    } catch {
+      if (request === generation.current) setErrors(["Unable to create or retrieve this order."]);
     } finally {
-      setIsSaving(false);
+      if (request === generation.current) setCreatingQuoteId(null);
     }
   }
 
-  function selectPO(po: PurchaseOrderWithItems) {
-    setSelectedPO(po);
-    setValues(emptyPurchaseOrderDraftValues(po));
-    setErrors([]);
-    setMessage(null);
+  if (selectedPOId && !loading && !selected) {
+    return <section className="panel" aria-labelledby="order-unavailable"><h3 id="order-unavailable">Order unavailable</h3><p>This order is unavailable to your Buyer account.</p><button type="button" onClick={() => onSelectedPOChange?.(null)}>Back to Orders</button></section>;
   }
 
-  async function saveDraft() {
-    if (!selectedPO) return;
-    const validationErrors = validatePurchaseOrderDraft(values);
-    setErrors(validationErrors);
-    if (validationErrors.length > 0) return;
-
-    setIsSaving(true);
-    try {
-      if (canBuyerRevisePurchaseOrder(selectedPO)) {
-        await updatePurchaseOrderRevision(selectedPO.id, values);
-      } else {
-        await updatePurchaseOrderDraft(selectedPO.id, values);
-      }
-      await loadPurchaseOrders();
-      setMessage(canBuyerRevisePurchaseOrder(selectedPO) ? "Purchase order revision saved." : "Purchase order draft saved.");
-    } catch (error) {
-      setErrors([error instanceof Error ? error.message : "Unable to save purchase order."]);
-    } finally {
-      setIsSaving(false);
-    }
+  if (selected) {
+    return <section className="quote-panel" aria-labelledby="order-detail-heading" style={{ minWidth: 0, overflowWrap: "anywhere" }}>
+      <button type="button" className="text-button" onClick={() => onSelectedPOChange?.(null)}>Back to Orders</button>
+      <h3 id="order-detail-heading">Order {selected.po_number}</h3>
+      <article className="review-item">
+        <p className="eyebrow">{purchaseOrderStatusLabels[selected.status]}</p>
+        <h4>{purchaseOrderProductName(selected)}</h4>
+        <p>{purchaseOrderManufacturerName(selected)}</p>
+        <p>{selected.currency} {selected.subtotal.toFixed(2)}</p>
+        {selected.incoterm && <p>Incoterm: {selected.incoterm}</p>}
+        {selected.destination_port && <p>Destination: {selected.destination_port}</p>}
+        <div className="quote-line-items">{selected.items.map((item) => <p key={item.id}>{item.description}: {item.quantity} {item.unit ?? "unit"} at {selected.currency} {item.unit_price.toFixed(2)}</p>)}</div>
+      </article>
+      <nav className="actions" aria-label="Order context">
+        <a href={`/marketplace?view=dashboard&workspace=rfqs&record=${selected.rfq_id}`}>View source RFQ</a>
+        <button type="button" onClick={() => onWorkspaceChange?.("logistics")}>View logistics</button>
+      </nav>
+    </section>;
   }
 
-  async function submitDraft() {
-    if (!selectedPO) return;
-    if (!window.confirm(purchaseOrderConfirmationText(selectedPO))) return;
-    setIsSaving(true);
-    try {
-      await submitPurchaseOrder(selectedPO.id);
-      await loadPurchaseOrders();
-      setSelectedPO(null);
-      setMessage("Purchase order submitted.");
-    } catch (error) {
-      setErrors([error instanceof Error ? error.message : "Unable to submit purchase order."]);
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function resubmitRevision() {
-    if (!selectedPO) return;
-    if (!window.confirm(purchaseOrderResubmitConfirmationText(selectedPO))) return;
-    setIsSaving(true);
-    try {
-      await resubmitPurchaseOrder(selectedPO.id);
-      await loadPurchaseOrders();
-      setSelectedPO(null);
-      setMessage("Purchase order resubmitted.");
-    } catch (error) {
-      setErrors([error instanceof Error ? error.message : "Unable to resubmit purchase order."]);
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function cancelDraft() {
-    if (!selectedPO) return;
-    setIsSaving(true);
-    try {
-      await cancelPurchaseOrderDraft(selectedPO.id);
-      await loadPurchaseOrders();
-      setSelectedPO(null);
-      setMessage("Purchase order draft cancelled.");
-    } catch (error) {
-      setErrors([error instanceof Error ? error.message : "Unable to cancel purchase order."]);
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  return (
-    <section className="quote-panel">
-      <h4>Purchase Orders</h4>
-      {isLoading && <LoadingState message="Loading purchase orders..." />}
-      <ErrorList errors={errors} />
-      {message && <p className="form-success">{message}</p>}
-      {eligibleQuotes.length > 0 && (
-        <div className="actions">
-          {eligibleQuotes.map((quote) => (
-            <button type="button" key={quote.id} disabled={isSaving} onClick={() => void createPO(quote.id)}>
-              Create Purchase Order
-            </button>
-          ))}
-        </div>
-      )}
-      {purchaseOrders.length === 0 && !isLoading && <p>No purchase orders yet.</p>}
-      <div className="review-list">
-        {purchaseOrders.map((po) => (
-          <div key={po.id}>
-            <PurchaseOrderSummary purchaseOrder={po} decisions={decisionsByPO[po.id] ?? []} />
-            <div className="actions">
-              <button type="button" onClick={() => selectPO(po)}>
-                Open Purchase Order
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-      {selectedPO && (
-        <section className="quote-line-editor">
-          <h4>{selectedPO.po_number}</h4>
-          <label>
-            Requested delivery date
-            <input
-              type="date"
-              value={values.requestedDeliveryDate}
-              disabled={isPurchaseOrderReadOnly(selectedPO)}
-              onChange={(event) => setValues((current) => ({ ...current, requestedDeliveryDate: event.target.value }))}
-            />
-          </label>
-          <label>
-            Buyer reference
-            <input
-              value={values.buyerReference}
-              disabled={isPurchaseOrderReadOnly(selectedPO)}
-              onChange={(event) => setValues((current) => ({ ...current, buyerReference: event.target.value }))}
-            />
-          </label>
-          <label>
-            Buyer note
-            <textarea
-              value={values.buyerNote}
-              disabled={isPurchaseOrderReadOnly(selectedPO)}
-              onChange={(event) => setValues((current) => ({ ...current, buyerNote: event.target.value }))}
-            />
-          </label>
-          {!isPurchaseOrderReadOnly(selectedPO) ? (
-            <div className="actions">
-              <button type="button" disabled={isSaving} onClick={() => void saveDraft()}>
-                {canBuyerRevisePurchaseOrder(selectedPO) ? "Save Revision" : "Save Draft"}
-              </button>
-              {canBuyerRevisePurchaseOrder(selectedPO) ? (
-                <button type="button" disabled={isSaving} onClick={() => void resubmitRevision()}>
-                  Resubmit Purchase Order
-                </button>
-              ) : (
-                <>
-                  <button type="button" disabled={isSaving} onClick={() => void submitDraft()}>
-                    Submit Purchase Order
-                  </button>
-                  <button type="button" disabled={isSaving} onClick={() => void cancelDraft()}>
-                    Cancel Draft
-                  </button>
-                </>
-              )}
-            </div>
-          ) : (
-            <p className="form-notice">Submitted, review, confirmed, rejected, and cancelled purchase orders are read-only.</p>
-          )}
-        </section>
-      )}
-    </section>
-  );
+  return <section className="quote-panel" aria-labelledby="orders-heading" aria-busy={loading}>
+    <h3 id="orders-heading">Orders</h3>
+    {loading && <LoadingState message="Loading your orders..." />}
+    <ErrorList errors={errors} />
+    {errors.length > 0 && <button type="button" onClick={() => void load()}>Retry</button>}
+    {eligibleQuotes.length > 0 && <section aria-labelledby="accepted-quotes-heading"><h4 id="accepted-quotes-heading">Accepted Quotes</h4>{eligibleQuotes.map((quote) => <button type="button" key={quote.id} disabled={creatingQuoteId !== null} onClick={() => void createOrder(quote.id)}>{creatingQuoteId === quote.id ? "Creating Order..." : "Create Order"}</button>)}</section>}
+    {orders.length > 0 && <div>
+      <label>Search Orders<input value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+      <label>Status<select value={filter} onChange={(event) => setFilter(event.target.value as BuyerOrderFilter)}><option value="all">All statuses</option>{purchaseOrderStatuses.map((status) => <option key={status} value={status}>{purchaseOrderStatusLabels[status]}</option>)}</select></label>
+      <label>Sort<select value={sort} onChange={(event) => setSort(event.target.value as BuyerOrderSort)}><option value="updated">Latest updated</option><option value="created">Newest created</option><option value="status">Status</option></select></label>
+    </div>}
+    {!loading && errors.length === 0 && orders.length === 0 && <div className="empty-state"><h4>No Orders yet</h4><p>Orders appear after you accept a Quote.</p><div className="actions"><button type="button" onClick={() => onWorkspaceChange?.("rfqs")}>View RFQs</button><a href="/marketplace">Browse Marketplace</a></div></div>}
+    {!loading && orders.length > 0 && visible.length === 0 && <div className="empty-state"><h4>No matching Orders</h4><p>Try another search or status.</p><button type="button" onClick={() => { setSearch(""); setFilter("all"); }}>Clear Filters</button></div>}
+    <div className="review-list" aria-label="Buyer Orders">{visible.map((order) => <article className="review-item" style={{ minWidth: 0, overflowWrap: "anywhere" }} key={order.id}><p className="eyebrow">{purchaseOrderStatusLabels[order.status]}</p><h4>{order.po_number}</h4><p>{purchaseOrderProductName(order)}</p><p>{purchaseOrderManufacturerName(order)}</p><p>{order.currency} {order.subtotal.toFixed(2)}</p><a href={`/marketplace?view=dashboard&workspace=orders&record=${order.id}`} onClick={(event) => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); onSelectedPOChange?.(order.id); }}>View Order {order.po_number}</a></article>)}</div>
+  </section>;
 }

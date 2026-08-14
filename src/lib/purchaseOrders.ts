@@ -53,7 +53,45 @@ export const buyerReferenceMaxLength = 120;
 export const buyerNoteMaxLength = 2000;
 export const purchaseOrderDecisionReasonMaxLength = 4000;
 
+export type BuyerOrderFilter = "all" | PurchaseOrderStatus;
+export type BuyerOrderSort = "updated" | "created" | "status";
+
+function safeTime(value: string): number {
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? time : 0;
+}
+
+export function purchaseOrderManufacturerName(po: Pick<PurchaseOrderRecord, "manufacturer_snapshot">): string {
+  const snapshot = po.manufacturer_snapshot;
+  const name = snapshot.company_display_name ?? snapshot.company_name;
+  return typeof name === "string" && name.trim() ? name.trim() : "Manufacturer";
+}
+
+export function purchaseOrderProductName(po: Pick<PurchaseOrderRecord, "product_snapshot">): string {
+  return po.product_snapshot.model_name || po.product_snapshot.name || "Product";
+}
+
+export function selectBuyerOrders(
+  orders: PurchaseOrderWithItems[],
+  search: string,
+  filter: BuyerOrderFilter,
+  sort: BuyerOrderSort,
+): PurchaseOrderWithItems[] {
+  const query = search.trim().toLowerCase();
+  return orders.filter((po) => {
+    if (filter !== "all" && po.status !== filter) return false;
+    if (!query) return true;
+    return [po.po_number, purchaseOrderProductName(po), purchaseOrderManufacturerName(po)]
+      .some((value) => value.toLowerCase().includes(query));
+  }).sort((left, right) => sort === "created"
+    ? safeTime(right.created_at) - safeTime(left.created_at)
+    : sort === "status"
+      ? left.status.localeCompare(right.status)
+      : safeTime(right.updated_at) - safeTime(left.updated_at));
+}
+
 const purchaseOrderSelect = "*, items:purchase_order_items(*)";
+const buyerOrderSelect = "id,po_number,rfq_id,quote_id,status,currency,subtotal,incoterm,destination_port,manufacturer_snapshot,product_snapshot,created_at,updated_at,items:purchase_order_items(id,description,quantity,unit,unit_price)";
 
 function ensureSupabase() {
   if (!supabase) {
@@ -351,7 +389,13 @@ export async function cancelPurchaseOrderDraft(poId: string): Promise<PurchaseOr
 }
 
 export async function fetchBuyerPurchaseOrders(): Promise<PurchaseOrderWithItems[]> {
-  return fetchPurchaseOrders();
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("purchase_orders")
+    .select(buyerOrderSelect)
+    .order("created_at", { ascending: false });
+  if (error) throw toReadablePurchaseOrderError(error);
+  return ((data ?? []) as unknown as PurchaseOrderWithItems[]).map(normalizePurchaseOrder);
 }
 
 export async function fetchManufacturerPurchaseOrders(): Promise<PurchaseOrderWithItems[]> {

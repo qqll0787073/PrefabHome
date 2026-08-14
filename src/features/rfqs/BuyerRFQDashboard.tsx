@@ -32,7 +32,6 @@ import {
 import { BuyerQuoteDecisionPanel } from "../quotes/BuyerQuoteDecisionPanel";
 import { QuoteSummaryList } from "../quotes/QuoteSummaryList";
 import { QuoteComparisonView } from "../quotes/QuoteComparisonView";
-import { BuyerPurchaseOrders } from "../purchase-orders/BuyerPurchaseOrders";
 import { RFQConversation } from "./RFQConversation";
 import { BuyerRFQDraftEditor } from "./BuyerRFQDraftEditor";
 import { RFQActivityTimeline } from "./RFQActivityTimeline";
@@ -40,7 +39,6 @@ import { RFQActivityTimeline } from "./RFQActivityTimeline";
 interface BuyerRFQDashboardProps {
   user: AuthUser;
   authMode: "supabase" | "demo";
-  showPurchaseOrders?: boolean;
   selectedRFQId?: string | null;
   onSelectedRFQChange?: (rfqId: string | null) => void;
 }
@@ -66,7 +64,7 @@ export function BuyerRFQLoadingState() {
   return <div aria-busy="true"><p className="loading-state" role="status" aria-live="polite">Loading your RFQs...</p></div>;
 }
 
-export function BuyerRFQDashboard({ user, authMode, showPurchaseOrders = true, selectedRFQId = null, onSelectedRFQChange }: BuyerRFQDashboardProps) {
+export function BuyerRFQDashboard({ user, authMode, selectedRFQId = null, onSelectedRFQChange }: BuyerRFQDashboardProps) {
   const [rfqs, setRFQs] = useState<RFQWithDetails[]>([]);
   const [quotes, setQuotes] = useState<RFQQuoteWithItems[]>([]);
   const [decisions, setDecisions] = useState<RFQQuoteDecisionRecord[]>([]);
@@ -273,6 +271,13 @@ export function BuyerRFQDashboard({ user, authMode, showPurchaseOrders = true, s
       <RFQActivityTimeline rfq={selectedRFQ} authMode={authMode} />
       {selectedRFQ && (
         <>
+          {selectedQuotes.some((quote) => quote.status === "accepted") && (
+            <nav className="actions" aria-label="Accepted Quote order navigation">
+              <a className="button-link" href="/marketplace?view=dashboard&workspace=orders">
+                View or create Order
+              </a>
+            </nav>
+          )}
           <BuyerQuoteDecisionPanel
             quotes={selectedQuotes}
             decisions={decisions}
@@ -287,7 +292,6 @@ export function BuyerRFQDashboard({ user, authMode, showPurchaseOrders = true, s
           <QuoteComparisonView rfq={selectedRFQ} quotes={selectedQuotes} />
         </>
       )}
-      {showPurchaseOrders && <BuyerPurchaseOrders authMode={authMode} quotes={quotes} />}
       <ConfirmationDialog
         open={Boolean(pendingAction)}
         title={pendingAction?.kind === "delete" ? "Delete RFQ draft?" : "Cancel RFQ?"}
