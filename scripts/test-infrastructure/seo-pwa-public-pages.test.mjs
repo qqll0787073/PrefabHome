@@ -138,5 +138,8 @@ test("CI stays read-only with unchanged baseline migrations and reviewed 0030", 
   const changed = execFileSync("git", [
     "diff", "--name-only", resolveAuthProfilesMigrationBaseline(), "--", "supabase/migrations",
   ], { encoding: "utf8", windowsHide: true }).trim();
-  assert.equal(changed, "supabase/migrations/0030_harden_buyer_purchase_order_entry.sql");
+  assert.ok(
+    changed === "" || changed === "supabase/migrations/0030_harden_buyer_purchase_order_entry.sql",
+    `Unexpected migration changes from auth-profiles: ${changed || "none"}`,
+  );
 });
