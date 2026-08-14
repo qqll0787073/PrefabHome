@@ -45,6 +45,12 @@ export interface ManufacturerApplication {
   updated_at: string;
 }
 
+export interface ManufacturerAccount {
+  profile_id: string;
+  profile_status: string;
+  manufacturer: ManufacturerApplication | null;
+}
+
 export interface ManufacturerApplicationFormValues {
   companyLegalName: string;
   companyDisplayName: string;

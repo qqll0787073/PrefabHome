@@ -754,6 +754,63 @@ export interface Database {
       };
     };
     Functions: {
+      get_my_manufacturer_account: {
+        Args: Record<string, never>;
+        Returns: Array<{
+          profile_id: string;
+          profile_email: string;
+          profile_full_name: string | null;
+          profile_role: string;
+          profile_status: string;
+          profile_created_at: string;
+          id: string | null;
+          company_name: string | null;
+          company_legal_name: string | null;
+          company_display_name: string | null;
+          contact_person: string | null;
+          contact_title: string | null;
+          email: string | null;
+          phone: string | null;
+          website: string | null;
+          country: string | null;
+          province: string | null;
+          city: string | null;
+          street_address: string | null;
+          postal_code: string | null;
+          year_established: number | null;
+          export_experience: string | null;
+          product_categories: string[] | null;
+          certifications: string[] | null;
+          company_description: string | null;
+          application_status: string | null;
+          submitted_at: string | null;
+          created_at: string | null;
+          updated_at: string | null;
+        }>;
+      };
+      save_my_manufacturer_application: {
+        Args: {
+          company_legal_name_text: string;
+          company_display_name_text: string;
+          contact_person_text: string;
+          contact_title_text: string;
+          contact_email_text: string;
+          contact_phone_text: string;
+          website_text: string;
+          country_text: string;
+          region_text: string;
+          city_text: string;
+          street_address_text: string;
+          postal_code_text: string;
+          year_established_value: number | null;
+          export_experience_text: string;
+          product_categories_value: string[];
+          certifications_value: string[];
+          company_description_text: string;
+          submit_application?: boolean;
+        };
+        Returns: string;
+      };
       set_primary_product_media: {
         Args: {
           product_uuid: string;

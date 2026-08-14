@@ -35,7 +35,7 @@ const migrationFiles = (await readdir(migrationsDirectory))
   .sort();
 
 assert.equal(migrationFiles.length, 30, "Expected exactly migrations 0001-0030.");
-assert.equal(migrationFiles.at(-1), "0030_harden_buyer_purchase_order_entry.sql");
+assert.equal(migrationFiles.at(-1), "0031_secure_manufacturer_account_foundation.sql");
 
 const client = new Client({ connectionString: databaseUrl, application_name: "prefab-disposable-validation" });
 const results = [];

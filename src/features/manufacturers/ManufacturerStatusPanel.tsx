@@ -14,7 +14,7 @@ export function ManufacturerStatusPanel({ application }: ManufacturerStatusPanel
         <h2>{application ? statusLabels[application.application_status] : "Not started"}</h2>
         <p>
           {application
-            ? application.review_notes || "Your application is available for review tracking."
+            ? "Your application status is available for review tracking. Internal review details remain private."
             : "Complete the onboarding form to create your manufacturer application."}
         </p>
       </div>
