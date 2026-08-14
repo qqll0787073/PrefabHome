@@ -63,11 +63,8 @@ function safeTime(value: string): number {
 
 export function purchaseOrderManufacturerName(po: Pick<PurchaseOrderRecord, "manufacturer_snapshot">): string {
   const snapshot = po.manufacturer_snapshot;
-  return typeof snapshot.company_display_name === "string" && snapshot.company_display_name.trim()
-    ? snapshot.company_display_name.trim()
-    : typeof snapshot.company_name === "string" && snapshot.company_name.trim()
-      ? snapshot.company_name.trim()
-      : "Manufacturer";
+  const name = snapshot.company_display_name ?? snapshot.company_name;
+  return typeof name === "string" && name.trim() ? name.trim() : "Manufacturer";
 }
 
 export function purchaseOrderProductName(po: Pick<PurchaseOrderRecord, "product_snapshot">): string {
@@ -80,29 +77,21 @@ export function selectBuyerOrders(
   filter: BuyerOrderFilter,
   sort: BuyerOrderSort,
 ): PurchaseOrderWithItems[] {
-  const query = search.trim().toLocaleLowerCase();
-  const selected = orders.filter((po) => {
+  const query = search.trim().toLowerCase();
+  return orders.filter((po) => {
     if (filter !== "all" && po.status !== filter) return false;
     if (!query) return true;
-    return [po.po_number, po.buyer_reference, purchaseOrderProductName(po), purchaseOrderManufacturerName(po)]
-      .some((value) => value?.toLocaleLowerCase().includes(query));
-  });
-  return selected.map((po, index) => ({ po, index })).sort((left, right) => {
-    let result = 0;
-    if (sort === "created") result = safeTime(right.po.created_at) - safeTime(left.po.created_at);
-    else if (sort === "status") result = left.po.status.localeCompare(right.po.status);
-    else result = safeTime(right.po.updated_at) - safeTime(left.po.updated_at);
-    return result || left.index - right.index;
-  }).map(({ po }) => po);
+    return [po.po_number, purchaseOrderProductName(po), purchaseOrderManufacturerName(po)]
+      .some((value) => value.toLowerCase().includes(query));
+  }).sort((left, right) => sort === "created"
+    ? safeTime(right.created_at) - safeTime(left.created_at)
+    : sort === "status"
+      ? left.status.localeCompare(right.status)
+      : safeTime(right.updated_at) - safeTime(left.updated_at));
 }
 
 const purchaseOrderSelect = "*, items:purchase_order_items(*)";
-const buyerOrderSelect = [
-  "id", "po_number", "rfq_id", "quote_id", "status", "currency", "subtotal",
-  "incoterm", "destination_port", "manufacturer_snapshot", "product_snapshot",
-  "created_at", "updated_at",
-  "items:purchase_order_items(id,purchase_order_id,line_order,item_type,description,quantity,unit,unit_price,amount,created_at)",
-].join(",");
+const buyerOrderSelect = "id,po_number,rfq_id,quote_id,status,currency,subtotal,incoterm,destination_port,manufacturer_snapshot,product_snapshot,created_at,updated_at,items:purchase_order_items(id,description,quantity,unit,unit_price)";
 
 function ensureSupabase() {
   if (!supabase) {

@@ -19,15 +19,14 @@ import type { PurchaseOrderWithItems, RFQQuoteWithItems } from "../../types";
 
 interface BuyerPurchaseOrdersProps {
   authMode: "supabase" | "demo";
-  quotes?: RFQQuoteWithItems[];
   selectedPOId?: string | null;
   onSelectedPOChange?: (id: string | null) => void;
   onWorkspaceChange?: (workspace: PortalWorkspace) => void;
 }
 
-export function BuyerPurchaseOrders({ authMode, quotes: suppliedQuotes, selectedPOId = null, onSelectedPOChange, onWorkspaceChange }: BuyerPurchaseOrdersProps) {
+export function BuyerPurchaseOrders({ authMode, selectedPOId = null, onSelectedPOChange, onWorkspaceChange }: BuyerPurchaseOrdersProps) {
   const [orders, setOrders] = useState<PurchaseOrderWithItems[]>([]);
-  const [quotes, setQuotes] = useState<RFQQuoteWithItems[]>(suppliedQuotes ?? []);
+  const [quotes, setQuotes] = useState<RFQQuoteWithItems[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<BuyerOrderFilter>("all");
   const [sort, setSort] = useState<BuyerOrderSort>("updated");
@@ -45,7 +44,7 @@ export function BuyerPurchaseOrders({ authMode, quotes: suppliedQuotes, selected
         if (request === generation.current) { setOrders([]); setQuotes([]); }
         return;
       }
-      const [orderRows, quoteRows] = await Promise.all([fetchBuyerPurchaseOrders(), suppliedQuotes ? Promise.resolve(suppliedQuotes) : fetchBuyerQuotes()]);
+      const [orderRows, quoteRows] = await Promise.all([fetchBuyerPurchaseOrders(), fetchBuyerQuotes()]);
       if (request !== generation.current) return;
       setOrders(orderRows);
       setQuotes(quoteRows);
@@ -86,11 +85,11 @@ export function BuyerPurchaseOrders({ authMode, quotes: suppliedQuotes, selected
   }
 
   if (selectedPOId && !loading && !selected) {
-    return <section className="panel" aria-labelledby="order-unavailable"><h3 id="order-unavailable">Order unavailable</h3><p>This order does not exist or is not available to your Buyer account.</p><button type="button" onClick={() => onSelectedPOChange?.(null)}>Back to Orders</button></section>;
+    return <section className="panel" aria-labelledby="order-unavailable"><h3 id="order-unavailable">Order unavailable</h3><p>This order is unavailable to your Buyer account.</p><button type="button" onClick={() => onSelectedPOChange?.(null)}>Back to Orders</button></section>;
   }
 
   if (selected) {
-    return <section className="quote-panel order-detail" aria-labelledby="order-detail-heading" style={{ minWidth: 0, overflowWrap: "anywhere" }}>
+    return <section className="quote-panel" aria-labelledby="order-detail-heading" style={{ minWidth: 0, overflowWrap: "anywhere" }}>
       <button type="button" className="text-button" onClick={() => onSelectedPOChange?.(null)}>Back to Orders</button>
       <h3 id="order-detail-heading">Order {selected.po_number}</h3>
       <article className="review-item">
@@ -109,22 +108,19 @@ export function BuyerPurchaseOrders({ authMode, quotes: suppliedQuotes, selected
     </section>;
   }
 
-  const hasSelection = search.trim() !== "" || filter !== "all";
-  return <section className="quote-panel orders-workspace" aria-labelledby="orders-heading" aria-busy={loading}>
+  return <section className="quote-panel" aria-labelledby="orders-heading" aria-busy={loading}>
     <h3 id="orders-heading">Orders</h3>
-    <p>Purchase orders derived from accepted quotes. Commercial terms come from the accepted Quote.</p>
     {loading && <LoadingState message="Loading your orders..." />}
     <ErrorList errors={errors} />
     {errors.length > 0 && <button type="button" onClick={() => void load()}>Retry</button>}
-    {eligibleQuotes.length > 0 && <section aria-labelledby="accepted-quotes-heading"><h4 id="accepted-quotes-heading">Accepted Quotes ready for an Order</h4>{eligibleQuotes.map((quote) => <button type="button" key={quote.id} disabled={creatingQuoteId !== null} onClick={() => void createOrder(quote.id)}>{creatingQuoteId === quote.id ? "Creating Order..." : "Create Order"}</button>)}</section>}
-    {orders.length > 0 && <div className="orders-controls">
+    {eligibleQuotes.length > 0 && <section aria-labelledby="accepted-quotes-heading"><h4 id="accepted-quotes-heading">Accepted Quotes</h4>{eligibleQuotes.map((quote) => <button type="button" key={quote.id} disabled={creatingQuoteId !== null} onClick={() => void createOrder(quote.id)}>{creatingQuoteId === quote.id ? "Creating Order..." : "Create Order"}</button>)}</section>}
+    {orders.length > 0 && <div>
       <label>Search Orders<input value={search} onChange={(event) => setSearch(event.target.value)} /></label>
       <label>Status<select value={filter} onChange={(event) => setFilter(event.target.value as BuyerOrderFilter)}><option value="all">All statuses</option>{purchaseOrderStatuses.map((status) => <option key={status} value={status}>{purchaseOrderStatusLabels[status]}</option>)}</select></label>
       <label>Sort<select value={sort} onChange={(event) => setSort(event.target.value as BuyerOrderSort)}><option value="updated">Latest updated</option><option value="created">Newest created</option><option value="status">Status</option></select></label>
     </div>}
-    {!loading && errors.length === 0 && orders.length === 0 && <div className="empty-state"><h4>No Orders yet</h4><p>An Order appears after you accept a Quote and create its Purchase Order.</p><div className="actions"><button type="button" onClick={() => onWorkspaceChange?.("rfqs")}>View RFQs</button><a href="/marketplace">Browse Marketplace</a></div></div>}
-    {!loading && orders.length > 0 && visible.length === 0 && <div className="empty-state"><h4>No matching Orders</h4><p>Try a different search or lifecycle filter.</p><button type="button" onClick={() => { setSearch(""); setFilter("all"); }}>Clear Filters</button></div>}
-    <div className="review-list" aria-label="Buyer Orders">{visible.map((order) => <article className="review-item order-card" style={{ minWidth: 0, overflowWrap: "anywhere" }} key={order.id}><p className="eyebrow">{purchaseOrderStatusLabels[order.status]}</p><h4>{order.po_number}</h4><p>{purchaseOrderProductName(order)}</p><p>{purchaseOrderManufacturerName(order)}</p><p>{order.currency} {order.subtotal.toFixed(2)}</p><a href={`/marketplace?view=dashboard&workspace=orders&record=${order.id}`} onClick={(event) => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); onSelectedPOChange?.(order.id); }}>View Order {order.po_number}</a></article>)}</div>
-    {hasSelection && visible.length > 0 && <p>{visible.length} matching Orders</p>}
+    {!loading && errors.length === 0 && orders.length === 0 && <div className="empty-state"><h4>No Orders yet</h4><p>Orders appear after you accept a Quote.</p><div className="actions"><button type="button" onClick={() => onWorkspaceChange?.("rfqs")}>View RFQs</button><a href="/marketplace">Browse Marketplace</a></div></div>}
+    {!loading && orders.length > 0 && visible.length === 0 && <div className="empty-state"><h4>No matching Orders</h4><p>Try another search or status.</p><button type="button" onClick={() => { setSearch(""); setFilter("all"); }}>Clear Filters</button></div>}
+    <div className="review-list" aria-label="Buyer Orders">{visible.map((order) => <article className="review-item" style={{ minWidth: 0, overflowWrap: "anywhere" }} key={order.id}><p className="eyebrow">{purchaseOrderStatusLabels[order.status]}</p><h4>{order.po_number}</h4><p>{purchaseOrderProductName(order)}</p><p>{purchaseOrderManufacturerName(order)}</p><p>{order.currency} {order.subtotal.toFixed(2)}</p><a href={`/marketplace?view=dashboard&workspace=orders&record=${order.id}`} onClick={(event) => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); onSelectedPOChange?.(order.id); }}>View Order {order.po_number}</a></article>)}</div>
   </section>;
 }
