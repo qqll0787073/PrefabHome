@@ -97,6 +97,12 @@ export function selectBuyerOrders(
 }
 
 const purchaseOrderSelect = "*, items:purchase_order_items(*)";
+const buyerOrderSelect = [
+  "id", "po_number", "rfq_id", "quote_id", "status", "currency", "subtotal",
+  "incoterm", "destination_port", "manufacturer_snapshot", "product_snapshot",
+  "created_at", "updated_at",
+  "items:purchase_order_items(id,purchase_order_id,line_order,item_type,description,quantity,unit,unit_price,amount,created_at)",
+].join(",");
 
 function ensureSupabase() {
   if (!supabase) {
@@ -394,7 +400,13 @@ export async function cancelPurchaseOrderDraft(poId: string): Promise<PurchaseOr
 }
 
 export async function fetchBuyerPurchaseOrders(): Promise<PurchaseOrderWithItems[]> {
-  return fetchPurchaseOrders();
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("purchase_orders")
+    .select(buyerOrderSelect)
+    .order("created_at", { ascending: false });
+  if (error) throw toReadablePurchaseOrderError(error);
+  return ((data ?? []) as unknown as PurchaseOrderWithItems[]).map(normalizePurchaseOrder);
 }
 
 export async function fetchManufacturerPurchaseOrders(): Promise<PurchaseOrderWithItems[]> {
