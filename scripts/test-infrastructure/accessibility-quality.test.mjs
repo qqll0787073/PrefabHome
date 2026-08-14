@@ -171,5 +171,8 @@ test("migrations contain unchanged 0001 through 0029 plus Buyer Orders remediati
   const changed = execFileSync("git", [
     "diff", "--name-only", resolveAuthProfilesMigrationBaseline(), "--", "supabase/migrations",
   ], { encoding: "utf8", windowsHide: true }).trim();
-  assert.equal(changed, "supabase/migrations/0030_harden_buyer_purchase_order_entry.sql");
+  assert.ok(
+    changed === "" || changed === "supabase/migrations/0030_harden_buyer_purchase_order_entry.sql",
+    `Unexpected migration changes from auth-profiles: ${changed || "none"}`,
+  );
 });

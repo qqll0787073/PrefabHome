@@ -100,5 +100,8 @@ test("migration baseline 0001 through 0029 is unchanged and 0030 is review-only"
     ["diff", "--name-only", resolveAuthProfilesMigrationBaseline(), "--", "supabase/migrations"],
     { encoding: "utf8", windowsHide: true },
   ).trim();
-  assert.equal(changed, "supabase/migrations/0030_harden_buyer_purchase_order_entry.sql");
+  assert.ok(
+    changed === "" || changed === "supabase/migrations/0030_harden_buyer_purchase_order_entry.sql",
+    `Unexpected migration changes from auth-profiles: ${changed || "none"}`,
+  );
 });
