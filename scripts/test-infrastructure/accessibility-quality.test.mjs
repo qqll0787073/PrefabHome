@@ -163,13 +163,13 @@ test("quality gate is non-networking, non-deploying, and CI remains read-only", 
   assert.doesNotMatch(workflow, /\bsupabase\b|\bdeploy\b|git\s+tag|create[- ]release/i);
 });
 
-test("migrations contain unchanged 0001 through 0028 plus RFQ entry remediation 0029", () => {
+test("migrations contain unchanged 0001 through 0029 plus Buyer Orders remediation 0030", () => {
   const migrations = readdirSync("supabase/migrations").filter((file) => /^\d{4}_.+\.sql$/.test(file)).sort();
-  assert.equal(migrations.length, 29);
+  assert.equal(migrations.length, 30);
   assert.equal(migrations[0].slice(0, 4), "0001");
-  assert.equal(migrations.at(-1), "0029_require_active_buyer_for_rfq_drafts.sql");
+  assert.equal(migrations.at(-1), "0030_harden_buyer_purchase_order_entry.sql");
   const changed = execFileSync("git", [
     "diff", "--name-only", resolveAuthProfilesMigrationBaseline(), "--", "supabase/migrations",
   ], { encoding: "utf8", windowsHide: true }).trim();
-  assert.equal(changed, "supabase/migrations/0029_require_active_buyer_for_rfq_drafts.sql");
+  assert.equal(changed, "supabase/migrations/0030_harden_buyer_purchase_order_entry.sql");
 });

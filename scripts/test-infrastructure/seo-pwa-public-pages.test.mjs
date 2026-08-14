@@ -125,18 +125,18 @@ test("build-time public URL replacement is deterministic and non-networking", ()
   assert.doesNotMatch(vite, /\bfetch\s*\(|node:(?:http|https|net|tls)|\bdeploy\b/i);
 });
 
-test("CI stays read-only with unchanged baseline migrations and reviewed 0029", () => {
+test("CI stays read-only with unchanged baseline migrations and reviewed 0030", () => {
   const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
   assert.match(workflow, /^\s*- production-sprint-2d\s*$/m);
   assert.match(workflow, /permissions:\s*\n\s+contents: read/);
   const executableLines = workflow.split(/\r?\n/).filter((line) => /^\s*run:/.test(line)).join("\n");
   assert.doesNotMatch(executableLines, /\bdeploy\b|supabase\s+db|migration\s+(?:apply|repair)|git\s+tag|create[- ]release/i);
   const migrations = readdirSync("supabase/migrations").filter((file) => /^\d{4}_.+\.sql$/.test(file)).sort();
-  assert.equal(migrations.length, 29);
+  assert.equal(migrations.length, 30);
   assert.equal(migrations[0].slice(0, 4), "0001");
-  assert.equal(migrations.at(-1), "0029_require_active_buyer_for_rfq_drafts.sql");
+  assert.equal(migrations.at(-1), "0030_harden_buyer_purchase_order_entry.sql");
   const changed = execFileSync("git", [
     "diff", "--name-only", resolveAuthProfilesMigrationBaseline(), "--", "supabase/migrations",
   ], { encoding: "utf8", windowsHide: true }).trim();
-  assert.equal(changed, "supabase/migrations/0029_require_active_buyer_for_rfq_drafts.sql");
+  assert.equal(changed, "supabase/migrations/0030_harden_buyer_purchase_order_entry.sql");
 });

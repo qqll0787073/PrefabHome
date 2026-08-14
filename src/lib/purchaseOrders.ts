@@ -53,6 +53,49 @@ export const buyerReferenceMaxLength = 120;
 export const buyerNoteMaxLength = 2000;
 export const purchaseOrderDecisionReasonMaxLength = 4000;
 
+export type BuyerOrderFilter = "all" | PurchaseOrderStatus;
+export type BuyerOrderSort = "updated" | "created" | "status";
+
+function safeTime(value: string): number {
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? time : 0;
+}
+
+export function purchaseOrderManufacturerName(po: Pick<PurchaseOrderRecord, "manufacturer_snapshot">): string {
+  const snapshot = po.manufacturer_snapshot;
+  return typeof snapshot.company_display_name === "string" && snapshot.company_display_name.trim()
+    ? snapshot.company_display_name.trim()
+    : typeof snapshot.company_name === "string" && snapshot.company_name.trim()
+      ? snapshot.company_name.trim()
+      : "Manufacturer";
+}
+
+export function purchaseOrderProductName(po: Pick<PurchaseOrderRecord, "product_snapshot">): string {
+  return po.product_snapshot.model_name || po.product_snapshot.name || "Product";
+}
+
+export function selectBuyerOrders(
+  orders: PurchaseOrderWithItems[],
+  search: string,
+  filter: BuyerOrderFilter,
+  sort: BuyerOrderSort,
+): PurchaseOrderWithItems[] {
+  const query = search.trim().toLocaleLowerCase();
+  const selected = orders.filter((po) => {
+    if (filter !== "all" && po.status !== filter) return false;
+    if (!query) return true;
+    return [po.po_number, po.buyer_reference, purchaseOrderProductName(po), purchaseOrderManufacturerName(po)]
+      .some((value) => value?.toLocaleLowerCase().includes(query));
+  });
+  return selected.map((po, index) => ({ po, index })).sort((left, right) => {
+    let result = 0;
+    if (sort === "created") result = safeTime(right.po.created_at) - safeTime(left.po.created_at);
+    else if (sort === "status") result = left.po.status.localeCompare(right.po.status);
+    else result = safeTime(right.po.updated_at) - safeTime(left.po.updated_at);
+    return result || left.index - right.index;
+  }).map(({ po }) => po);
+}
+
 const purchaseOrderSelect = "*, items:purchase_order_items(*)";
 
 function ensureSupabase() {
