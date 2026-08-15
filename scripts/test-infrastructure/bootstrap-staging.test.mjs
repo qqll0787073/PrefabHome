@@ -18,14 +18,14 @@ const validEnv = {
   PREFAB_STAGING_DATABASE_PASSWORD: "password-value-not-printed",
 };
 
-test("local migrations are exactly 0001 through 0030", () => {
+test("local migrations are exactly 0001 through 0031", () => {
   const versions = listMigrationVersions();
   assert.equal(versions[0], "0001");
-  assert.equal(versions.at(-1), "0030");
+  assert.equal(versions.at(-1), "0031");
   assertExpectedMigrations(versions);
 });
 
-test("migration assertion rejects missing versions or 0030", () => {
+test("migration assertion rejects missing versions or 0031", () => {
   assert.throws(() => assertExpectedMigrations(["0001", "0029"]), /Expected migrations/);
 });
 
@@ -50,5 +50,5 @@ test("dry-run bootstrap plan does not execute remote writes", () => {
   assert.equal(plan.remoteWritesExecuted, 0);
   assert.equal(plan.migrationApplicationEnabled, false);
   assert.equal(plan.applyBlockedByTaskScope, true);
-  assert.equal(plan.pendingIfEmpty.length, 30);
+  assert.equal(plan.pendingIfEmpty.length, 31);
 });

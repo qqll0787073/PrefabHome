@@ -41,7 +41,7 @@ test("CI contains no deployment, release, Supabase, or database-write commands",
   assert.doesNotMatch(workflow, /eoyrfrjbjglfudfuwxdf|bvzbkjpbnczquecwqvlm/);
 });
 
-test("beta migrations are unchanged and 0025-0030 are the reviewed migrations", () => {
+test("beta migrations are unchanged and 0025-0031 are the reviewed migrations", () => {
   const changed = execFileSync(
     "git",
     ["diff", "--name-only", "beta-v1.0.0", "--", "supabase/migrations"],
@@ -54,6 +54,7 @@ test("beta migrations are unchanged and 0025-0030 are the reviewed migrations", 
     "supabase/migrations/0028_restrict_buyer_manufacturer_directory_grants.sql",
     "supabase/migrations/0029_require_active_buyer_for_rfq_drafts.sql",
     "supabase/migrations/0030_harden_buyer_purchase_order_entry.sql",
+    "supabase/migrations/0031_secure_manufacturer_account_foundation.sql",
   ].join("\n");
   assert.equal(changed, expectedWith0029);
 });

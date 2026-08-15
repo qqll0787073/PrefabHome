@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import type {
   ManufacturerApplication,
+  ManufacturerAccount,
   ManufacturerApplicationFormValues,
   ManufacturerApplicationStatus,
 } from "../types";
@@ -36,10 +37,7 @@ export const manufacturerEditableStatuses: ManufacturerApplicationStatus[] = [
   "rejected",
 ];
 
-export const manufacturerSubmittableStatuses: ManufacturerApplicationStatus[] = [
-  "draft",
-  "rejected",
-];
+export const manufacturerSubmittableStatuses = manufacturerEditableStatuses;
 
 export function isManufacturerApplicationStatus(
   value: unknown
@@ -212,22 +210,55 @@ function toReadableManufacturerError(error: { code?: string; message?: string })
     return new Error("A manufacturer application already exists for this account.");
   }
 
-  return new Error(error.message ?? "Unable to save manufacturer application.");
+  if (error.message?.includes("not editable")) return new Error("This application is not editable in its current status.");
+  if (error.message?.includes("Active Manufacturer")) return new Error("An active Manufacturer account is required.");
+  return new Error("Unable to save manufacturer application. Please try again.");
 }
 
-export async function fetchOwnManufacturerApplication(
-  ownerId: string
-): Promise<ManufacturerApplication | null> {
-  if (!supabase) return null;
-
-  const { data, error } = await supabase
-    .from("manufacturers")
-    .select("*")
-    .eq("owner_id", ownerId)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data as ManufacturerApplication | null;
+export async function fetchOwnManufacturerAccount(): Promise<ManufacturerAccount> {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data: identityData, error: identityError } = await supabase.auth.getUser();
+  if (identityError || !identityData.user) throw new Error("Manufacturer sign-in required.");
+  const { data, error } = await supabase.rpc("get_my_manufacturer_account");
+  if (error) throw new Error("Unable to load Manufacturer account. Please try again.");
+  const row = data?.[0];
+  if (!row || row.profile_id !== identityData.user.id || row.profile_role !== "manufacturer") {
+    throw new Error("Manufacturer account access is unavailable.");
+  }
+  const manufacturer: ManufacturerApplication | null = row.id ? {
+    id: row.id,
+    owner_id: row.profile_id,
+    company_name: row.company_name ?? "Untitled manufacturer application",
+    company_legal_name: row.company_legal_name,
+    company_display_name: row.company_display_name,
+    contact_person: row.contact_person,
+    contact_title: row.contact_title,
+    email: row.email,
+    phone: row.phone,
+    website: row.website,
+    country: row.country ?? "Unspecified",
+    province: row.province,
+    city: row.city,
+    street_address: row.street_address,
+    postal_code: row.postal_code,
+    year_established: row.year_established,
+    export_experience: row.export_experience,
+    product_categories: row.product_categories ?? [],
+    certifications: row.certifications ?? [],
+    company_description: row.company_description,
+    application_status: isManufacturerApplicationStatus(row.application_status) ? row.application_status : "draft",
+    review_notes: null,
+    reviewed_by: null,
+    reviewed_at: null,
+    submitted_at: row.submitted_at,
+    created_at: row.created_at ?? row.profile_created_at,
+    updated_at: row.updated_at ?? row.profile_created_at,
+  } : null;
+  return {
+    profile_id: row.profile_id,
+    profile_status: row.profile_status,
+    manufacturer,
+  };
 }
 
 export async function fetchManufacturerApplications(): Promise<ManufacturerApplication[]> {
@@ -242,65 +273,33 @@ export async function fetchManufacturerApplications(): Promise<ManufacturerAppli
   return (data ?? []) as ManufacturerApplication[];
 }
 
-export async function createManufacturerApplication(
-  ownerId: string,
-  values: ManufacturerApplicationFormValues,
-  status: Extract<ManufacturerApplicationStatus, "draft" | "submitted">
-): Promise<ManufacturerApplication> {
-  if (!supabase) {
-    throw new Error("Supabase is not configured.");
-  }
-
-  const payload = toManufacturerInsertPayload(ownerId, values, status);
-  const { data, error } = await supabase
-    .from("manufacturers")
-    .insert(payload)
-    .select("*")
-    .single();
-
+export async function saveManufacturerApplication(values: ManufacturerApplicationFormValues, submit: boolean): Promise<ManufacturerApplication> {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const yearText = values.yearEstablished.trim();
+  const { error } = await supabase.rpc("save_my_manufacturer_application", {
+    company_legal_name_text: values.companyLegalName,
+    company_display_name_text: values.companyDisplayName,
+    contact_person_text: values.contactPerson,
+    contact_title_text: values.contactTitle,
+    contact_email_text: values.email,
+    contact_phone_text: values.phone,
+    website_text: values.website,
+    country_text: values.country,
+    region_text: values.province,
+    city_text: values.city,
+    street_address_text: values.streetAddress,
+    postal_code_text: values.postalCode,
+    year_established_value: yearText ? Number(yearText) : null,
+    export_experience_text: values.exportExperience,
+    product_categories_value: listFromText(values.productCategories),
+    certifications_value: listFromText(values.certifications),
+    company_description_text: values.companyDescription,
+    submit_application: submit,
+  });
   if (error) throw toReadableManufacturerError(error);
-  return data as ManufacturerApplication;
-}
-
-export async function updateManufacturerApplication(
-  applicationId: string,
-  values: ManufacturerApplicationFormValues
-): Promise<ManufacturerApplication> {
-  if (!supabase) {
-    throw new Error("Supabase is not configured.");
-  }
-
-  const { data, error } = await supabase
-    .from("manufacturers")
-    .update(toManufacturerUpdatePayload(values))
-    .eq("id", applicationId)
-    .select("*")
-    .single();
-
-  if (error) throw toReadableManufacturerError(error);
-  return data as ManufacturerApplication;
-}
-
-export async function submitManufacturerApplication(
-  applicationId: string,
-  values: ManufacturerApplicationFormValues
-): Promise<ManufacturerApplication> {
-  if (!supabase) {
-    throw new Error("Supabase is not configured.");
-  }
-
-  const { data, error } = await supabase
-    .from("manufacturers")
-    .update({
-      ...toManufacturerUpdatePayload(values),
-      application_status: "submitted",
-    })
-    .eq("id", applicationId)
-    .select("*")
-    .single();
-
-  if (error) throw toReadableManufacturerError(error);
-  return data as ManufacturerApplication;
+  const refreshed = await fetchOwnManufacturerAccount();
+  if (!refreshed.manufacturer) throw new Error("Unable to reload Manufacturer application.");
+  return refreshed.manufacturer;
 }
 
 export async function reviewManufacturerApplication(

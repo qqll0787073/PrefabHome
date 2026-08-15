@@ -19,7 +19,7 @@ export const REQUIRED_BETA_FILES = [
 ];
 
 export const EXPECTED_MIGRATIONS = Array.from(
-  { length: 30 },
+  { length: 31 },
   (_, index) => String(index + 1).padStart(4, "0")
 );
 

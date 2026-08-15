@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
-import { fetchOwnManufacturerApplication } from "../../lib/manufacturers";
+import { fetchOwnManufacturerAccount } from "../../lib/manufacturers";
 import {
   createProductDraft,
   emptyProductForm,
@@ -47,11 +47,12 @@ export function ManufacturerProductList({ user, authMode }: ManufacturerProductL
         return;
       }
 
-      const [ownManufacturer, ownProducts] = await Promise.all([
-        fetchOwnManufacturerApplication(user.id),
+      const [account, ownProducts] = await Promise.all([
+        fetchOwnManufacturerAccount(),
         fetchOwnProducts(user.id),
       ]);
-      setManufacturer(ownManufacturer);
+      if (account.profile_id !== user.id) throw new Error("Manufacturer identity changed. Please try again.");
+      setManufacturer(account.manufacturer);
       setProducts(ownProducts);
     } catch (error) {
       setErrors([error instanceof Error ? error.message : "Unable to load products."]);
