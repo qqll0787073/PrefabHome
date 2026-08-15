@@ -5,6 +5,7 @@ import {
   getAllowedAdminProductTransitions,
   manufacturerEditableProductStatuses,
   manufacturerSubmittableProductStatuses,
+  selectManufacturerProducts,
   toProductPayload,
   toReadableProductError,
   validateProductDraft,
@@ -56,6 +57,30 @@ describe("product database helpers", () => {
     assert.ok(errors.includes("Model name is required."));
     assert.ok(errors.includes("Category is required."));
     assert.ok(errors.includes("Description is required."));
+  });
+
+  it("validates slugs, integral counts, field limits, and list limits", () => {
+    const errors = validateProductDraft({
+      ...emptyProductForm(),
+      slug: "Unsafe Slug",
+      bedrooms: "1.5",
+      modelName: "x".repeat(201),
+      tags: Array.from({ length: 51 }, (_, index) => `tag-${index}`).join(","),
+    });
+    assert.ok(errors.includes("Slug must contain lowercase letters, numbers, and single hyphens only."));
+    assert.ok(errors.includes("Bedrooms must be a non-negative number."));
+    assert.ok(errors.includes("Model name must be 200 characters or fewer."));
+    assert.ok(errors.includes("Tags must contain 50 items or fewer."));
+  });
+
+  it("searches, filters, and sorts the Manufacturer collection without new requests", () => {
+    const products = [
+      { id: "2", name: "Beta", model_name: "Beta", sku: "B-2", category: "Cabin", status: "published", updated_at: "2026-01-02", created_at: "2026-01-01" },
+      { id: "1", name: "Alpha", model_name: "Alpha", sku: "A-1", category: "ADU", status: "draft", updated_at: "2026-01-03", created_at: "2026-01-02" },
+    ] as never[];
+    assert.deepEqual(selectManufacturerProducts(products, "a-1", "all", "updated").map((item) => item.id), ["1"]);
+    assert.deepEqual(selectManufacturerProducts(products, "", "published", "updated").map((item) => item.id), ["2"]);
+    assert.deepEqual(selectManufacturerProducts(products, "", "all", "name").map((item) => item.id), ["1", "2"]);
   });
 
   it("keeps manufacturer editable and submittable statuses narrow", () => {

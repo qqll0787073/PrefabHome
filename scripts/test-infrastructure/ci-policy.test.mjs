@@ -41,10 +41,10 @@ test("CI contains no deployment, release, Supabase, or database-write commands",
   assert.doesNotMatch(workflow, /eoyrfrjbjglfudfuwxdf|bvzbkjpbnczquecwqvlm/);
 });
 
-test("beta migrations are unchanged and 0025-0031 are the reviewed migrations", () => {
+test("beta migrations are unchanged through 0031 and reviewed local inventory includes 0032", () => {
   const changed = execFileSync(
     "git",
-    ["diff", "--name-only", "beta-v1.0.0", "--", "supabase/migrations"],
+    ["diff", "--name-only", "beta-v1.0.0", "--", "supabase/migrations", ":(exclude)supabase/migrations/0032_secure_manufacturer_product_management.sql"],
     { encoding: "utf8", windowsHide: true }
   ).trim();
   const expectedWith0029 = [
@@ -57,4 +57,8 @@ test("beta migrations are unchanged and 0025-0031 are the reviewed migrations", 
     "supabase/migrations/0031_secure_manufacturer_account_foundation.sql",
   ].join("\n");
   assert.equal(changed, expectedWith0029);
+  assert.equal(
+    readFileSync("supabase/migrations/0032_secure_manufacturer_product_management.sql", "utf8").includes("save_my_manufacturer_product"),
+    true,
+  );
 });

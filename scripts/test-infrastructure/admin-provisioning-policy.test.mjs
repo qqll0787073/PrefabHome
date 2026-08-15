@@ -8,9 +8,9 @@ test("Admin provisioning is operator-only and not imported by frontend code", ()
   for (const file of sourceFiles) assert.doesNotMatch(readFileSync(file, "utf8"), /admin-provisioning|admin:provision/);
 });
 
-test("Admin provisioning remains isolated with migrations 0001 through 0031", () => {
+test("Admin provisioning remains isolated with migrations 0001 through 0032", () => {
   const versions = readdirSync("supabase/migrations").filter((name) => /^\d{4}_.+\.sql$/.test(name)).map((name) => name.slice(0, 4)).sort();
-  assert.deepEqual(versions, Array.from({ length: 31 }, (_, index) => String(index + 1).padStart(4, "0")));
+  assert.deepEqual(versions, Array.from({ length: 32 }, (_, index) => String(index + 1).padStart(4, "0")));
 });
 
 test("CLI requires explicit mode and exposes no password argument", () => {

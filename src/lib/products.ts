@@ -1,6 +1,5 @@
 import { supabase } from "./supabase";
 import type {
-  ManufacturerApplication,
   ProductFormValues,
   ProductLifecycleStatus,
   ProductRecord,
@@ -24,6 +23,29 @@ export const manufacturerSubmittableProductStatuses: ProductLifecycleStatus[] = 
   "draft",
   "rejected",
 ];
+
+export type ManufacturerProductSort = "updated" | "name" | "created";
+
+export function selectManufacturerProducts(
+  products: ProductRecord[],
+  search: string,
+  status: ProductLifecycleStatus | "all",
+  sort: ManufacturerProductSort,
+): ProductRecord[] {
+  const term = search.trim().toLocaleLowerCase();
+  return products.filter((product) => {
+    const matchesStatus = status === "all" || product.status === status;
+    const haystack = [product.name, product.model_name, product.sku, product.category]
+      .filter(Boolean).join(" ").toLocaleLowerCase();
+    return matchesStatus && (!term || haystack.includes(term));
+  }).sort((left, right) => {
+    if (sort === "name") return (left.model_name || left.name).localeCompare(right.model_name || right.name) || left.id.localeCompare(right.id);
+    const field = sort === "created" ? "created_at" : "updated_at";
+    const leftDate = Date.parse(left[field]);
+    const rightDate = Date.parse(right[field]);
+    return (Number.isFinite(rightDate) ? rightDate : 0) - (Number.isFinite(leftDate) ? leftDate : 0) || left.id.localeCompare(right.id);
+  });
+}
 
 export const productStatusLabels: Record<ProductLifecycleStatus, string> = {
   draft: "Draft",
@@ -176,7 +198,7 @@ function validateProductForm(
   const nonNegativeFields: Array<[string, string, number | null]> = [
     ["FOB price", values.fobPrice, optionalNumber(values.fobPrice)],
     ["Floor area", values.floorAreaSqFt, optionalNumber(values.floorAreaSqFt)],
-    ["Bedrooms", values.bedrooms, optionalNumber(values.bedrooms)],
+    ["Bedrooms", values.bedrooms, optionalInteger(values.bedrooms)],
     ["Bathrooms", values.bathrooms, optionalNumber(values.bathrooms)],
     ["Stories", values.stories, optionalInteger(values.stories)],
     ["Length", values.lengthFt, optionalNumber(values.lengthFt)],
@@ -197,8 +219,31 @@ function validateProductForm(
     errors.push("Minimum order quantity must be at least 1.");
   }
 
-  if (values.currency.trim() && values.currency.trim().length !== 3) {
+  if (values.currency.trim() && !/^[A-Za-z]{3}$/.test(values.currency.trim())) {
     errors.push("Currency must be a 3-letter code.");
+  }
+
+  if (values.slug.trim() && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(values.slug.trim())) {
+    errors.push("Slug must contain lowercase letters, numbers, and single hyphens only.");
+  }
+
+  const textLimits: Array<[string, string, number]> = [
+    ["Model name", values.modelName, 200],
+    ["Category", values.category, 120],
+    ["Short description", values.shortDescription, 500],
+    ["Description", values.description, 5000],
+    ["Private notes", values.notes, 5000],
+  ];
+  for (const [label, value, limit] of textLimits) {
+    if (value.length > limit) errors.push(`${label} must be ${limit} characters or fewer.`);
+  }
+
+  const listLimits: Array<[string, string]> = [
+    ["Tags", values.tags], ["Intended uses", values.intendedUses],
+    ["Certifications", values.certifications], ["Target markets", values.targetMarkets],
+  ];
+  for (const [label, value] of listLimits) {
+    if (listFromText(value).length > 50) errors.push(`${label} must contain 50 items or fewer.`);
   }
 
   return errors;
@@ -278,7 +323,11 @@ export function toReadableProductError(error: { code?: string; message?: string 
     return new Error("You are not authorized to access this product.");
   }
 
-  return new Error(error.message ?? "Unable to save product.");
+  if (message.includes("field limit") || message.includes("invalid product")) {
+    return new Error("One or more Product fields are invalid.");
+  }
+  if (message.includes("product unavailable")) return new Error("Product unavailable.");
+  return new Error("Unable to save Product. Please try again.");
 }
 
 function ensureSupabase() {
@@ -301,24 +350,16 @@ export async function fetchPublishedProducts(): Promise<PublicProductRecord[]> {
 
 export async function fetchOwnProducts(ownerId: string): Promise<ProductRecord[]> {
   const client = ensureSupabase();
-  const { data: manufacturers, error: manufacturerError } = await client
-    .from("manufacturers")
-    .select("*")
-    .eq("owner_id", ownerId);
-
-  if (manufacturerError) throw toReadableProductError(manufacturerError);
-
-  const manufacturerIds = ((manufacturers ?? []) as ManufacturerApplication[]).map((item) => item.id);
-  if (manufacturerIds.length === 0) return [];
-
-  const { data, error } = await client
-    .from("products")
-    .select("*")
-    .in("manufacturer_id", manufacturerIds)
-    .order("updated_at", { ascending: false });
-
+  const { data: identity, error: identityError } = await client.auth.getUser();
+  if (identityError || !identity.user || identity.user.id !== ownerId) throw new Error("Manufacturer sign-in required.");
+  const { data, error } = await client.rpc("get_my_manufacturer_products");
   if (error) throw toReadableProductError(error);
-  return (data ?? []) as ProductRecord[];
+  return (data ?? []).map((row: any) => ({
+    ...row,
+    review_notes: null,
+    reviewed_by: null,
+    reviewed_at: null,
+  })) as ProductRecord[];
 }
 
 export async function fetchAllProductsForAdmin(): Promise<ProductRecord[]> {
@@ -345,58 +386,72 @@ export async function fetchProductById(productId: string): Promise<ProductRecord
 }
 
 export async function createProductDraft(
-  manufacturerId: string,
+  _manufacturerId: string,
   values: ProductFormValues,
   status: Extract<ProductLifecycleStatus, "draft" | "submitted"> = "draft"
 ): Promise<ProductRecord> {
-  const client = ensureSupabase();
-  const { data, error } = await client
-    .from("products")
-    .insert({
-      ...toProductPayload(values),
-      manufacturer_id: manufacturerId,
-      status,
-    })
-    .select("*")
-    .single();
-
-  if (error) throw toReadableProductError(error);
-  return data as ProductRecord;
+  return saveManufacturerProduct(null, values, status === "submitted");
 }
 
 export async function updateProductDraft(
   productId: string,
   values: ProductFormValues
 ): Promise<ProductRecord> {
-  const client = ensureSupabase();
-  const { data, error } = await client
-    .from("products")
-    .update(toProductPayload(values))
-    .eq("id", productId)
-    .select("*")
-    .single();
-
-  if (error) throw toReadableProductError(error);
-  return data as ProductRecord;
+  return saveManufacturerProduct(productId, values, false);
 }
 
 export async function submitProduct(
   productId: string,
   values: ProductFormValues
 ): Promise<ProductRecord> {
-  const client = ensureSupabase();
-  const { data, error } = await client
-    .from("products")
-    .update({
-      ...toProductPayload(values),
-      status: "submitted",
-    })
-    .eq("id", productId)
-    .select("*")
-    .single();
+  return saveManufacturerProduct(productId, values, true);
+}
 
+async function saveManufacturerProduct(productId: string | null, values: ProductFormValues, submit: boolean): Promise<ProductRecord> {
+  const client = ensureSupabase();
+  const payload = toProductPayload(values);
+  const { data, error } = await client.rpc("save_my_manufacturer_product", {
+    product_uuid: productId,
+    sku_text: values.sku,
+    model_name_text: values.modelName,
+    slug_text: values.slug,
+    category_text: values.category,
+    short_description_text: values.shortDescription,
+    description_text: values.description,
+    tags_value: payload.tags,
+    intended_uses_value: payload.intended_uses,
+    floor_area_value: payload.floor_area_sq_ft,
+    bedrooms_value: payload.bedrooms,
+    bathrooms_value: payload.bathrooms,
+    stories_value: payload.stories,
+    length_value: payload.length_ft,
+    width_value: payload.width_ft,
+    height_value: payload.height_ft,
+    structure_material_text: values.structureMaterial,
+    exterior_finish_text: values.exteriorFinish,
+    roof_type_text: values.roofType,
+    insulation_text: values.insulation,
+    electrical_standard_text: values.electricalStandard,
+    plumbing_standard_text: values.plumbingStandard,
+    wind_rating_text: values.windRating,
+    snow_load_value: payload.snow_load_psf,
+    currency_text: values.currency,
+    fob_price_value: payload.fob_price,
+    price_unit_text: values.priceUnit,
+    minimum_order_quantity_value: payload.minimum_order_quantity,
+    production_lead_time_value: payload.production_lead_time_weeks,
+    port_of_loading_text: values.portOfLoading,
+    hs_code_text: values.hsCode,
+    certifications_value: payload.certifications,
+    target_markets_value: payload.target_markets,
+    notes_text: values.notes,
+    submit_product: submit,
+  });
   if (error) throw toReadableProductError(error);
-  return data as ProductRecord;
+  const products = await fetchOwnProducts((await client.auth.getUser()).data.user?.id ?? "");
+  const saved = products.find((product) => product.id === data);
+  if (!saved) throw new Error("Unable to reload Product.");
+  return saved;
 }
 
 export async function adminReviewProduct(
