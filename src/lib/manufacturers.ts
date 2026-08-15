@@ -37,10 +37,7 @@ export const manufacturerEditableStatuses: ManufacturerApplicationStatus[] = [
   "rejected",
 ];
 
-export const manufacturerSubmittableStatuses: ManufacturerApplicationStatus[] = [
-  "draft",
-  "rejected",
-];
+export const manufacturerSubmittableStatuses = manufacturerEditableStatuses;
 
 export function isManufacturerApplicationStatus(
   value: unknown
@@ -264,14 +261,6 @@ export async function fetchOwnManufacturerAccount(): Promise<ManufacturerAccount
   };
 }
 
-export async function fetchOwnManufacturerApplication(
-  ownerId: string
-): Promise<ManufacturerApplication | null> {
-  const account = await fetchOwnManufacturerAccount();
-  if (account.profile_id !== ownerId) throw new Error("Manufacturer identity changed. Please try again.");
-  return account.manufacturer;
-}
-
 export async function fetchManufacturerApplications(): Promise<ManufacturerApplication[]> {
   if (!supabase) return [];
 
@@ -284,29 +273,7 @@ export async function fetchManufacturerApplications(): Promise<ManufacturerAppli
   return (data ?? []) as ManufacturerApplication[];
 }
 
-export async function createManufacturerApplication(
-  _ownerId: string,
-  values: ManufacturerApplicationFormValues,
-  status: Extract<ManufacturerApplicationStatus, "draft" | "submitted">
-): Promise<ManufacturerApplication> {
-  return saveManufacturerApplication(values, status === "submitted");
-}
-
-export async function updateManufacturerApplication(
-  _applicationId: string,
-  values: ManufacturerApplicationFormValues
-): Promise<ManufacturerApplication> {
-  return saveManufacturerApplication(values, false);
-}
-
-export async function submitManufacturerApplication(
-  _applicationId: string,
-  values: ManufacturerApplicationFormValues
-): Promise<ManufacturerApplication> {
-  return saveManufacturerApplication(values, true);
-}
-
-async function saveManufacturerApplication(values: ManufacturerApplicationFormValues, submit: boolean): Promise<ManufacturerApplication> {
+export async function saveManufacturerApplication(values: ManufacturerApplicationFormValues, submit: boolean): Promise<ManufacturerApplication> {
   if (!supabase) throw new Error("Supabase is not configured.");
   const yearText = values.yearEstablished.trim();
   const { error } = await supabase.rpc("save_my_manufacturer_application", {

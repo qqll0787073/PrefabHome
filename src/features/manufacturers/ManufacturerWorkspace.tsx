@@ -3,19 +3,15 @@ export { BuyerManufacturersWorkspace } from "./BuyerManufacturersWorkspace";
 import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
 import {
-  createManufacturerApplication,
   emptyManufacturerApplicationForm,
   fetchOwnManufacturerAccount,
   formFromApplication,
   manufacturerEditableStatuses,
-  manufacturerSubmittableStatuses,
-  submitManufacturerApplication,
-  updateManufacturerApplication,
+  saveManufacturerApplication,
   validateManufacturerApplication,
 } from "../../lib/manufacturers";
 import type { AuthUser } from "../../lib/auth";
 import type {
-  ManufacturerAccount,
   ManufacturerApplication,
   ManufacturerApplicationFormValues,
 } from "../../types";
@@ -29,7 +25,7 @@ interface ManufacturerWorkspaceProps {
 
 export function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceProps) {
   const [application, setApplication] = useState<ManufacturerApplication | null>(null);
-  const [account, setAccount] = useState<ManufacturerAccount | null>(null);
+  const [isActiveAccount, setIsActiveAccount] = useState(authMode === "demo");
   const [values, setValues] = useState<ManufacturerApplicationFormValues>(() =>
     emptyManufacturerApplicationForm(user.email)
   );
@@ -50,7 +46,7 @@ export function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceP
         if (!isMounted) return;
         if (ownAccount.profile_id !== user.id) throw new Error("Manufacturer identity changed. Please try again.");
         const existingApplication = ownAccount.manufacturer;
-        setAccount(ownAccount);
+        setIsActiveAccount(ownAccount.profile_status === "active");
         setApplication(existingApplication);
         setValues(
           existingApplication
@@ -67,7 +63,7 @@ export function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceP
     }
 
     if (authMode === "demo") {
-      setAccount(null);
+      setIsActiveAccount(true);
       setValues(emptyManufacturerApplicationForm(user.email));
       setIsLoading(false);
       return;
@@ -84,9 +80,8 @@ export function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceP
     setValues((current) => ({ ...current, [field]: value }));
   }
 
-  const isActiveAccount = authMode === "demo" || account?.profile_status === "active";
   const isEditable = isActiveAccount && (!application || manufacturerEditableStatuses.includes(application.application_status));
-  const canSubmit = isActiveAccount && (!application || manufacturerSubmittableStatuses.includes(application.application_status));
+  const canSubmit = isEditable;
 
   async function saveApplication(action: "draft" | "submit") {
     const isSubmit = action === "submit";
@@ -153,11 +148,7 @@ export function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceP
         return;
       }
 
-      const savedApplication = application
-        ? isSubmit
-          ? await submitManufacturerApplication(application.id, values)
-          : await updateManufacturerApplication(application.id, values)
-        : await createManufacturerApplication(user.id, values, isSubmit ? "submitted" : "draft");
+      const savedApplication = await saveManufacturerApplication(values, isSubmit);
 
       setApplication(savedApplication);
       setMessage(
