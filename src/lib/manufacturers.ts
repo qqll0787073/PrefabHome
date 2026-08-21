@@ -6,6 +6,20 @@ import type {
   ManufacturerApplicationStatus,
 } from "../types";
 
+export interface ManufacturerCompanyProfileValues {
+  companyDisplayName: string;
+  companyDescription: string;
+  website: string;
+  city: string;
+  province: string;
+  contactPerson: string;
+  contactTitle: string;
+  email: string;
+  phone: string;
+  streetAddress: string;
+  postalCode: string;
+}
+
 export const manufacturerApplicationStatuses: ManufacturerApplicationStatus[] = [
   "draft",
   "submitted",
@@ -94,6 +108,49 @@ export function formFromApplication(
     certifications: application.certifications.join(", "),
     companyDescription: application.company_description ?? "",
   };
+}
+
+export function companyProfileFromApplication(application: ManufacturerApplication): ManufacturerCompanyProfileValues {
+  return {
+    companyDisplayName: application.company_display_name ?? application.company_name,
+    companyDescription: application.company_description ?? "",
+    website: application.website ?? "",
+    city: application.city ?? "",
+    province: application.province ?? "",
+    contactPerson: application.contact_person ?? "",
+    contactTitle: application.contact_title ?? "",
+    email: application.email ?? "",
+    phone: application.phone ?? "",
+    streetAddress: application.street_address ?? "",
+    postalCode: application.postal_code ?? "",
+  };
+}
+
+export function validateManufacturerCompanyProfile(values: ManufacturerCompanyProfileValues): string[] {
+  const errors: string[] = [];
+  const required: Array<[string, string, number]> = [
+    [values.companyDisplayName, "Company display name", 120],
+    [values.companyDescription, "Company description", 2000],
+    [values.city, "City", 120],
+    [values.contactPerson, "Contact person", 120],
+  ];
+  for (const [value, label, maximum] of required) {
+    if (!value.trim()) errors.push(`${label} is required.`);
+    else if (value.trim().length > maximum) errors.push(`${label} must be ${maximum} characters or fewer.`);
+  }
+  if (!values.email.trim() || values.email.trim().length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim())) errors.push("Enter a valid contact email.");
+  if (values.website.trim()) {
+    try {
+      const url = new URL(values.website.trim());
+      if (!["http:", "https:"].includes(url.protocol) || values.website.trim().length > 500) throw new Error();
+    } catch { errors.push("Website must be a valid HTTP or HTTPS URL."); }
+  }
+  const optionalLimits: Array<[string, string, number]> = [
+    [values.province, "Province or state", 120], [values.contactTitle, "Contact title", 120],
+    [values.phone, "Phone", 40], [values.streetAddress, "Street address", 300], [values.postalCode, "Postal code", 32],
+  ];
+  for (const [value, label, maximum] of optionalLimits) if (value.trim().length > maximum) errors.push(`${label} must be ${maximum} characters or fewer.`);
+  return errors;
 }
 
 function optionalText(value: string): string | null {
@@ -299,6 +356,30 @@ export async function saveManufacturerApplication(values: ManufacturerApplicatio
   if (error) throw toReadableManufacturerError(error);
   const refreshed = await fetchOwnManufacturerAccount();
   if (!refreshed.manufacturer) throw new Error("Unable to reload Manufacturer application.");
+  return refreshed.manufacturer;
+}
+
+export async function updateManufacturerCompanyProfile(values: ManufacturerCompanyProfileValues): Promise<ManufacturerApplication> {
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { error } = await supabase.rpc("update_my_manufacturer_company_profile", {
+    company_display_name_text: values.companyDisplayName,
+    company_description_text: values.companyDescription,
+    website_text: values.website,
+    city_text: values.city,
+    region_text: values.province,
+    contact_person_text: values.contactPerson,
+    contact_title_text: values.contactTitle,
+    contact_email_text: values.email,
+    contact_phone_text: values.phone,
+    street_address_text: values.streetAddress,
+    postal_code_text: values.postalCode,
+  });
+  if (error) {
+    if (error.message?.includes("Approved Manufacturer") || error.message?.includes("Active Manufacturer")) throw new Error("Company profile editing is unavailable for this account.");
+    throw new Error("Unable to save company profile. Please try again.");
+  }
+  const refreshed = await fetchOwnManufacturerAccount();
+  if (!refreshed.manufacturer || refreshed.manufacturer.application_status !== "approved") throw new Error("Unable to reload company profile.");
   return refreshed.manufacturer;
 }
 

@@ -47,7 +47,7 @@ export const portalWorkspaces: Record<Role, PortalWorkspaceDefinition[]> = {
   ],
   manufacturer: [
     { id: "overview", label: "Dashboard", description: "Manufacturer activity and next steps." },
-    { id: "company", label: "Company", description: "Manufacturer application and approval status." },
+    { id: "company", label: "Company Profile", description: "Company information, private account contacts, and approval status." },
     { id: "products", label: "Products", description: "Product drafts, submissions, and media." },
     ...sharedTransactionWorkspaces,
   ],

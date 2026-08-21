@@ -163,13 +163,13 @@ test("quality gate is non-networking, non-deploying, and CI remains read-only", 
   assert.doesNotMatch(workflow, /\bsupabase\b|\bdeploy\b|git\s+tag|create[- ]release/i);
 });
 
-test("migrations contain unchanged 0001 through 0031 plus Manufacturer Products 0032", () => {
+test("migrations contain 0001 through Manufacturer Company Profile 0033", () => {
   const migrations = readdirSync("supabase/migrations").filter((file) => /^\d{4}_.+\.sql$/.test(file)).sort();
-  assert.equal(migrations.length, 32);
+  assert.equal(migrations.length, 33);
   assert.equal(migrations[0].slice(0, 4), "0001");
-  assert.equal(migrations.at(-1), "0032_secure_manufacturer_product_management.sql");
+  assert.equal(migrations.at(-1), "0033_secure_manufacturer_company_profile.sql");
   const changed = execFileSync("git", [
-    "diff", "--name-only", resolveAuthProfilesMigrationBaseline(), "--", "supabase/migrations", ":(exclude)supabase/migrations/0032_secure_manufacturer_product_management.sql",
+    "diff", "--name-only", resolveAuthProfilesMigrationBaseline(), "--", "supabase/migrations", ":(exclude)supabase/migrations/0032_secure_manufacturer_product_management.sql", ":(exclude)supabase/migrations/0033_secure_manufacturer_company_profile.sql",
   ], { encoding: "utf8", windowsHide: true }).trim();
   assert.ok(
     changed === "",

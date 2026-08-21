@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 export { BuyerManufacturersWorkspace } from "./BuyerManufacturersWorkspace";
 import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
 import {
   emptyManufacturerApplicationForm,
+  companyProfileFromApplication,
   fetchOwnManufacturerAccount,
   formFromApplication,
   manufacturerEditableStatuses,
   saveManufacturerApplication,
+  updateManufacturerCompanyProfile,
+  validateManufacturerCompanyProfile,
+  type ManufacturerCompanyProfileValues,
   validateManufacturerApplication,
 } from "../../lib/manufacturers";
 import type { AuthUser } from "../../lib/auth";
@@ -17,6 +21,7 @@ import type {
 } from "../../types";
 import { ManufacturerApplicationForm } from "./ManufacturerApplicationForm";
 import { ManufacturerStatusPanel } from "./ManufacturerStatusPanel";
+import { ManufacturerCompanyProfileForm } from "./ManufacturerCompanyProfileForm";
 
 interface ManufacturerWorkspaceProps {
   user: AuthUser;
@@ -29,13 +34,17 @@ export function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceP
   const [values, setValues] = useState<ManufacturerApplicationFormValues>(() =>
     emptyManufacturerApplicationForm(user.email)
   );
+  const [profileValues, setProfileValues] = useState<ManufacturerCompanyProfileValues | null>(null);
   const [isLoading, setIsLoading] = useState(authMode === "supabase");
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
+  const loadGeneration = useRef(0);
+  const saveGeneration = useRef(0);
 
   useEffect(() => {
     let isMounted = true;
+    const request = ++loadGeneration.current;
 
     async function loadApplication() {
       setIsLoading(true);
@@ -43,22 +52,23 @@ export function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceP
 
       try {
         const ownAccount = await fetchOwnManufacturerAccount();
-        if (!isMounted) return;
+        if (!isMounted || request !== loadGeneration.current) return;
         if (ownAccount.profile_id !== user.id) throw new Error("Manufacturer identity changed. Please try again.");
         const existingApplication = ownAccount.manufacturer;
         setIsActiveAccount(ownAccount.profile_status === "active");
         setApplication(existingApplication);
+        setProfileValues(existingApplication?.application_status === "approved" ? companyProfileFromApplication(existingApplication) : null);
         setValues(
           existingApplication
             ? formFromApplication(existingApplication)
             : emptyManufacturerApplicationForm(user.email)
         );
       } catch (error) {
-        if (isMounted) {
+        if (isMounted && request === loadGeneration.current) {
           setErrors([error instanceof Error ? error.message : "Unable to load application."]);
         }
       } finally {
-        if (isMounted) setIsLoading(false);
+        if (isMounted && request === loadGeneration.current) setIsLoading(false);
       }
     }
 
@@ -73,11 +83,17 @@ export function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceP
 
     return () => {
       isMounted = false;
+      loadGeneration.current += 1;
+      saveGeneration.current += 1;
     };
   }, [authMode, user.email, user.id]);
 
   function updateField(field: keyof ManufacturerApplicationFormValues, value: string) {
     setValues((current) => ({ ...current, [field]: value }));
+  }
+
+  function updateProfileField(field: keyof ManufacturerCompanyProfileValues, value: string) {
+    setProfileValues((current) => current ? { ...current, [field]: value } : current);
   }
 
   const isEditable = isActiveAccount && (!application || manufacturerEditableStatuses.includes(application.application_status));
@@ -165,6 +181,27 @@ export function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceP
     }
   }
 
+  async function saveCompanyProfile() {
+    if (!profileValues) return;
+    const validationErrors = validateManufacturerCompanyProfile(profileValues);
+    setErrors(validationErrors);
+    setMessage(null);
+    if (validationErrors.length) return;
+    const request = ++saveGeneration.current;
+    setIsSaving(true);
+    try {
+      const saved = await updateManufacturerCompanyProfile(profileValues);
+      if (request !== saveGeneration.current) return;
+      setApplication(saved);
+      setProfileValues(companyProfileFromApplication(saved));
+      setMessage("Company profile updated.");
+    } catch (error) {
+      if (request === saveGeneration.current) setErrors([error instanceof Error ? error.message : "Unable to save company profile."]);
+    } finally {
+      if (request === saveGeneration.current) setIsSaving(false);
+    }
+  }
+
   function editableMessage() {
     if (!application || isEditable) return null;
 
@@ -179,12 +216,14 @@ export function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceP
       <ManufacturerStatusPanel application={application} />
 
       <section className="panel">
-        <p className="eyebrow">Manufacturer Onboarding</p>
-        <h2>Company profile</h2>
+        <p className="eyebrow">{application?.application_status === "approved" ? "Manufacturer Account" : "Manufacturer Onboarding"}</p>
+        <h2>{application?.application_status === "approved" ? "Company Profile & Account" : "Company profile"}</h2>
         {!isActiveAccount && <p className="form-notice" role="status">Company editing requires an active Manufacturer account.</p>}
         {editableMessage() && <p className="form-notice">{editableMessage()}</p>}
         {isLoading ? (
           <LoadingState message="Loading manufacturer application..." />
+        ) : application?.application_status === "approved" && profileValues ? (
+          <ManufacturerCompanyProfileForm application={application} user={user} values={profileValues} disabled={!isActiveAccount || isSaving} accountStatus={isActiveAccount ? "Active" : "Inactive"} onFieldChange={updateProfileField} />
         ) : (
           <ManufacturerApplicationForm
             values={values}
@@ -197,6 +236,9 @@ export function ManufacturerWorkspace({ user, authMode }: ManufacturerWorkspaceP
         {message && <p className="form-success">{message}</p>}
 
         <div className="actions">
+          {application?.application_status === "approved" && profileValues && isActiveAccount && (
+            <button type="button" disabled={isSaving || isLoading} onClick={() => void saveCompanyProfile()}>{isSaving ? "Saving..." : "Save Company Profile"}</button>
+          )}
           {isEditable && (
             <button
               type="button"
