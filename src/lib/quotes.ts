@@ -8,6 +8,7 @@ import type {
   RFQQuoteRecord,
   RFQQuoteStatus,
   RFQQuoteWithItems,
+  RFQStatus,
 } from "../types";
 import { assertLiveRecordId } from "./rfqQuoteWorkflow";
 
@@ -100,8 +101,9 @@ export function sortQuotesByVersion(quotes: RFQQuoteWithItems[]): RFQQuoteWithIt
   return [...quotes].sort((a, b) => b.version - a.version);
 }
 
-export function isQuoteEditableByManufacturer(quote: Pick<RFQQuoteRecord, "status">): boolean {
-  return quote.status === "draft";
+export function isQuoteEditableByManufacturer(quote: Pick<RFQQuoteRecord, "status">, rfqStatus?: RFQStatus): boolean {
+  if (quote.status !== "draft") return false;
+  return rfqStatus === undefined || rfqStatus === "manufacturer_review" || rfqStatus === "revision_requested";
 }
 
 export function isQuoteVisibleToBuyer(quote: Pick<RFQQuoteRecord, "status">): boolean {

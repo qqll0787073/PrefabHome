@@ -22,3 +22,11 @@ test("Buyer quick actions and RFQ routes are canonical links", () => {
   assert.match(BuyerOverview.toString(), /Browse Marketplace/);
   assert.doesNotMatch(BuyerOverview.toString(), /user\.id|buyer_id.*user/);
 });
+
+test("Manufacturer variant reuses the overview with authorized RFQ and Quote routes", () => {
+  const manufacturer = { ...user, role: "manufacturer" as const };
+  const markup = renderToStaticMarkup(createElement(BuyerOverview, { user: manufacturer, variant: "manufacturer", loadRFQs: async () => [] }));
+  assert.match(markup, /Manufacturer overview/);
+  assert.match(BuyerOverview.toString(), /workspace=quotes/);
+  assert.doesNotMatch(BuyerOverview.toString(), /manufacturer_id|owner_id/);
+});

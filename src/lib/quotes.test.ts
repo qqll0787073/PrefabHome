@@ -44,6 +44,14 @@ const quote = {
 } satisfies RFQQuoteWithItems;
 
 describe("quote helpers", () => {
+  it("keeps draft editing within Manufacturer-controlled RFQ lifecycle states", () => {
+    assert.equal(isQuoteEditableByManufacturer({ status: "draft" }, "manufacturer_review"), true);
+    assert.equal(isQuoteEditableByManufacturer({ status: "draft" }, "revision_requested"), true);
+    for (const status of ["submitted", "quoted", "buyer_review", "accepted", "declined", "expired", "cancelled"] as const) {
+      assert.equal(isQuoteEditableByManufacturer({ status: "draft" }, status), false);
+    }
+    assert.equal(isQuoteEditableByManufacturer({ status: "submitted" }, "manufacturer_review"), false);
+  });
   it("validates draft quote fields without requiring line items", () => {
     const values = {
       ...emptyQuoteForm("usd"),
