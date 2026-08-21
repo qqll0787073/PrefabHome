@@ -6,161 +6,44 @@ interface ManufacturerProductFormProps {
   onFieldChange: (field: keyof ProductFormValues, value: string) => void;
 }
 
-export function ManufacturerProductForm({
-  values,
-  isEditable,
-  onFieldChange,
-}: ManufacturerProductFormProps) {
-  return (
-    <form className="application-form">
-      <label>
-        SKU
-        <input
-          value={values.sku}
-          onChange={(event) => onFieldChange("sku", event.target.value)}
-          disabled={!isEditable}
-        />
-      </label>
-      <label>
-        Model name
-        <input
-          value={values.modelName}
-          onChange={(event) => onFieldChange("modelName", event.target.value)}
-          disabled={!isEditable}
-          required
-        />
-      </label>
-      <label>
-        Slug
-        <input
-          value={values.slug}
-          onChange={(event) => onFieldChange("slug", event.target.value)}
-          disabled={!isEditable}
-        />
-      </label>
-      <label>
-        Category
-        <input
-          value={values.category}
-          onChange={(event) => onFieldChange("category", event.target.value)}
-          disabled={!isEditable}
-          required
-        />
-      </label>
-      <label>
-        FOB price
-        <input
-          inputMode="decimal"
-          value={values.fobPrice}
-          onChange={(event) => onFieldChange("fobPrice", event.target.value)}
-          disabled={!isEditable}
-        />
-      </label>
-      <label>
-        Currency
-        <input
-          value={values.currency}
-          onChange={(event) => onFieldChange("currency", event.target.value)}
-          disabled={!isEditable}
-        />
-      </label>
-      <label>
-        Floor area sq ft
-        <input
-          inputMode="decimal"
-          value={values.floorAreaSqFt}
-          onChange={(event) => onFieldChange("floorAreaSqFt", event.target.value)}
-          disabled={!isEditable}
-        />
-      </label>
-      <label>
-        Bedrooms
-        <input
-          inputMode="numeric"
-          value={values.bedrooms}
-          onChange={(event) => onFieldChange("bedrooms", event.target.value)}
-          disabled={!isEditable}
-        />
-      </label>
-      <label>
-        Bathrooms
-        <input
-          inputMode="decimal"
-          value={values.bathrooms}
-          onChange={(event) => onFieldChange("bathrooms", event.target.value)}
-          disabled={!isEditable}
-        />
-      </label>
-      <label>
-        Lead time weeks
-        <input
-          inputMode="numeric"
-          value={values.productionLeadTimeWeeks}
-          onChange={(event) => onFieldChange("productionLeadTimeWeeks", event.target.value)}
-          disabled={!isEditable}
-        />
-      </label>
-      <label>
-        MOQ
-        <input
-          inputMode="numeric"
-          value={values.minimumOrderQuantity}
-          onChange={(event) => onFieldChange("minimumOrderQuantity", event.target.value)}
-          disabled={!isEditable}
-        />
-      </label>
-      <label>
-        Port of loading
-        <input
-          value={values.portOfLoading}
-          onChange={(event) => onFieldChange("portOfLoading", event.target.value)}
-          disabled={!isEditable}
-        />
-      </label>
-      <label>
-        Tags
-        <input
-          value={values.tags}
-          onChange={(event) => onFieldChange("tags", event.target.value)}
-          disabled={!isEditable}
-          placeholder="ADU, modular, off-grid"
-        />
-      </label>
-      <label>
-        Certifications
-        <input
-          value={values.certifications}
-          onChange={(event) => onFieldChange("certifications", event.target.value)}
-          disabled={!isEditable}
-          placeholder="CE, ISO 9001"
-        />
-      </label>
-      <label>
-        Target markets
-        <input
-          value={values.targetMarkets}
-          onChange={(event) => onFieldChange("targetMarkets", event.target.value)}
-          disabled={!isEditable}
-          placeholder="US, Canada"
-        />
-      </label>
-      <label className="full-width">
-        Description
-        <textarea
-          value={values.description}
-          onChange={(event) => onFieldChange("description", event.target.value)}
-          disabled={!isEditable}
-          required
-        />
-      </label>
-      <label className="full-width">
-        Notes
-        <textarea
-          value={values.notes}
-          onChange={(event) => onFieldChange("notes", event.target.value)}
-          disabled={!isEditable}
-        />
-      </label>
-    </form>
-  );
+const fields: Array<{ field: keyof ProductFormValues; label: string; inputMode?: "decimal" | "numeric"; placeholder?: string; required?: boolean }> = [
+  { field: "sku", label: "SKU" },
+  { field: "modelName", label: "Model name", required: true },
+  { field: "slug", label: "Marketplace slug", placeholder: "model-name" },
+  { field: "category", label: "Category", required: true },
+  { field: "shortDescription", label: "Short description" },
+  { field: "fobPrice", label: "FOB price", inputMode: "decimal" },
+  { field: "currency", label: "Currency", placeholder: "USD" },
+  { field: "priceUnit", label: "Price unit" },
+  { field: "floorAreaSqFt", label: "Floor area sq ft", inputMode: "decimal" },
+  { field: "bedrooms", label: "Bedrooms", inputMode: "numeric" },
+  { field: "bathrooms", label: "Bathrooms", inputMode: "decimal" },
+  { field: "stories", label: "Stories", inputMode: "numeric" },
+  { field: "lengthFt", label: "Length ft", inputMode: "decimal" },
+  { field: "widthFt", label: "Width ft", inputMode: "decimal" },
+  { field: "heightFt", label: "Height ft", inputMode: "decimal" },
+  { field: "productionLeadTimeWeeks", label: "Lead time weeks", inputMode: "numeric" },
+  { field: "minimumOrderQuantity", label: "MOQ", inputMode: "numeric" },
+  { field: "portOfLoading", label: "Port of loading" },
+  { field: "hsCode", label: "HS code" },
+  { field: "structureMaterial", label: "Structure material" },
+  { field: "exteriorFinish", label: "Exterior finish" },
+  { field: "roofType", label: "Roof type" },
+  { field: "insulation", label: "Insulation" },
+  { field: "electricalStandard", label: "Electrical standard" },
+  { field: "plumbingStandard", label: "Plumbing standard" },
+  { field: "windRating", label: "Wind rating" },
+  { field: "snowLoadPsf", label: "Snow load PSF", inputMode: "decimal" },
+  { field: "tags", label: "Tags", placeholder: "ADU, modular, off-grid" },
+  { field: "intendedUses", label: "Intended uses", placeholder: "Residential, hospitality" },
+  { field: "certifications", label: "Certifications", placeholder: "CE, ISO 9001" },
+  { field: "targetMarkets", label: "Target markets", placeholder: "US, Canada" },
+];
+
+export function ManufacturerProductForm({ values, isEditable, onFieldChange }: ManufacturerProductFormProps) {
+  return <form className="application-form" onSubmit={(event) => event.preventDefault()}>
+    {fields.map(({ field, label, inputMode, placeholder, required }) => <label key={field}>{label}<input value={values[field]} inputMode={inputMode} placeholder={placeholder} required={required} disabled={!isEditable} onChange={(event) => onFieldChange(field, event.target.value)} /></label>)}
+    <label className="full-width">Description<textarea value={values.description} required disabled={!isEditable} maxLength={5000} onChange={(event) => onFieldChange("description", event.target.value)} /></label>
+    <label className="full-width">Private Manufacturer notes<textarea value={values.notes} disabled={!isEditable} maxLength={5000} onChange={(event) => onFieldChange("notes", event.target.value)} /></label>
+  </form>;
 }

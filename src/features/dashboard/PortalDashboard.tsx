@@ -104,7 +104,7 @@ export function PortalDashboard({
 
     if (role === "manufacturer") {
       if (workspace === "company") return <ManufacturerWorkspace user={auth.user} authMode={auth.mode} />;
-      if (workspace === "products") return <ManufacturerProductList user={auth.user} authMode={auth.mode} />;
+      if (workspace === "products") return <ManufacturerProductList key={auth.user.id} user={auth.user} authMode={auth.mode} selectedProductId={selectedWorkflowRecordId} onSelectedProductChange={onWorkflowRecordChange} />;
       if (workspace === "rfqs" || workspace === "quotes") return <ManufacturerRFQInbox user={auth.user} authMode={auth.mode} selectedRFQId={selectedWorkflowRecordId} onSelectedRFQChange={onWorkflowRecordChange} />;
       if (workspace === "purchase-orders") return <ManufacturerPurchaseOrders authMode={auth.mode} />;
       if (workspace === "contracts") return <><ManufacturerContracts authMode={auth.mode} /><ManufacturerSignaturePreparation authMode={auth.mode} /><ManufacturerSignatureDelivery authMode={auth.mode} /></>;
