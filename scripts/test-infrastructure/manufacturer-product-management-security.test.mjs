@@ -3,6 +3,8 @@ import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
 const migration = readFileSync("supabase/migrations/0032_secure_manufacturer_product_management.sql", "utf8");
+const databaseSecurityTest = readFileSync("supabase/tests/manufacturer_product_management_security.sql", "utf8");
+const databaseRunner = readFileSync("scripts/local-db/run-disposable-database-validation.mjs", "utf8");
 const products = readFileSync("src/lib/products.ts", "utf8");
 const workspace = readFileSync("src/features/products/ManufacturerProductList.tsx", "utf8");
 const navigation = readFileSync("src/lib/portalNavigation.ts", "utf8");
@@ -28,6 +30,26 @@ test("0032 removes raw Manufacturer Product DML while preserving Admin authority
   assert.doesNotMatch(migration, /drop policy if exists "products_admin_all"/);
   assert.match(migration, /revoke all on function public\.get_my_manufacturer_products\(\) from public, anon/);
   assert.match(migration, /grant execute on function public\.get_my_manufacturer_products\(\) to authenticated/);
+});
+
+test("0032 validates every numeric field independently and has executable database regression coverage", () => {
+  assert.doesNotMatch(migration, /greatest\s*\(/i);
+  for (const field of [
+    "fob_price_value", "floor_area_value", "bathrooms_value", "length_value", "width_value",
+    "height_value", "snow_load_value", "bedrooms_value", "stories_value", "production_lead_time_value",
+  ]) {
+    assert.match(migration, new RegExp(`${field} is not null and ${field} < 0`));
+  }
+  assert.match(migration, /minimum_order_quantity_value is not null and minimum_order_quantity_value < 1/);
+  assert.match(databaseSecurityTest, /save_my_manufacturer_product/);
+  for (const field of [
+    "fob_price", "floor_area", "bathrooms", "length_ft", "width_ft", "height_ft",
+    "snow_load", "bedrooms", "stories", "production_lead_time",
+  ]) {
+    assert.match(databaseSecurityTest, new RegExp(`'${field}'`));
+  }
+  assert.match(databaseSecurityTest, /minimum_order => 0/);
+  assert.match(databaseRunner, /manufacturer_product_management_security\.sql/);
 });
 
 test("Manufacturer client reads and writes through constrained RPCs", () => {

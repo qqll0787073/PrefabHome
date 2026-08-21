@@ -104,11 +104,16 @@ begin
     and btrim(slug_text) !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'Invalid Product slug.';
   end if;
-  if greatest(coalesce(fob_price_value, 0), coalesce(floor_area_value, 0),
-      coalesce(bathrooms_value, 0), coalesce(length_value, 0), coalesce(width_value, 0),
-      coalesce(height_value, 0), coalesce(snow_load_value, 0)) < 0
-    or coalesce(bedrooms_value, 0) < 0 or coalesce(stories_value, 0) < 0
-    or coalesce(production_lead_time_value, 0) < 0
+  if (fob_price_value is not null and fob_price_value < 0)
+    or (floor_area_value is not null and floor_area_value < 0)
+    or (bathrooms_value is not null and bathrooms_value < 0)
+    or (length_value is not null and length_value < 0)
+    or (width_value is not null and width_value < 0)
+    or (height_value is not null and height_value < 0)
+    or (snow_load_value is not null and snow_load_value < 0)
+    or (bedrooms_value is not null and bedrooms_value < 0)
+    or (stories_value is not null and stories_value < 0)
+    or (production_lead_time_value is not null and production_lead_time_value < 0)
     or (minimum_order_quantity_value is not null and minimum_order_quantity_value < 1) then
     raise exception 'Invalid Product numeric value.';
   end if;

@@ -78,6 +78,12 @@ try {
     }
   }
 
+  const manufacturerProductRegression = await readFile(
+    resolve("supabase/tests/manufacturer_product_management_security.sql"),
+    "utf8",
+  );
+  await client.query(manufacturerProductRegression);
+
   const directoryPrivileges = await client.query(`
     select grantee, privilege_type
     from information_schema.role_table_grants
