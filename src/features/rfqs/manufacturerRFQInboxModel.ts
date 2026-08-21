@@ -4,6 +4,16 @@ import type { RFQStatus, RFQWithDetails } from "../../types";
 export type ManufacturerRFQFilter = ManufacturerRFQDashboardGroup | "all";
 export type ManufacturerRFQSort = "updated" | "created" | "quantity";
 
+export async function refreshOpenedManufacturerRFQ(
+  rfqId: string,
+  markOpened: (id: string) => Promise<unknown>,
+  loadRFQs: () => Promise<RFQWithDetails[]>,
+): Promise<{ rfqs: RFQWithDetails[]; current: RFQWithDetails | null }> {
+  await markOpened(rfqId);
+  const rfqs = await loadRFQs();
+  return { rfqs, current: rfqs.find((rfq) => rfq.id === rfqId) ?? null };
+}
+
 export function selectManufacturerRFQs(rfqs: readonly RFQWithDetails[], filter: ManufacturerRFQFilter, search: string, sort: ManufacturerRFQSort): RFQWithDetails[] {
   const query = search.trim().toLocaleLowerCase();
   return [...rfqs]

@@ -14,7 +14,7 @@ import { QuoteBuilder } from "../quotes/QuoteBuilder";
 import { ManufacturerPurchaseOrders } from "../purchase-orders/ManufacturerPurchaseOrders";
 import { RFQConversation } from "./RFQConversation";
 import { RFQActivityTimeline } from "./RFQActivityTimeline";
-import { manufacturerRFQActionLabel, selectManufacturerRFQs, type ManufacturerRFQSort } from "./manufacturerRFQInboxModel";
+import { manufacturerRFQActionLabel, refreshOpenedManufacturerRFQ, selectManufacturerRFQs, type ManufacturerRFQSort } from "./manufacturerRFQInboxModel";
 
 interface ManufacturerRFQInboxProps {
   user: AuthUser;
@@ -69,8 +69,14 @@ export function ManufacturerRFQInbox({ user, authMode, selectedRFQId = null, onS
   async function openRFQ(rfq: RFQWithDetails) {
     setErrors([]);
     try {
-      if (authMode !== "demo") await markManufacturerRFQOpened(rfq.id);
-      setSelectedRFQ(rfq);
+      let current = rfq;
+      if (authMode !== "demo") {
+        const refreshed = await refreshOpenedManufacturerRFQ(rfq.id, markManufacturerRFQOpened, fetchManufacturerRFQs);
+        setRFQs(refreshed.rfqs);
+        if (!refreshed.current) throw new Error("This RFQ is no longer available to your Manufacturer account.");
+        current = refreshed.current;
+      }
+      setSelectedRFQ(current);
       onSelectedRFQChange?.(rfq.id);
     } catch (error) {
       setErrors([error instanceof Error ? error.message : "Unable to open RFQ."]);

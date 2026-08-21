@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { RFQStatus, RFQWithDetails } from "../../types";
-import { manufacturerRFQActionLabel, selectManufacturerRFQs } from "./manufacturerRFQInboxModel";
+import { isQuoteEditableByManufacturer } from "../../lib/quotes";
+import { manufacturerRFQActionLabel, refreshOpenedManufacturerRFQ, selectManufacturerRFQs } from "./manufacturerRFQInboxModel";
 
 function rfq(id: string, status: RFQStatus, model: string, country: string, quantity: number, createdAt: string, updatedAt: string): RFQWithDetails {
   return { id, status, product_snapshot: { model_name: model, category: "ADU" }, destination_country: country, destination_port: null, requested_quantity: quantity, created_at: createdAt, updated_at: updatedAt } as RFQWithDetails;
@@ -26,4 +27,20 @@ test("Manufacturer inbox actions describe lifecycle constraints accurately", () 
   assert.equal(manufacturerRFQActionLabel("revision_requested"), "Review revision request");
   assert.equal(manufacturerRFQActionLabel("buyer_review"), "View Quote history");
   assert.equal(manufacturerRFQActionLabel("accepted"), "View RFQ");
+});
+
+test("opening a submitted RFQ selects the refreshed Manufacturer-review record so a new draft stays editable", async () => {
+  const submitted = rfq("dddddddd-dddd-4ddd-8ddd-dddddddddddd", "submitted", "Douglas", "Canada", 3, "2026-01-01", "2026-01-01");
+  let backendStatus: RFQStatus = "submitted";
+  const result = await refreshOpenedManufacturerRFQ(
+    submitted.id,
+    async (rfqId) => {
+      assert.equal(rfqId, submitted.id);
+      backendStatus = "manufacturer_review";
+    },
+    async () => [{ ...submitted, status: backendStatus }],
+  );
+
+  assert.equal(result.current?.status, "manufacturer_review");
+  assert.equal(isQuoteEditableByManufacturer({ status: "draft" }, result.current?.status), true);
 });
