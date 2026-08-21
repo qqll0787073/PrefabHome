@@ -26,6 +26,7 @@ const roleCopy: Record<Role, { title: string; body: string }> = {
 
 export function PortalOverview({ role, user, onWorkspaceChange }: PortalOverviewProps) {
   if (role === "buyer") return <BuyerOverview user={user} />;
+  if (role === "manufacturer") return <BuyerOverview user={user} variant="manufacturer" />;
   const workspaces = portalWorkspaces[role].filter((item) => item.id !== "overview");
   return (
     <section className="portal-overview" aria-labelledby="portal-overview-title">

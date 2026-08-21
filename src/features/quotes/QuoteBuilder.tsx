@@ -282,7 +282,7 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
   }
 
   const canCreateDraft = ["submitted", "manufacturer_review"].includes(rfq.status);
-  const isDraftEditable = activeQuote ? isQuoteEditableByManufacturer(activeQuote) : false;
+  const isDraftEditable = activeQuote ? isQuoteEditableByManufacturer(activeQuote, rfq.status) : false;
   const activeDecision = activeQuote ? getDecisionForQuote(activeQuote.id, decisions) : null;
   const canCreateRevision =
     activeQuote ? canManufacturerCreateRevision(activeQuote, rfq.status, decisions) : false;
@@ -300,6 +300,9 @@ export function QuoteBuilder({ rfq, onQuoteSubmitted }: QuoteBuilderProps) {
       <ErrorList errors={errors} />
       {message && <p className="form-notice" role="status">{message}</p>}
       {isLoading && <LoadingState message="Loading quotes..." />}
+      {draftQuote && !isQuoteEditableByManufacturer(draftQuote, rfq.status) && (
+        <p className="form-notice">This draft is read-only because the RFQ is no longer in a Manufacturer quote-editing state.</p>
+      )}
       {!draftQuote && canCreateDraft && (
         <div className="actions">
           <button type="button" disabled={isSaving} onClick={() => void createDraft()}>
