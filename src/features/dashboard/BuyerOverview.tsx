@@ -115,7 +115,7 @@ export function BuyerOverview({ user, loadRFQs, variant = "buyer" }: BuyerOvervi
 
       <nav className="beta-activity-note" aria-label={`${manufacturer ? "Manufacturer" : "Buyer"} quick actions`}>
         <h4>Quick actions</h4>
-        <div><a href="/marketplace?view=dashboard&workspace=rfqs">{manufacturer ? "Open RFQ Inbox" : "View all RFQs"}</a><a href={manufacturer ? "/marketplace?view=dashboard&workspace=quotes" : "/marketplace"}>{manufacturer ? "Review Quote history" : "Browse Marketplace"}</a></div>
+        <div><a href="/marketplace?view=dashboard&workspace=rfqs">{manufacturer ? "Open RFQ Inbox" : "View all RFQs"}</a><a href={manufacturer ? "/marketplace?view=dashboard&workspace=quotes" : "/marketplace"}>{manufacturer ? "Review Quote history" : "Browse Marketplace"}</a>{manufacturer && <a href="/marketplace?view=dashboard&workspace=company">Manage Company Profile</a>}</div>
       </nav>
     </section>
   );

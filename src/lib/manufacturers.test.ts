@@ -8,6 +8,8 @@ import {
   toManufacturerInsertPayload,
   toManufacturerUpdatePayload,
   validateManufacturerApplication,
+  companyProfileFromApplication,
+  validateManufacturerCompanyProfile,
 } from "./manufacturers";
 
 describe("manufacturer onboarding helpers", () => {
@@ -107,5 +109,42 @@ describe("manufacturer onboarding helpers", () => {
     assert.equal(payload.company_name, "Updated Display");
     assert.equal("application_status" in payload, false);
     assert.equal("reviewed_at" in payload, false);
+  });
+});
+
+describe("approved Manufacturer company profile helpers", () => {
+  const values = {
+    companyDisplayName: "Approved Modular",
+    companyDescription: "Approved Manufacturer of modular homes.",
+    website: "https://approved.example",
+    city: "Toronto",
+    province: "Ontario",
+    contactPerson: "Alex Chen",
+    contactTitle: "Director",
+    email: "alex@example.test",
+    phone: "+1 555 0100",
+    streetAddress: "100 Factory Road",
+    postalCode: "A1A 1A1",
+  };
+
+  it("validates required, URL, email, and length boundaries", () => {
+    assert.deepEqual(validateManufacturerCompanyProfile(values), []);
+    const errors = validateManufacturerCompanyProfile({ ...values, companyDisplayName: "", website: "javascript:alert(1)", email: "invalid" });
+    assert.ok(errors.includes("Company display name is required."));
+    assert.ok(errors.includes("Website must be a valid HTTP or HTTPS URL."));
+    assert.ok(errors.includes("Enter a valid contact email."));
+  });
+
+  it("projects only the approved self-service fields from an application", () => {
+    const application = {
+      id: "m", owner_id: "owner", company_name: "Legacy", company_legal_name: "Locked Legal", company_display_name: values.companyDisplayName,
+      contact_person: values.contactPerson, contact_title: values.contactTitle, email: values.email, phone: values.phone, website: values.website,
+      country: "Canada", province: values.province, city: values.city, street_address: values.streetAddress, postal_code: values.postalCode,
+      year_established: 2000, export_experience: "Locked", product_categories: ["ADU"], certifications: ["CSA"], company_description: values.companyDescription,
+      application_status: "approved" as const, review_notes: null, reviewed_by: null, reviewed_at: null, submitted_at: null, created_at: "2026-01-01", updated_at: "2026-01-01",
+    };
+    assert.deepEqual(companyProfileFromApplication(application), values);
+    const projected = companyProfileFromApplication(application) as unknown as Record<string, unknown>;
+    for (const protectedField of ["companyLegalName", "country", "yearEstablished", "exportExperience", "productCategories", "certifications", "ownerId", "applicationStatus"]) assert.equal(protectedField in projected, false);
   });
 });

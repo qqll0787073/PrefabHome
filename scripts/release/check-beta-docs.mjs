@@ -19,7 +19,7 @@ export const REQUIRED_BETA_FILES = [
 ];
 
 export const EXPECTED_MIGRATIONS = Array.from(
-  { length: 32 },
+  { length: 33 },
   (_, index) => String(index + 1).padStart(4, "0")
 );
 
@@ -79,7 +79,7 @@ export function auditBetaDocs(root = process.cwd()) {
       .sort();
     const versions = migrations.map((name) => name.slice(0, 4));
     if (JSON.stringify(versions) !== JSON.stringify(EXPECTED_MIGRATIONS)) {
-      errors.push(`Migration versions must be exactly 0001-0030; found ${versions.join(", ") || "none"}.`);
+      errors.push(`Migration versions must be exactly 0001-0033; found ${versions.join(", ") || "none"}.`);
     }
   }
 
