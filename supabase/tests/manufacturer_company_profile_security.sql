@@ -44,12 +44,13 @@ for update to authenticated using (owner_id=auth.uid()) with check (owner_id=aut
 set local role authenticated;
 
 do $$
-declare owner_id uuid; other_id uuid; before_other jsonb; after_other jsonb; own_id uuid; directory_row record;
+declare owner_actor_id uuid; other_actor_id uuid; admin_actor_id uuid; before_other jsonb; after_other jsonb; own_id uuid; directory_row record; affected integer;
 begin
-  select id,manufacturer_id into owner_id,own_id from company_profile_subjects where name='owner';
-  select id into other_id from company_profile_subjects where name='other';
-  select to_jsonb(m) into before_other from public.manufacturers m where owner_id=other_id;
-  perform set_config('request.jwt.claim.sub',owner_id::text,true);
+  select id,manufacturer_id into owner_actor_id,own_id from company_profile_subjects where name='owner';
+  select id into other_actor_id from company_profile_subjects where name='other';
+  select id into admin_actor_id from company_profile_subjects where name='admin';
+  select to_jsonb(m) into before_other from public.manufacturers m where m.owner_id=other_actor_id;
+  perform set_config('request.jwt.claim.sub',owner_actor_id::text,true);
   perform public.update_my_manufacturer_company_profile(
     'Updated Display','Updated public description','https://updated.example','Vancouver','British Columbia',
     'Updated Contact','Director','private.updated@example.test','+1 555 0100','101 Private Way','V1V 1V1'
@@ -63,7 +64,11 @@ begin
   select * into directory_row from public.buyer_manufacturer_directory where id=own_id;
   if directory_row.display_name <> 'Updated Display' or directory_row.description <> 'Updated public description' or directory_row.city <> 'Vancouver' or directory_row.region <> 'British Columbia' then raise exception 'public changes missing from directory'; end if;
   if to_jsonb(directory_row)::text ~* 'private.updated|555 0100|Private Way|V1V' then raise exception 'private data leaked into directory'; end if;
-  select to_jsonb(m) into after_other from public.manufacturers m where owner_id=other_id;
+  update public.manufacturers set company_display_name='Cross-owner forgery' where owner_id=other_actor_id;
+  get diagnostics affected = row_count;
+  if affected <> 0 then raise exception 'cross-Manufacturer direct update was not denied'; end if;
+  perform set_config('request.jwt.claim.sub',admin_actor_id::text,true);
+  select to_jsonb(m) into after_other from public.manufacturers m where m.owner_id=other_actor_id;
   if after_other is distinct from before_other then raise exception 'cross-Manufacturer row changed'; end if;
 end $$;
 
@@ -81,7 +86,8 @@ begin
   if not blocked then raise exception 'inactive Manufacturer updated profile'; end if;
 end $$;
 
--- Direct UPDATE remains denied by RLS; every protected/authority field is therefore unreachable outside the RPC.
+-- With the simulated future owner policy in place, the trigger must still deny
+-- every protected/authority-field mutation independently of the RPC.
 do $$
 declare actor uuid; target uuid; field_name text; blocked boolean; sql text;
 begin
@@ -95,7 +101,7 @@ begin
       when 'owner_id' then format('update public.manufacturers set owner_id=%L where id=%L',gen_random_uuid(),target)
       when 'application_status' then format('update public.manufacturers set application_status=''draft'' where id=%L',target)
       when 'reviewed_by' then format('update public.manufacturers set reviewed_by=%L where id=%L',actor,target)
-      when 'reviewed_at' then format('update public.manufacturers set reviewed_at=now() where id=%L',target)
+      when 'reviewed_at' then format('update public.manufacturers set reviewed_at=clock_timestamp() + interval ''1 hour'' where id=%L',target)
       when 'submitted_at' then format('update public.manufacturers set submitted_at=now() where id=%L',target)
       when 'verification_status' then format('update public.manufacturers set verification_status=''verified'' where id=%L',target)
       else format('update public.manufacturers set %I=''Forged'' where id=%L',field_name,target) end;
