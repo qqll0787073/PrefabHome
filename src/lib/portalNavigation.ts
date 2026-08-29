@@ -67,6 +67,7 @@ export interface PortalLocationState {
   workspace: string | null;
   requestId: string | null;
   recordId: string | null;
+  productId?: string | null;
 }
 
 export function defaultPortalWorkspace(role: Role): PortalWorkspace {
@@ -94,6 +95,9 @@ export function readPortalLocation(search: string): PortalLocationState {
       ["rfqs", "quotes", "messages", "manufacturers", "products", "orders", "purchase-orders", "contracts", "invoices", "shipping"].includes(workspace ?? "") && recordId && isLiveRecordId(recordId)
         ? recordId
         : null,
+    ...(workspace === "rfqs" && params.get("product") && isLiveRecordId(params.get("product")!)
+      ? { productId: params.get("product") }
+      : {}),
   };
 }
 
@@ -112,8 +116,15 @@ export function buildPortalSearch(state: PortalLocationState): string {
   ) {
     params.set("record", state.recordId);
   }
+  if (state.view === "dashboard" && state.workspace === "rfqs" && state.productId && isLiveRecordId(state.productId)) {
+    params.set("product", state.productId);
+  }
   const query = params.toString();
   return query ? `?${query}` : "";
+}
+
+export function buyerProductRFQPath(productId: string): string {
+  return `/marketplace${buildPortalSearch({ view: "dashboard", workspace: "rfqs", requestId: null, recordId: null, productId })}`;
 }
 
 export function portalWorkspaceDefinition(role: Role, workspace: PortalWorkspace): PortalWorkspaceDefinition {

@@ -36,9 +36,10 @@ export function PortalApplication({ onPublicHome }: PortalApplicationProps) {
   const [selectedWorkflowRecordId, setSelectedWorkflowRecordId] = useState<string | null>(
     initialLocation.recordId,
   );
+  const [productRFQContextId, setProductRFQContextId] = useState<string | null>(initialLocation.productId ?? null);
 
   function syncUrl(
-    next: { view: View; workspace: PortalWorkspace; requestId: string | null; recordId: string | null },
+    next: { view: View; workspace: PortalWorkspace; requestId: string | null; recordId: string | null; productId?: string | null },
     replace = false,
   ) {
     const url = `/marketplace${buildPortalSearch(next)}`;
@@ -59,6 +60,7 @@ export function PortalApplication({ onPublicHome }: PortalApplicationProps) {
     setWorkspace(nextWorkspace);
     setSelectedLogisticsRequestId(null);
     setSelectedWorkflowRecordId(null);
+    setProductRFQContextId(null);
     syncUrl({ view: "dashboard", workspace: nextWorkspace, requestId: null, recordId: null });
   }
 
@@ -67,6 +69,7 @@ export function PortalApplication({ onPublicHome }: PortalApplicationProps) {
     setWorkspace(nextWorkspace);
     setSelectedLogisticsRequestId(null);
     setSelectedWorkflowRecordId(null);
+    setProductRFQContextId(null);
     syncUrl({ view: "dashboard", workspace: nextWorkspace, requestId: null, recordId: null });
   }
 
@@ -99,7 +102,9 @@ export function PortalApplication({ onPublicHome }: PortalApplicationProps) {
     setRole(nextRole);
     setWorkspace(nextWorkspace);
     if (clearWorkflowRecord) setSelectedWorkflowRecordId(null);
-    syncUrl({ view, workspace: nextWorkspace, requestId: selectedLogisticsRequestId, recordId: clearWorkflowRecord ? null : selectedWorkflowRecordId }, true);
+    const nextProductContext = nextRole === "buyer" ? productRFQContextId : null;
+    if (nextRole !== "buyer") setProductRFQContextId(null);
+    syncUrl({ view, workspace: nextWorkspace, requestId: selectedLogisticsRequestId, recordId: clearWorkflowRecord ? null : selectedWorkflowRecordId, productId: nextProductContext }, true);
   }, [auth.user?.id]);
 
   useEffect(() => {
@@ -109,6 +114,7 @@ export function PortalApplication({ onPublicHome }: PortalApplicationProps) {
       setWorkspace(normalizePortalWorkspace(role, location.workspace));
       setSelectedLogisticsRequestId(location.requestId);
       setSelectedWorkflowRecordId(location.recordId);
+      setProductRFQContextId(location.productId ?? null);
     }
     window.addEventListener("popstate", restoreLocation);
     return () => window.removeEventListener("popstate", restoreLocation);
@@ -136,10 +142,15 @@ export function PortalApplication({ onPublicHome }: PortalApplicationProps) {
             workspace={workspace}
             selectedLogisticsRequestId={selectedLogisticsRequestId}
             selectedWorkflowRecordId={selectedWorkflowRecordId}
+            productRFQContextId={productRFQContextId}
             onRoleChange={changeRole}
             onWorkspaceChange={changeWorkspace}
             onLogisticsRequestChange={changeLogisticsRequest}
             onWorkflowRecordChange={changeWorkflowRecord}
+            onProductRFQContextConsumed={() => {
+              setProductRFQContextId(null);
+              syncUrl({ view: "dashboard", workspace: "rfqs", requestId: null, recordId: selectedWorkflowRecordId, productId: null }, true);
+            }}
           />
         )}
       </main>

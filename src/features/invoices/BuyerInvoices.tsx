@@ -8,6 +8,8 @@ import {
 } from "../../lib/invoices";
 import type { InvoiceEventRecord, InvoiceLineItemRecord, InvoiceRecord } from "../../types";
 import { InvoiceSummary } from "./InvoiceSummary";
+import { buyerInvoiceNextAction } from "../../lib/buyerNextActions";
+import { BuyerNextActionNotice } from "../dashboard/BuyerNextActionNotice";
 
 interface BuyerInvoicesProps {
   authMode: "supabase" | "demo";
@@ -64,7 +66,7 @@ export function BuyerInvoices({ authMode, selectedInvoiceId = null }: BuyerInvoi
             invoice={invoice}
             lineItems={itemsByInvoice[invoice.id] ?? []}
             events={eventsByInvoice[invoice.id] ?? []}
-          /><nav className="actions" aria-label="Invoice context"><a href={`/marketplace?view=dashboard&workspace=orders&record=${invoice.purchase_order_id}`}>View Purchase Order {invoice.purchase_order_number}</a><a href={`/marketplace?view=dashboard&workspace=contracts&record=${invoice.contract_id}`}>View Contract {invoice.contract_number}</a></nav></div>
+          /><BuyerNextActionNotice action={buyerInvoiceNextAction(invoice.status, invoice.id)} /><nav className="actions" aria-label="Invoice context"><a href={`/marketplace?view=dashboard&workspace=orders&record=${invoice.purchase_order_id}`}>View Purchase Order {invoice.purchase_order_number}</a><a href={`/marketplace?view=dashboard&workspace=contracts&record=${invoice.contract_id}`}>View Contract {invoice.contract_number}</a></nav></div>
         ))}
       </div>
       {selectedInvoiceId && !isLoading && !invoices.some((invoice) => invoice.id === selectedInvoiceId) && <p role="status">This invoice is unavailable to your Buyer account.</p>}

@@ -30,7 +30,7 @@ export function RFQRequestDialog({ product, user, onClose }: RFQRequestDialogPro
   const requestGeneration = useRef(0);
   const savingRef = useRef(false);
 
-  const canRequest = Boolean(user && user.role === "buyer");
+  const canRequest = Boolean(user && user.role === "buyer" && user.status !== "suspended");
 
   useEffect(() => {
     returnFocusRef.current = document.activeElement instanceof HTMLElement

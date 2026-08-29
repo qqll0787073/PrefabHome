@@ -13,11 +13,13 @@ import {
 import { availableRfqActions, isTerminalRFQStatus } from "../../lib/rfqQuoteWorkflow";
 import { fetchBuyerQuotes } from "../../lib/quotes";
 import { fetchQuoteDecisionsForRFQ, markQuoteOpened } from "../../lib/quoteDecisions";
+import { fetchMarketplaceProductById } from "../../lib/marketplace";
 import type { AuthUser } from "../../lib/auth";
 import type {
   RFQQuoteDecisionRecord,
   RFQQuoteWithItems,
   RFQWithDetails,
+  MarketplaceProduct,
 } from "../../types";
 import {
   buyerRFQFilterLabels,
@@ -35,12 +37,17 @@ import { QuoteComparisonView } from "../quotes/QuoteComparisonView";
 import { RFQConversation } from "./RFQConversation";
 import { BuyerRFQDraftEditor } from "./BuyerRFQDraftEditor";
 import { RFQActivityTimeline } from "./RFQActivityTimeline";
+import { RFQRequestDialog } from "./RFQRequestDialog";
+import { buyerQuoteNextAction, buyerRFQNextAction } from "../../lib/buyerNextActions";
+import { BuyerNextActionNotice } from "../dashboard/BuyerNextActionNotice";
 
 interface BuyerRFQDashboardProps {
   user: AuthUser;
   authMode: "supabase" | "demo";
   selectedRFQId?: string | null;
   onSelectedRFQChange?: (rfqId: string | null) => void;
+  productContextId?: string | null;
+  onProductContextConsumed?: () => void;
 }
 
 export function shouldHandleBuyerRFQNavigation(event: React.MouseEvent<HTMLAnchorElement>): boolean {
@@ -64,7 +71,7 @@ export function BuyerRFQLoadingState() {
   return <div aria-busy="true"><p className="loading-state" role="status" aria-live="polite">Loading your RFQs...</p></div>;
 }
 
-export function BuyerRFQDashboard({ user, authMode, selectedRFQId = null, onSelectedRFQChange }: BuyerRFQDashboardProps) {
+export function BuyerRFQDashboard({ user, authMode, selectedRFQId = null, onSelectedRFQChange, productContextId = null, onProductContextConsumed }: BuyerRFQDashboardProps) {
   const [rfqs, setRFQs] = useState<RFQWithDetails[]>([]);
   const [quotes, setQuotes] = useState<RFQQuoteWithItems[]>([]);
   const [decisions, setDecisions] = useState<RFQQuoteDecisionRecord[]>([]);
@@ -77,8 +84,33 @@ export function BuyerRFQDashboard({ user, authMode, selectedRFQId = null, onSele
   const [errors, setErrors] = useState<string[]>([]);
   const [pendingAction, setPendingAction] = useState<{ rfq: RFQWithDetails; kind: "cancel" | "delete" } | null>(null);
   const [isActing, setIsActing] = useState(false);
+  const [contextProduct, setContextProduct] = useState<MarketplaceProduct | null>(null);
+  const [contextError, setContextError] = useState<string | null>(null);
+  const [isLoadingContext, setIsLoadingContext] = useState(false);
   const actionReturnFocus = useRef<HTMLElement | null>(null);
   const loadSequence = useRef(0);
+
+  async function loadProductContext() {
+    if (!productContextId) return;
+    setIsLoadingContext(true);
+    setContextError(null);
+    try {
+      const product = await fetchMarketplaceProductById(productContextId);
+      if (!product) {
+        setContextError("That Product is no longer available for a new RFQ.");
+        onProductContextConsumed?.();
+        return;
+      }
+      setContextProduct(product);
+      onProductContextConsumed?.();
+    } catch {
+      setContextError("Product context could not be loaded. Try again without creating an RFQ.");
+    } finally {
+      setIsLoadingContext(false);
+    }
+  }
+
+  useEffect(() => { void loadProductContext(); }, [productContextId]);
 
   async function loadRFQs() {
     const sequence = ++loadSequence.current;
@@ -111,6 +143,14 @@ export function BuyerRFQDashboard({ user, authMode, selectedRFQId = null, onSele
     () => (selectedRFQ ? quotes.filter((quote) => quote.rfq_id === selectedRFQ.id) : []),
     [quotes, selectedRFQ]
   );
+  const selectedNextAction = useMemo(() => {
+    if (!selectedRFQ) return null;
+    const currentQuote = selectedQuotes.find((quote) => quote.status === "submitted")
+      ?? selectedQuotes.find((quote) => quote.status === "accepted");
+    return currentQuote
+      ? buyerQuoteNextAction(currentQuote.status, selectedRFQ.id)
+      : buyerRFQNextAction(selectedRFQ.status, selectedRFQ.id);
+  }, [selectedRFQ, selectedQuotes]);
 
   async function openRFQ(rfq: RFQWithDetails) {
     setErrors([]);
@@ -192,6 +232,9 @@ export function BuyerRFQDashboard({ user, authMode, selectedRFQId = null, onSele
 
   return (
     <section className="workspace-section">
+      {isLoadingContext && <LoadingState message="Loading the selected Product..." />}
+      {contextError && <div className="workspace-error" role="alert"><p>{contextError}</p>{productContextId && <button type="button" onClick={() => void loadProductContext()}>Retry</button>}<a href="/marketplace?view=browse">Back to Marketplace</a></div>}
+      {contextProduct && <RFQRequestDialog product={contextProduct} user={user} onClose={() => setContextProduct(null)} />}
       <section className="panel">
         <p className="eyebrow">Buyer Portal</p>
         <h1>My RFQs</h1>
@@ -264,6 +307,7 @@ export function BuyerRFQDashboard({ user, authMode, selectedRFQId = null, onSele
         </div>
       </section>
       {selectedRFQ && <nav className="detail-return" aria-label="RFQ detail navigation"><a href="/marketplace?view=dashboard&workspace=rfqs" onClick={(event) => { if (!shouldHandleBuyerRFQNavigation(event)) return; event.preventDefault(); setSelectedRFQ(null); onSelectedRFQChange?.(null); }}>Back to My RFQs</a></nav>}
+      {selectedRFQ && <BuyerNextActionNotice action={selectedNextAction} />}
       {selectedRFQ?.status === "draft" && (
         <BuyerRFQDraftEditor rfq={selectedRFQ} onSaved={() => void refreshSelectedRFQ()} />
       )}

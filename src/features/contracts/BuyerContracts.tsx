@@ -28,6 +28,8 @@ import type {
 } from "../../types";
 import { ContractSummary } from "./ContractSummary";
 import { resolveRoutedContractSelection, type ContractSelectionSource } from "./buyerContractSelectionModel";
+import { buyerContractNextAction } from "../../lib/buyerNextActions";
+import { BuyerNextActionNotice } from "../dashboard/BuyerNextActionNotice";
 
 interface BuyerContractsProps {
   authMode: "supabase" | "demo";
@@ -237,6 +239,7 @@ export function BuyerContracts({ authMode, selectedContractId = null }: BuyerCon
       {displayedContract && (
         <section className="quote-line-editor">
           <h4>{displayedContract.contract_number}</h4>
+          <BuyerNextActionNotice action={buyerContractNextAction(displayedContract.status, displayedContract.id)} />
           <nav className="actions" aria-label="Contract context"><a href={`/marketplace?view=dashboard&workspace=orders&record=${displayedContract.purchase_order_id}`}>View Purchase Order {displayedContract.po_number}</a></nav>
           {canBuyerEditContractRevision(displayedContract) && (
             <p className="form-notice">
