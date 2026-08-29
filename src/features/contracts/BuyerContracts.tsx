@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ErrorList } from "../../components/common/ErrorList";
 import { LoadingState } from "../../components/common/LoadingState";
 import {
@@ -27,6 +27,7 @@ import type {
   PurchaseOrderWithItems,
 } from "../../types";
 import { ContractSummary } from "./ContractSummary";
+import { resolveRoutedContractSelection, type ContractSelectionSource } from "./buyerContractSelectionModel";
 
 interface BuyerContractsProps {
   authMode: "supabase" | "demo";
@@ -43,6 +44,7 @@ export function BuyerContracts({ authMode, selectedContractId = null }: BuyerCon
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const selectionSource = useRef<ContractSelectionSource>(null);
 
   async function loadContracts() {
     setErrors([]);
@@ -75,10 +77,13 @@ export function BuyerContracts({ authMode, selectedContractId = null }: BuyerCon
   }, [authMode]);
 
   useEffect(() => {
-    if (!selectedContractId || contracts.length === 0) return;
-    const routed = contracts.find((contract) => contract.id === selectedContractId);
-    if (routed) selectContract(routed);
-  }, [contracts, selectedContractId]);
+    const nextSelection = resolveRoutedContractSelection(selectedContractId, contracts, selectionSource.current, isLoading);
+    if (nextSelection.kind === "select") selectContract(nextSelection.contract, "route");
+    if (nextSelection.kind === "clear") {
+      selectionSource.current = null;
+      setSelectedContract(null);
+    }
+  }, [contracts, isLoading, selectedContractId]);
 
   const eligiblePurchaseOrders = useMemo(
     () => purchaseOrders.filter((po) => canCreateContractForPurchaseOrder(po, contracts)),
@@ -87,8 +92,12 @@ export function BuyerContracts({ authMode, selectedContractId = null }: BuyerCon
   const routedContractUnavailable = Boolean(
     selectedContractId && !isLoading && !contracts.some((contract) => contract.id === selectedContractId)
   );
+  const displayedContract = selectedContractId
+    ? selectedContract?.id === selectedContractId ? selectedContract : null
+    : selectionSource.current === "route" ? null : selectedContract;
 
-  function selectContract(contract: ContractRecord) {
+  function selectContract(contract: ContractRecord, source: ContractSelectionSource = "manual") {
+    selectionSource.current = source;
     setSelectedContract(contract);
     setValues(emptyContractDraftValues(contract));
     setErrors([]);
@@ -225,11 +234,11 @@ export function BuyerContracts({ authMode, selectedContractId = null }: BuyerCon
           </div>
         ))}
       </div>
-      {selectedContract && (
+      {displayedContract && (
         <section className="quote-line-editor">
-          <h4>{selectedContract.contract_number}</h4>
-          <nav className="actions" aria-label="Contract context"><a href={`/marketplace?view=dashboard&workspace=orders&record=${selectedContract.purchase_order_id}`}>View Purchase Order {selectedContract.po_number}</a></nav>
-          {canBuyerEditContractRevision(selectedContract) && (
+          <h4>{displayedContract.contract_number}</h4>
+          <nav className="actions" aria-label="Contract context"><a href={`/marketplace?view=dashboard&workspace=orders&record=${displayedContract.purchase_order_id}`}>View Purchase Order {displayedContract.po_number}</a></nav>
+          {canBuyerEditContractRevision(displayedContract) && (
             <p className="form-notice">
               Manufacturer requested revision. Only title, governing law, and terms can be changed.
             </p>
@@ -238,7 +247,7 @@ export function BuyerContracts({ authMode, selectedContractId = null }: BuyerCon
             Contract title
             <input
               value={values.contractTitle}
-              disabled={isContractReadOnly(selectedContract)}
+              disabled={isContractReadOnly(displayedContract)}
               onChange={(event) => setValues((current) => ({ ...current, contractTitle: event.target.value }))}
             />
           </label>
@@ -246,7 +255,7 @@ export function BuyerContracts({ authMode, selectedContractId = null }: BuyerCon
             Governing law
             <input
               value={values.governingLaw}
-              disabled={isContractReadOnly(selectedContract)}
+              disabled={isContractReadOnly(displayedContract)}
               onChange={(event) => setValues((current) => ({ ...current, governingLaw: event.target.value }))}
             />
           </label>
@@ -254,12 +263,12 @@ export function BuyerContracts({ authMode, selectedContractId = null }: BuyerCon
             Contract terms
             <textarea
               value={values.contractTerms}
-              disabled={isContractReadOnly(selectedContract)}
+              disabled={isContractReadOnly(displayedContract)}
               onChange={(event) => setValues((current) => ({ ...current, contractTerms: event.target.value }))}
             />
           </label>
           <div className="actions">
-            {selectedContract.status === "draft" && (
+            {displayedContract.status === "draft" && (
               <>
                 <button type="button" disabled={isSaving} onClick={() => void saveDraft()}>
                   Save Draft
@@ -269,23 +278,23 @@ export function BuyerContracts({ authMode, selectedContractId = null }: BuyerCon
                 </button>
               </>
             )}
-            {canBuyerEditContractRevision(selectedContract) && (
+            {canBuyerEditContractRevision(displayedContract) && (
               <>
                 <button type="button" disabled={isSaving} onClick={() => void saveRevision()}>
                   Save Revision
                 </button>
-                {canBuyerResubmitContract(selectedContract) && (
+                {canBuyerResubmitContract(displayedContract) && (
                   <button type="button" disabled={isSaving} onClick={() => void resubmitRevision()}>
                     Resubmit Contract
                   </button>
                 )}
               </>
             )}
-            <button type="button" onClick={() => setSelectedContract(null)}>
+            <button type="button" onClick={() => { selectionSource.current = null; setSelectedContract(null); }}>
               Close
             </button>
           </div>
-          {isContractReadOnly(selectedContract) && (
+          {isContractReadOnly(displayedContract) && (
             <p className="form-notice">This Contract is read-only for the Buyer in its current status.</p>
           )}
         </section>

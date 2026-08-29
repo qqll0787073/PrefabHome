@@ -29,3 +29,9 @@ test("Contract Invoice and Shipping provide reciprocal authorized context links"
   assert.match(shipping, /workspace=orders&record=[\s\S]+workspace=contracts&record=[\s\S]+workspace=invoices&record=[\s\S]+workspace=logistics/);
   for (const source of [contracts, invoices, shipping]) assert.doesNotMatch(source, /buyer_id|manufacturer_id|service_role/);
 });
+
+test("Contract routing hides stale detail and reports unavailable authorized records", () => {
+  assert.match(contracts, /selectedContract\?\.id === selectedContractId \? selectedContract : null/);
+  assert.match(contracts, /That Contract is unavailable or is not authorized for this account/);
+  assert.match(contracts, /\{displayedContract && \(/);
+});
