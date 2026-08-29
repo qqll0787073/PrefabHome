@@ -54,6 +54,7 @@ as $$
       and m.owner_id = auth.uid()
       and p.role = 'manufacturer'
       and p.status = 'active'
+      and m.application_status = 'approved'
   )
 $$;
 

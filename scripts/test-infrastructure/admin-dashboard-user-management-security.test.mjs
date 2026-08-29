@@ -9,7 +9,10 @@ const dashboard = readFileSync("src/features/dashboard/PortalDashboard.tsx", "ut
 
 test("0034 makes canonical authority active-profile dependent", () => {
   assert.match(migration, /p\.role = 'admin' and p\.status = 'active'/);
-  assert.match(migration, /p\.role = 'manufacturer'[\s\S]+p\.status = 'active'/);
+  const ownership = migration.match(/create or replace function public\.owns_manufacturer\([\s\S]+?\n\$\$;/)?.[0] ?? "";
+  assert.match(ownership, /p\.role = 'manufacturer'/);
+  assert.match(ownership, /p\.status = 'active'/);
+  assert.match(ownership, /m\.application_status = 'approved'/);
   assert.match(migration, /current_profile_role[\s\S]+p\.status = 'active'/);
 });
 

@@ -44,6 +44,61 @@ begin
   if summary.total_users <> 5 or summary.active_admins <> 2 or summary.suspended_users <> 1 then raise exception 'dashboard aggregation failed'; end if;
 end $$;
 
+-- Preserve the complete migration 0031 Manufacturer authority contract.
+reset role;
+create temp table manufacturer_authority_subjects(name text primary key, id uuid not null, manufacturer_id uuid, rfq_id uuid) on commit drop;
+grant select on manufacturer_authority_subjects to authenticated;
+do $$
+declare admin_id uuid; buyer_id uuid; owner_id uuid; approved_company uuid; other_owner uuid := gen_random_uuid(); other_company uuid; rfq_product uuid; rfq_row public.rfqs;
+begin
+  select id into admin_id from admin_5d1_subjects where name='admin-one';
+  select id into buyer_id from admin_5d1_subjects where name='buyer';
+  select id,manufacturer_id into owner_id,approved_company from admin_5d1_subjects where name='manufacturer';
+  insert into auth.users(id,email,raw_user_meta_data) values(other_owner,'authority-other@example.test','{"full_name":"Other Manufacturer","role":"manufacturer"}');
+  perform set_config('request.jwt.claim.sub',other_owner::text,true);
+  insert into public.manufacturers(owner_id,company_name,country,application_status) values(other_owner,'Other Draft Company','US','draft') returning id into other_company;
+  perform set_config('request.jwt.claim.sub',admin_id::text,true);
+  insert into public.products(manufacturer_id,name,category,status) values(approved_company,'Authority RFQ Product','ADU','published') returning id into rfq_product;
+  perform set_config('request.jwt.claim.sub',buyer_id::text,true);
+  rfq_row := public.create_rfq_draft(rfq_product,1,'USD','US',null,null,null,'Authority regression');
+  rfq_row := public.submit_rfq(rfq_row.id,1,'USD','US',null,null,null,'Authority regression');
+  insert into manufacturer_authority_subjects values('owner',owner_id,approved_company,rfq_row.id),('other',other_owner,other_company,null);
+end $$;
+set local role authenticated;
+
+do $$
+declare admin_id uuid; owner_id uuid; company_id uuid; other_company uuid; target_rfq uuid; application_state text; blocked boolean;
+begin
+  select id into admin_id from admin_5d1_subjects where name='admin-one';
+  select id,manufacturer_id,rfq_id into owner_id,company_id,target_rfq from manufacturer_authority_subjects where name='owner';
+  select manufacturer_id into other_company from manufacturer_authority_subjects where name='other';
+
+  perform set_config('request.jwt.claim.sub',owner_id::text,true);
+  if not public.owns_manufacturer(company_id) then raise exception 'active approved Manufacturer was not authorized'; end if;
+  if public.owns_manufacturer(other_company) then raise exception 'cross-Manufacturer ownership was authorized'; end if;
+
+  foreach application_state in array array['draft','submitted','under_review','rejected','suspended'] loop
+    perform set_config('request.jwt.claim.sub',admin_id::text,true);
+    update public.manufacturers set application_status=application_state where id=company_id;
+    perform set_config('request.jwt.claim.sub',owner_id::text,true);
+    if public.owns_manufacturer(company_id) then raise exception 'unapproved application status % retained Manufacturer authority',application_state; end if;
+    if application_state='draft' then
+      blocked:=false;
+      begin perform public.record_rfq_opened(target_rfq); exception when others then blocked:=true; end;
+      perform set_config('request.jwt.claim.sub',admin_id::text,true);
+      if not blocked or (select status from public.rfqs where id=target_rfq) is distinct from 'submitted' then raise exception 'unapproved Manufacturer opened protected RFQ'; end if;
+    end if;
+  end loop;
+
+  perform set_config('request.jwt.claim.sub',admin_id::text,true);
+  update public.manufacturers set application_status='approved' where id=company_id;
+  perform public.admin_set_profile_status(owner_id,'suspended');
+  perform set_config('request.jwt.claim.sub',owner_id::text,true);
+  if public.owns_manufacturer(company_id) then raise exception 'suspended profile retained approved Manufacturer authority'; end if;
+  perform set_config('request.jwt.claim.sub',admin_id::text,true);
+  perform public.admin_set_profile_status(owner_id,'active');
+end $$;
+
 do $$
 declare actor uuid; target uuid; before_row jsonb; after_row jsonb;
 begin
