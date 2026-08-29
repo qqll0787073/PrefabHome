@@ -91,7 +91,7 @@ export function readPortalLocation(search: string): PortalLocationState {
     workspace,
     requestId: params.get("request"),
     recordId:
-      ["rfqs", "quotes", "messages", "manufacturers", "products", "orders", "purchase-orders"].includes(workspace ?? "") && recordId && isLiveRecordId(recordId)
+      ["rfqs", "quotes", "messages", "manufacturers", "products", "orders", "purchase-orders", "contracts", "invoices", "shipping"].includes(workspace ?? "") && recordId && isLiveRecordId(recordId)
         ? recordId
         : null,
   };
@@ -106,7 +106,7 @@ export function buildPortalSearch(state: PortalLocationState): string {
   }
   if (
     state.view === "dashboard" &&
-    ["rfqs", "quotes", "messages", "manufacturers", "products", "orders", "purchase-orders"].includes(state.workspace ?? "") &&
+    ["rfqs", "quotes", "messages", "manufacturers", "products", "orders", "purchase-orders", "contracts", "invoices", "shipping"].includes(state.workspace ?? "") &&
     state.recordId &&
     isLiveRecordId(state.recordId)
   ) {

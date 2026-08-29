@@ -97,9 +97,9 @@ export function PortalDashboard({
       if (workspace === "profile") return <BuyerProfileWorkspace key={auth.user.id} user={auth.user} />;
       if (workspace === "rfqs" || workspace === "quotes") return <BuyerRFQDashboard user={auth.user} authMode={auth.mode} selectedRFQId={selectedWorkflowRecordId} onSelectedRFQChange={onWorkflowRecordChange} />;
       if (workspace === "orders" || workspace === "purchase-orders") return <BuyerPurchaseOrders key={auth.user.id} authMode={auth.mode} selectedPOId={selectedWorkflowRecordId} onSelectedPOChange={onWorkflowRecordChange} onWorkspaceChange={onWorkspaceChange} />;
-      if (workspace === "contracts") return <><BuyerContracts authMode={auth.mode} /><BuyerSignaturePreparation authMode={auth.mode} /><BuyerSignatureDelivery authMode={auth.mode} /></>;
-      if (workspace === "invoices") return <><BuyerInvoices authMode={auth.mode} /><BuyerPayments authMode={auth.mode} /></>;
-      if (workspace === "shipping") return <BuyerShippingReadiness authMode={auth.mode} />;
+      if (workspace === "contracts") return <><BuyerContracts authMode={auth.mode} selectedContractId={selectedWorkflowRecordId} /><BuyerSignaturePreparation authMode={auth.mode} /><BuyerSignatureDelivery authMode={auth.mode} /></>;
+      if (workspace === "invoices") return <><BuyerInvoices authMode={auth.mode} selectedInvoiceId={selectedWorkflowRecordId} /><BuyerPayments authMode={auth.mode} /></>;
+      if (workspace === "shipping") return <BuyerShippingReadiness authMode={auth.mode} selectedShippingId={selectedWorkflowRecordId} />;
       if (workspace === "logistics") return <ParticipantLogisticsWorkspace authMode={auth.mode} role="buyer" selectedRequestId={selectedLogisticsRequestId} onSelectedRequestChange={onLogisticsRequestChange} />;
     }
 

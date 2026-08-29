@@ -11,9 +11,10 @@ import { InvoiceSummary } from "./InvoiceSummary";
 
 interface BuyerInvoicesProps {
   authMode: "supabase" | "demo";
+  selectedInvoiceId?: string | null;
 }
 
-export function BuyerInvoices({ authMode }: BuyerInvoicesProps) {
+export function BuyerInvoices({ authMode, selectedInvoiceId = null }: BuyerInvoicesProps) {
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const [itemsByInvoice, setItemsByInvoice] = useState<Record<string, InvoiceLineItemRecord[]>>({});
   const [eventsByInvoice, setEventsByInvoice] = useState<Record<string, InvoiceEventRecord[]>>({});
@@ -57,15 +58,16 @@ export function BuyerInvoices({ authMode }: BuyerInvoicesProps) {
       <p className="form-notice">Invoices are read-only for Buyers. No payment has been recorded.</p>
       {invoices.length === 0 && !isLoading && <p>No invoices yet.</p>}
       <div className="review-list">
-        {invoices.map((invoice) => (
-          <InvoiceSummary
+        {invoices.filter((invoice) => !selectedInvoiceId || invoice.id === selectedInvoiceId).map((invoice) => (
+          <div key={invoice.id}><InvoiceSummary
             key={invoice.id}
             invoice={invoice}
             lineItems={itemsByInvoice[invoice.id] ?? []}
             events={eventsByInvoice[invoice.id] ?? []}
-          />
+          /><nav className="actions" aria-label="Invoice context"><a href={`/marketplace?view=dashboard&workspace=orders&record=${invoice.purchase_order_id}`}>View Purchase Order {invoice.purchase_order_number}</a><a href={`/marketplace?view=dashboard&workspace=contracts&record=${invoice.contract_id}`}>View Contract {invoice.contract_number}</a></nav></div>
         ))}
       </div>
+      {selectedInvoiceId && !isLoading && !invoices.some((invoice) => invoice.id === selectedInvoiceId) && <p role="status">This invoice is unavailable to your Buyer account.</p>}
     </section>
   );
 }

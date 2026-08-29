@@ -2,9 +2,9 @@ import { lazy } from "react";
 import type { Role } from "../../types";
 import type { PortalWorkspace } from "../../lib/portalNavigation";
 import type { AuthUser } from "../../lib/auth";
-import { BuyerOverview } from "./BuyerOverview";
+import { AdminOverview } from "./AdminOverview";
 
-const AdminOverview = lazy(() => import("./AdminOverview").then((module) => ({ default: module.AdminOverview })));
+const BuyerOverview = lazy(() => import("./BuyerOverview").then((module) => ({ default: module.BuyerOverview })));
 
 interface PortalOverviewProps {
   role: Role;

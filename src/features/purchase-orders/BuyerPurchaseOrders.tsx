@@ -14,8 +14,11 @@ import {
   type BuyerOrderSort,
 } from "../../lib/purchaseOrders";
 import { fetchBuyerQuotes } from "../../lib/quotes";
+import { fetchBuyerContracts } from "../../lib/contracts";
+import { fetchBuyerInvoices } from "../../lib/invoices";
+import { fetchBuyerShippingReadiness } from "../../lib/shippingReadiness";
 import type { PortalWorkspace } from "../../lib/portalNavigation";
-import type { PurchaseOrderWithItems, RFQQuoteWithItems } from "../../types";
+import type { ContractRecord, InvoiceRecord, PurchaseOrderWithItems, RFQQuoteWithItems, ShippingReadinessRecord } from "../../types";
 
 interface BuyerPurchaseOrdersProps {
   authMode: "supabase" | "demo";
@@ -27,6 +30,9 @@ interface BuyerPurchaseOrdersProps {
 export function BuyerPurchaseOrders({ authMode, selectedPOId = null, onSelectedPOChange, onWorkspaceChange }: BuyerPurchaseOrdersProps) {
   const [orders, setOrders] = useState<PurchaseOrderWithItems[]>([]);
   const [quotes, setQuotes] = useState<RFQQuoteWithItems[]>([]);
+  const [contracts, setContracts] = useState<ContractRecord[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
+  const [shipping, setShipping] = useState<ShippingReadinessRecord[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<BuyerOrderFilter>("all");
   const [sort, setSort] = useState<BuyerOrderSort>("updated");
@@ -41,13 +47,19 @@ export function BuyerPurchaseOrders({ authMode, selectedPOId = null, onSelectedP
     setErrors([]);
     try {
       if (authMode === "demo") {
-        if (request === generation.current) { setOrders([]); setQuotes([]); }
+        if (request === generation.current) { setOrders([]); setQuotes([]); setContracts([]); setInvoices([]); setShipping([]); }
         return;
       }
       const [orderRows, quoteRows] = await Promise.all([fetchBuyerPurchaseOrders(), fetchBuyerQuotes()]);
+      const [contractResult, invoiceResult, shippingResult] = await Promise.allSettled([
+        fetchBuyerContracts(), fetchBuyerInvoices(), fetchBuyerShippingReadiness(),
+      ]);
       if (request !== generation.current) return;
       setOrders(orderRows);
       setQuotes(quoteRows);
+      setContracts(contractResult.status === "fulfilled" ? contractResult.value : []);
+      setInvoices(invoiceResult.status === "fulfilled" ? invoiceResult.value : []);
+      setShipping(shippingResult.status === "fulfilled" ? shippingResult.value : []);
     } catch {
       if (request === generation.current) {
         setOrders([]); setQuotes([]);
@@ -89,6 +101,9 @@ export function BuyerPurchaseOrders({ authMode, selectedPOId = null, onSelectedP
   }
 
   if (selected) {
+    const relatedContract = contracts.find((contract) => contract.purchase_order_id === selected.id);
+    const relatedInvoice = invoices.find((invoice) => invoice.purchase_order_id === selected.id);
+    const relatedShipping = shipping.find((record) => record.purchase_order_id === selected.id);
     return <section className="quote-panel" aria-labelledby="order-detail-heading" style={{ minWidth: 0, overflowWrap: "anywhere" }}>
       <button type="button" className="text-button" onClick={() => onSelectedPOChange?.(null)}>Back to Orders</button>
       <h3 id="order-detail-heading">Order {selected.po_number}</h3>
@@ -103,7 +118,10 @@ export function BuyerPurchaseOrders({ authMode, selectedPOId = null, onSelectedP
       </article>
       <nav className="actions" aria-label="Order context">
         <a href={`/marketplace?view=dashboard&workspace=rfqs&record=${selected.rfq_id}`}>View source RFQ</a>
-        <button type="button" onClick={() => onWorkspaceChange?.("logistics")}>View logistics</button>
+        {relatedContract && <a href={`/marketplace?view=dashboard&workspace=contracts&record=${relatedContract.id}`}>View Contract {relatedContract.contract_number}</a>}
+        {relatedInvoice && <a href={`/marketplace?view=dashboard&workspace=invoices&record=${relatedInvoice.id}`}>View Invoice {relatedInvoice.invoice_number}</a>}
+        {relatedShipping && <a href={`/marketplace?view=dashboard&workspace=shipping&record=${relatedShipping.id}`}>View Shipping {relatedShipping.shipping_number}</a>}
+        {(relatedShipping || relatedInvoice) && <button type="button" onClick={() => onWorkspaceChange?.("logistics")}>View Logistics</button>}
       </nav>
     </section>;
   }
