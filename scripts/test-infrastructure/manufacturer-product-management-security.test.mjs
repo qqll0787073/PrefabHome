@@ -9,10 +9,10 @@ const products = readFileSync("src/lib/products.ts", "utf8");
 const workspace = readFileSync("src/features/products/ManufacturerProductList.tsx", "utf8");
 const navigation = readFileSync("src/lib/portalNavigation.ts", "utf8");
 
-test("migration inventory is exactly 0001 through 0034", () => {
+test("migration inventory is exactly 0001 through 0035", () => {
   const migrations = readdirSync("supabase/migrations").filter((file) => /^\d{4}_.+\.sql$/.test(file)).sort();
-  assert.equal(migrations.length, 34);
-  assert.equal(migrations.at(-1), "0034_admin_dashboard_user_management.sql");
+  assert.equal(migrations.length, 35);
+  assert.equal(migrations.at(-1), "0035_harden_suspended_buyer_transaction_authority.sql");
 });
 
 test("0032 derives authority and exposes only explicit Manufacturer-owned fields", () => {
