@@ -25,6 +25,7 @@ export function shouldHandleWorkspaceNavigation(event: React.MouseEvent<HTMLAnch
 export function PortalWorkspaceNavigation({ role, workspace, onWorkspaceChange }: PortalWorkspaceNavigationProps) {
   return (
     <nav className="portal-workspace-nav" aria-label={`${role} portal workspaces`}>
+      {role === "buyer" && <a className="pw-link" href="/marketplace?view=browse">Marketplace</a>}
       {portalWorkspaces[role].map((item) => (
         <a
           key={item.id}

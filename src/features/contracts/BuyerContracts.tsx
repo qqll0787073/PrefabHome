@@ -30,9 +30,10 @@ import { ContractSummary } from "./ContractSummary";
 
 interface BuyerContractsProps {
   authMode: "supabase" | "demo";
+  selectedContractId?: string | null;
 }
 
-export function BuyerContracts({ authMode }: BuyerContractsProps) {
+export function BuyerContracts({ authMode, selectedContractId = null }: BuyerContractsProps) {
   const [contracts, setContracts] = useState<ContractRecord[]>([]);
   const [decisionsByContract, setDecisionsByContract] = useState<Record<string, ContractReviewDecisionRecord[]>>({});
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderWithItems[]>([]);
@@ -73,9 +74,18 @@ export function BuyerContracts({ authMode }: BuyerContractsProps) {
     void loadContracts();
   }, [authMode]);
 
+  useEffect(() => {
+    if (!selectedContractId || contracts.length === 0) return;
+    const routed = contracts.find((contract) => contract.id === selectedContractId);
+    if (routed) selectContract(routed);
+  }, [contracts, selectedContractId]);
+
   const eligiblePurchaseOrders = useMemo(
     () => purchaseOrders.filter((po) => canCreateContractForPurchaseOrder(po, contracts)),
     [contracts, purchaseOrders]
+  );
+  const routedContractUnavailable = Boolean(
+    selectedContractId && !isLoading && !contracts.some((contract) => contract.id === selectedContractId)
   );
 
   function selectContract(contract: ContractRecord) {
@@ -202,7 +212,8 @@ export function BuyerContracts({ authMode }: BuyerContractsProps) {
         </div>
       )}
       {contracts.length === 0 && !isLoading && <p>No contracts yet.</p>}
-      <div className="review-list">
+      {routedContractUnavailable && <p role="status">That Contract is unavailable or is not authorized for this account.</p>}
+      <div className="review-list" hidden={routedContractUnavailable}>
         {contracts.map((contract) => (
           <div key={contract.id}>
             <ContractSummary contract={contract} decisions={decisionsByContract[contract.id] ?? []} />
@@ -217,6 +228,7 @@ export function BuyerContracts({ authMode }: BuyerContractsProps) {
       {selectedContract && (
         <section className="quote-line-editor">
           <h4>{selectedContract.contract_number}</h4>
+          <nav className="actions" aria-label="Contract context"><a href={`/marketplace?view=dashboard&workspace=orders&record=${selectedContract.purchase_order_id}`}>View Purchase Order {selectedContract.po_number}</a></nav>
           {canBuyerEditContractRevision(selectedContract) && (
             <p className="form-notice">
               Manufacturer requested revision. Only title, governing law, and terms can be changed.

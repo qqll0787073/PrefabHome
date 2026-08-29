@@ -77,3 +77,12 @@ test("restores only UUID-shaped RFQ and quote record identifiers", () => {
   assert.equal(readPortalLocation("?view=dashboard&workspace=rfqs&record=demo-rfq-1").recordId, null);
   assert.equal(readPortalLocation(`?view=dashboard&workspace=logistics&record=${recordId}`).recordId, null);
 });
+
+test("restores only UUID-shaped related transaction record identifiers", () => {
+  const recordId = "11111111-1111-4111-8111-111111111111";
+  for (const workspace of ["contracts", "invoices", "shipping"] as const) {
+    assert.equal(readPortalLocation(`?view=dashboard&workspace=${workspace}&record=${recordId}`).recordId, recordId);
+    assert.equal(buildPortalSearch({ view: "dashboard", workspace, requestId: null, recordId }), `?view=dashboard&workspace=${workspace}&record=${recordId}`);
+    assert.equal(readPortalLocation(`?view=dashboard&workspace=${workspace}&record=unsafe`).recordId, null);
+  }
+});

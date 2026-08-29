@@ -50,6 +50,15 @@ test("renders the canonical Buyer Manufacturers navigation entry", () => {
   assert.match(markup, /aria-current="page"[^>]*>Manufacturers<\/a>/);
 });
 
+test("exposes Marketplace only as a persistent Buyer destination", () => {
+  const buyer = renderToStaticMarkup(createElement(PortalWorkspaceNavigation, { role: "buyer", workspace: "overview", onWorkspaceChange: () => undefined }));
+  const manufacturer = renderToStaticMarkup(createElement(PortalWorkspaceNavigation, { role: "manufacturer", workspace: "overview", onWorkspaceChange: () => undefined }));
+  const admin = renderToStaticMarkup(createElement(PortalWorkspaceNavigation, { role: "admin", workspace: "overview", onWorkspaceChange: () => undefined }));
+  assert.match(buyer, /href="\/marketplace\?view=browse"[^>]*>Marketplace<\/a>/);
+  assert.doesNotMatch(manufacturer, />Marketplace<\/a>/);
+  assert.doesNotMatch(admin, />Marketplace<\/a>/);
+});
+
 function navigationEvent(overrides: Record<string, unknown> = {}) {
   return {
     button: 0,

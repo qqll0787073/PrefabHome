@@ -11,9 +11,10 @@ import { ShippingReadinessSummary } from "./ShippingReadinessSummary";
 
 interface BuyerShippingReadinessProps {
   authMode: "supabase" | "demo";
+  selectedShippingId?: string | null;
 }
 
-export function BuyerShippingReadiness({ authMode }: BuyerShippingReadinessProps) {
+export function BuyerShippingReadiness({ authMode, selectedShippingId = null }: BuyerShippingReadinessProps) {
   const [records, setRecords] = useState<ShippingReadinessRecord[]>([]);
   const [eventsByRecord, setEventsByRecord] = useState<Record<string, ShippingReadinessEventRecord[]>>({});
   const [isLoading, setIsLoading] = useState(authMode === "supabase");
@@ -53,14 +54,15 @@ export function BuyerShippingReadiness({ authMode }: BuyerShippingReadinessProps
       <p className="form-notice">Buyer shipping readiness is read-only. {shippingPlanningDisclaimer()}</p>
       {records.length === 0 && !isLoading && <p>No shipping readiness records yet.</p>}
       <div className="review-list">
-        {records.map((record) => (
-          <ShippingReadinessSummary
+        {records.filter((record) => !selectedShippingId || record.id === selectedShippingId).map((record) => (
+          <div key={record.id}><ShippingReadinessSummary
             key={record.id}
             record={record}
             events={eventsByRecord[record.id] ?? []}
-          />
+          /><nav className="actions" aria-label="Shipping context"><a href={`/marketplace?view=dashboard&workspace=orders&record=${record.purchase_order_id}`}>View Purchase Order {record.purchase_order_number}</a><a href={`/marketplace?view=dashboard&workspace=contracts&record=${record.contract_id}`}>View Contract {record.contract_number}</a><a href={`/marketplace?view=dashboard&workspace=invoices&record=${record.invoice_id}`}>View Invoice {record.invoice_number}</a><a href="/marketplace?view=dashboard&workspace=logistics">View Logistics</a></nav></div>
         ))}
       </div>
+      {selectedShippingId && !isLoading && !records.some((record) => record.id === selectedShippingId) && <p role="status">This shipping record is unavailable to your Buyer account.</p>}
     </section>
   );
 }

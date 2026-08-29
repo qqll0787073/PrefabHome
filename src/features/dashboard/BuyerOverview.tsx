@@ -1,19 +1,54 @@
 import React, { useCallback, useEffect, useState } from "react";
 import type { AuthUser } from "../../lib/auth";
-import { formatDate } from "../../lib/format";
 import { fetchBuyerRFQs, fetchManufacturerRFQs, rfqSnapshotTitle, rfqStatusLabels } from "../../lib/rfq";
-import type { RFQWithDetails } from "../../types";
-import { buyerOverviewMetrics, buyerRFQContext, buyerRFQTitle, recentBuyerRFQs } from "./buyerOverviewModel";
+import { fetchBuyerQuotes } from "../../lib/quotes";
+import { fetchBuyerPurchaseOrders } from "../../lib/purchaseOrders";
+import { fetchBuyerContracts } from "../../lib/contracts";
+import { fetchBuyerInvoices } from "../../lib/invoices";
+import { fetchBuyerShippingReadiness } from "../../lib/shippingReadiness";
+import type { ContractRecord, InvoiceRecord, PurchaseOrderWithItems, RFQQuoteWithItems, RFQWithDetails, ShippingReadinessRecord } from "../../types";
+import { buyerJourneyMetrics, buyerOverviewMetrics, buyerRFQContext, buyerRFQTitle, recentBuyerRFQs } from "./buyerOverviewModel";
 import { manufacturerOverviewMetrics, recentManufacturerRFQs } from "./manufacturerOverviewModel";
 
 interface BuyerOverviewProps {
   user: AuthUser;
   loadRFQs?: () => Promise<RFQWithDetails[]>;
+  loadBuyerJourney?: () => Promise<BuyerJourneyData>;
   variant?: "buyer" | "manufacturer";
 }
 
-export function BuyerOverview({ user, loadRFQs, variant = "buyer" }: BuyerOverviewProps) {
+export interface BuyerJourneyData {
+  quotes: RFQQuoteWithItems[];
+  orders: PurchaseOrderWithItems[];
+  contracts: ContractRecord[];
+  invoices: InvoiceRecord[];
+  shipping: ShippingReadinessRecord[];
+  unavailable: Array<"quotes" | "orders" | "contracts" | "invoices" | "shipping">;
+}
+
+const emptyJourney: BuyerJourneyData = { quotes: [], orders: [], contracts: [], invoices: [], shipping: [], unavailable: [] };
+
+function formatUpdatedAt(value: string): string {
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+async function fetchBuyerJourney(): Promise<BuyerJourneyData> {
+  const results = await Promise.allSettled([
+    fetchBuyerQuotes(), fetchBuyerPurchaseOrders(), fetchBuyerContracts(), fetchBuyerInvoices(), fetchBuyerShippingReadiness(),
+  ]);
+  return {
+    quotes: results[0].status === "fulfilled" ? results[0].value : [],
+    orders: results[1].status === "fulfilled" ? results[1].value : [],
+    contracts: results[2].status === "fulfilled" ? results[2].value : [],
+    invoices: results[3].status === "fulfilled" ? results[3].value : [],
+    shipping: results[4].status === "fulfilled" ? results[4].value : [],
+    unavailable: (["quotes", "orders", "contracts", "invoices", "shipping"] as const).filter((_, index) => results[index].status === "rejected"),
+  };
+}
+
+export function BuyerOverview({ user, loadRFQs, loadBuyerJourney, variant = "buyer" }: BuyerOverviewProps) {
   const [rfqs, setRFQs] = useState<RFQWithDetails[]>([]);
+  const [journey, setJourney] = useState<BuyerJourneyData>(emptyJourney);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const manufacturer = variant === "manufacturer";
   const fetchRFQs = loadRFQs ?? (manufacturer ? fetchManufacturerRFQs : fetchBuyerRFQs);
@@ -21,12 +56,17 @@ export function BuyerOverview({ user, loadRFQs, variant = "buyer" }: BuyerOvervi
   const load = useCallback(async () => {
     setState("loading");
     try {
-      setRFQs(await fetchRFQs());
+      const [nextRFQs, nextJourney] = await Promise.all([
+        fetchRFQs(),
+        manufacturer ? Promise.resolve(emptyJourney) : (loadBuyerJourney ?? fetchBuyerJourney)(),
+      ]);
+      setRFQs(nextRFQs);
+      setJourney(nextJourney);
       setState("ready");
     } catch {
       setState("error");
     }
-  }, [fetchRFQs]);
+  }, [fetchRFQs, loadBuyerJourney, manufacturer]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -57,6 +97,7 @@ export function BuyerOverview({ user, loadRFQs, variant = "buyer" }: BuyerOvervi
   }
 
   const buyerMetrics = buyerOverviewMetrics(rfqs);
+  const journeyMetrics = buyerJourneyMetrics(journey);
   const manufacturerMetrics = manufacturerOverviewMetrics(rfqs);
   const recent = manufacturer ? recentManufacturerRFQs(rfqs) : recentBuyerRFQs(rfqs);
   const cards: ReadonlyArray<readonly [string, number]> = manufacturer
@@ -82,6 +123,28 @@ export function BuyerOverview({ user, loadRFQs, variant = "buyer" }: BuyerOvervi
         </div>
       </section>
 
+      {!manufacturer && (
+        <section aria-labelledby="buyer-journey-summary-title">
+          <div className="section-heading"><div><h4 id="buyer-journey-summary-title">Needs attention</h4><p>Continue from authoritative transaction records already available to your account.</p></div></div>
+          <div className="workspace-card-grid">
+            {([
+              ["Quotes awaiting decision", journeyMetrics.quotesAwaitingDecision, "quotes"],
+              ["Active orders", journeyMetrics.activeOrders, "orders"],
+              ["Contracts needing attention", journeyMetrics.contractsNeedingAttention, "contracts"],
+              ["Open invoices", journeyMetrics.openInvoices, "invoices"],
+              ["Shipping in progress", journeyMetrics.shippingInProgress, "shipping"],
+            ] as const).map(([label, count, workspace]) => {
+              const unavailable = journey.unavailable.includes(workspace);
+              return (
+              <a className="workspace-card" href={`/marketplace?view=dashboard&workspace=${workspace}`} key={label}>
+                <span>{label}</span><strong>{unavailable ? "Unavailable" : count}</strong><small>{unavailable ? "Open workspace to retry" : count === 0 ? "Nothing needs attention" : "Open workspace"}</small>
+              </a>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       <section aria-labelledby="recent-rfqs-title">
         <div className="section-heading">
           <div><h4 id="recent-rfqs-title">Recent RFQs</h4><p>Your five most recently updated {manufacturer ? "assigned " : ""}requests.</p></div>
@@ -105,7 +168,7 @@ export function BuyerOverview({ user, loadRFQs, variant = "buyer" }: BuyerOvervi
                     <span>{manufacturer ? `${rfq.requested_quantity} units to ${rfq.destination_country}` : `${context ? `${context} — ` : ""}Reference ${rfq.id.slice(0, 8)}`}</span>
                   </div>
                   <span className="buyer-rfq-status">Status: {rfqStatusLabels[rfq.status]}</span>
-                  <time dateTime={rfq.updated_at}>Updated {formatDate(rfq.updated_at)}</time>
+                  <time dateTime={rfq.updated_at}>Updated {formatUpdatedAt(rfq.updated_at)}</time>
                 </li>
               );
             })}
