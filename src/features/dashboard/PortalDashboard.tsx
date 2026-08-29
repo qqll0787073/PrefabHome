@@ -50,10 +50,12 @@ interface PortalDashboardProps {
   workspace: PortalWorkspace;
   selectedLogisticsRequestId: string | null;
   selectedWorkflowRecordId: string | null;
+  productRFQContextId: string | null;
   onRoleChange: (role: Role) => void;
   onWorkspaceChange: (workspace: PortalWorkspace) => void;
   onLogisticsRequestChange: (requestId: string | null) => void;
   onWorkflowRecordChange: (recordId: string | null) => void;
+  onProductRFQContextConsumed: () => void;
 }
 
 function BetaPlaceholder({ title, children }: { title: string; children: string }) {
@@ -72,10 +74,12 @@ export function PortalDashboard({
   workspace,
   selectedLogisticsRequestId,
   selectedWorkflowRecordId,
+  productRFQContextId,
   onRoleChange,
   onWorkspaceChange,
   onLogisticsRequestChange,
   onWorkflowRecordChange,
+  onProductRFQContextConsumed,
 }: PortalDashboardProps) {
   const hasPortalAccess = Boolean(auth.user && auth.user.role === role && auth.user.status !== "suspended");
   const [preferredShippingReadinessId, setPreferredShippingReadinessId] = useState<string | null>(null);
@@ -95,7 +99,7 @@ export function PortalDashboard({
       if (workspace === "favorites") return <BuyerFavoritesWorkspace />;
       if (workspace === "messages") return <BuyerMessagesWorkspace key={auth.user.id} selectedConversationId={selectedWorkflowRecordId} onSelectedConversationChange={onWorkflowRecordChange} />;
       if (workspace === "profile") return <BuyerProfileWorkspace key={auth.user.id} user={auth.user} />;
-      if (workspace === "rfqs" || workspace === "quotes") return <BuyerRFQDashboard user={auth.user} authMode={auth.mode} selectedRFQId={selectedWorkflowRecordId} onSelectedRFQChange={onWorkflowRecordChange} />;
+      if (workspace === "rfqs" || workspace === "quotes") return <BuyerRFQDashboard user={auth.user} authMode={auth.mode} selectedRFQId={selectedWorkflowRecordId} onSelectedRFQChange={onWorkflowRecordChange} productContextId={productRFQContextId} onProductContextConsumed={onProductRFQContextConsumed} />;
       if (workspace === "orders" || workspace === "purchase-orders") return <BuyerPurchaseOrders key={auth.user.id} authMode={auth.mode} selectedPOId={selectedWorkflowRecordId} onSelectedPOChange={onWorkflowRecordChange} onWorkspaceChange={onWorkspaceChange} />;
       if (workspace === "contracts") return <><BuyerContracts authMode={auth.mode} selectedContractId={selectedWorkflowRecordId} /><BuyerSignaturePreparation authMode={auth.mode} /><BuyerSignatureDelivery authMode={auth.mode} /></>;
       if (workspace === "invoices") return <><BuyerInvoices authMode={auth.mode} selectedInvoiceId={selectedWorkflowRecordId} /><BuyerPayments authMode={auth.mode} /></>;

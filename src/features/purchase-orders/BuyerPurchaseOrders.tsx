@@ -19,6 +19,8 @@ import { fetchBuyerInvoices } from "../../lib/invoices";
 import { fetchBuyerShippingReadiness } from "../../lib/shippingReadiness";
 import type { PortalWorkspace } from "../../lib/portalNavigation";
 import type { ContractRecord, InvoiceRecord, PurchaseOrderWithItems, RFQQuoteWithItems, ShippingReadinessRecord } from "../../types";
+import { buyerPurchaseOrderNextAction } from "../../lib/buyerNextActions";
+import { BuyerNextActionNotice } from "../dashboard/BuyerNextActionNotice";
 
 interface BuyerPurchaseOrdersProps {
   authMode: "supabase" | "demo";
@@ -107,6 +109,7 @@ export function BuyerPurchaseOrders({ authMode, selectedPOId = null, onSelectedP
     return <section className="quote-panel" aria-labelledby="order-detail-heading" style={{ minWidth: 0, overflowWrap: "anywhere" }}>
       <button type="button" className="text-button" onClick={() => onSelectedPOChange?.(null)}>Back to Orders</button>
       <h3 id="order-detail-heading">Order {selected.po_number}</h3>
+      <BuyerNextActionNotice action={buyerPurchaseOrderNextAction(selected.status, selected.id)} />
       <article className="review-item">
         <p className="eyebrow">{purchaseOrderStatusLabels[selected.status]}</p>
         <h4>{purchaseOrderProductName(selected)}</h4>

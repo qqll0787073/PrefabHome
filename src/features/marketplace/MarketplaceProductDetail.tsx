@@ -5,6 +5,7 @@ import type { MarketplaceProduct, MarketplaceProductImage } from "../../types";
 import { MarketplaceImageGallery } from "./MarketplaceImageGallery";
 import { MarketplaceProductSpecs } from "./MarketplaceProductSpecs";
 import { RFQRequestDialog } from "../rfqs/RFQRequestDialog";
+import { buyerProductRFQPath } from "../../lib/portalNavigation";
 
 interface MarketplaceProductDetailProps {
   product: MarketplaceProduct;
@@ -48,7 +49,7 @@ export function MarketplaceProductDetail({ product, user, onBack }: MarketplaceP
 
   function requestQuote() {
     if (!user) {
-      window.location.assign("/marketplace?view=dashboard&workspace=rfqs");
+      window.location.assign(buyerProductRFQPath(product.id));
       return;
     }
     setIsRFQOpen(true);

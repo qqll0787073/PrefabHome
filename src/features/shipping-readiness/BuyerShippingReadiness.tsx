@@ -8,6 +8,8 @@ import {
 } from "../../lib/shippingReadiness";
 import type { ShippingReadinessEventRecord, ShippingReadinessRecord } from "../../types";
 import { ShippingReadinessSummary } from "./ShippingReadinessSummary";
+import { buyerShippingNextAction } from "../../lib/buyerNextActions";
+import { BuyerNextActionNotice } from "../dashboard/BuyerNextActionNotice";
 
 interface BuyerShippingReadinessProps {
   authMode: "supabase" | "demo";
@@ -59,7 +61,7 @@ export function BuyerShippingReadiness({ authMode, selectedShippingId = null }: 
             key={record.id}
             record={record}
             events={eventsByRecord[record.id] ?? []}
-          /><nav className="actions" aria-label="Shipping context"><a href={`/marketplace?view=dashboard&workspace=orders&record=${record.purchase_order_id}`}>View Purchase Order {record.purchase_order_number}</a><a href={`/marketplace?view=dashboard&workspace=contracts&record=${record.contract_id}`}>View Contract {record.contract_number}</a><a href={`/marketplace?view=dashboard&workspace=invoices&record=${record.invoice_id}`}>View Invoice {record.invoice_number}</a><a href="/marketplace?view=dashboard&workspace=logistics">View Logistics</a></nav></div>
+          /><BuyerNextActionNotice action={buyerShippingNextAction(record.status, record.id)} /><nav className="actions" aria-label="Shipping context"><a href={`/marketplace?view=dashboard&workspace=orders&record=${record.purchase_order_id}`}>View Purchase Order {record.purchase_order_number}</a><a href={`/marketplace?view=dashboard&workspace=contracts&record=${record.contract_id}`}>View Contract {record.contract_number}</a><a href={`/marketplace?view=dashboard&workspace=invoices&record=${record.invoice_id}`}>View Invoice {record.invoice_number}</a><a href="/marketplace?view=dashboard&workspace=logistics">View Logistics</a></nav></div>
         ))}
       </div>
       {selectedShippingId && !isLoading && !records.some((record) => record.id === selectedShippingId) && <p role="status">This shipping record is unavailable to your Buyer account.</p>}
