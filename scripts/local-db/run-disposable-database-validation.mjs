@@ -34,8 +34,8 @@ const migrationFiles = (await readdir(migrationsDirectory))
   .filter((file) => /^\d{4}_.+\.sql$/.test(file))
   .sort();
 
-assert.equal(migrationFiles.length, 34, "Expected exactly migrations 0001-0034.");
-assert.equal(migrationFiles.at(-1), "0034_admin_dashboard_user_management.sql");
+assert.equal(migrationFiles.length, 35, "Expected exactly migrations 0001-0035.");
+assert.equal(migrationFiles.at(-1), "0035_harden_suspended_buyer_transaction_authority.sql");
 
 const client = new Client({ connectionString: databaseUrl, application_name: "prefab-disposable-validation" });
 const results = [];
@@ -78,15 +78,15 @@ try {
     }
   }
 
-  const manufacturerProductRegression = await readFile(
-    resolve("supabase/tests/manufacturer_product_management_security.sql"),
-    "utf8",
-  );
-  await client.query(manufacturerProductRegression);
-  const manufacturerCompanyProfileRegression = await readFile(resolve("supabase/tests/manufacturer_company_profile_security.sql"), "utf8");
-  await client.query(manufacturerCompanyProfileRegression);
-  const adminUserManagementRegression = await readFile(resolve("supabase/tests/admin_dashboard_user_management_security.sql"), "utf8");
-  await client.query(adminUserManagementRegression);
+  const regressionFiles = [
+    "suspended_buyer_transaction_authority_security.sql",
+    "admin_dashboard_user_management_security.sql",
+    "manufacturer_product_management_security.sql",
+    "manufacturer_company_profile_security.sql",
+  ];
+  for (const file of regressionFiles) {
+    await client.query(await readFile(resolve("supabase/tests", file), "utf8"));
+  }
 
   const directoryPrivileges = await client.query(`
     select grantee, privilege_type

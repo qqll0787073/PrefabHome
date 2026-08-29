@@ -8,7 +8,7 @@ import { auditTrackedSecrets } from "../release/scan-tracked-secrets.mjs";
 
 test("Beta release manifest covers required documentation and exact migrations", () => {
   assert.equal(REQUIRED_BETA_FILES.length, 13);
-  assert.deepEqual(EXPECTED_MIGRATIONS, Array.from({ length: 34 }, (_, index) => String(index + 1).padStart(4, "0")));
+  assert.deepEqual(EXPECTED_MIGRATIONS, Array.from({ length: 35 }, (_, index) => String(index + 1).padStart(4, "0")));
   assert.deepEqual(auditBetaDocs(), []);
 });
 
