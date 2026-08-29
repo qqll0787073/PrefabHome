@@ -42,6 +42,7 @@ const ManufacturerWorkspace = lazy(() => import("../manufacturers/ManufacturerWo
 const ManufacturerProductList = lazy(() => import("../products/ManufacturerProductList").then((module) => ({ default: module.ManufacturerProductList })));
 const AdminManufacturerReview = lazy(() => import("../manufacturers/AdminManufacturerReview").then((module) => ({ default: module.AdminManufacturerReview })));
 const AdminProductReview = lazy(() => import("../products/AdminProductReview").then((module) => ({ default: module.AdminProductReview })));
+const AdminUsersWorkspace = lazy(() => import("../admin/AdminUsersWorkspace").then((module) => ({ default: module.AdminUsersWorkspace })));
 
 interface PortalDashboardProps {
   auth: AuthState;
@@ -76,7 +77,7 @@ export function PortalDashboard({
   onLogisticsRequestChange,
   onWorkflowRecordChange,
 }: PortalDashboardProps) {
-  const hasPortalAccess = Boolean(auth.user && auth.user.role === role);
+  const hasPortalAccess = Boolean(auth.user && auth.user.role === role && auth.user.status !== "suspended");
   const [preferredShippingReadinessId, setPreferredShippingReadinessId] = useState<string | null>(null);
   const definition = portalWorkspaceDefinition(role, workspace);
 
@@ -87,7 +88,7 @@ export function PortalDashboard({
 
   function workspaceContent() {
     if (!auth.user) return null;
-    if (workspace === "overview") return <PortalOverview role={role} user={auth.user} onWorkspaceChange={onWorkspaceChange} />;
+    if (workspace === "overview") return <PortalOverview role={role} user={auth.user} authMode={auth.mode} onWorkspaceChange={onWorkspaceChange} />;
 
     if (role === "buyer") {
       if (workspace === "manufacturers") return <BuyerManufacturersWorkspace selectedManufacturerId={selectedWorkflowRecordId} onSelectedManufacturerChange={onWorkflowRecordChange} />;
@@ -114,7 +115,7 @@ export function PortalDashboard({
     }
 
     if (role === "admin") {
-      if (workspace === "users") return <BetaPlaceholder title="User operations">Dedicated user search, suspension, and invitation services are not implemented. Authentication and role authority remain managed through Supabase and database policies.</BetaPlaceholder>;
+      if (workspace === "users") return <AdminUsersWorkspace authMode={auth.mode} />;
       if (workspace === "manufacturers") return <AdminManufacturerReview authMode={auth.mode} />;
       if (workspace === "products") return <AdminProductReview authMode={auth.mode} />;
       if (workspace === "rfqs") return <AdminRFQManagement authMode={auth.mode} selectedRFQId={selectedWorkflowRecordId} onSelectedRFQChange={onWorkflowRecordChange} />;

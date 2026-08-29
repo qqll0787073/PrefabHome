@@ -52,8 +52,8 @@ export const portalWorkspaces: Record<Role, PortalWorkspaceDefinition[]> = {
     ...sharedTransactionWorkspaces,
   ],
   admin: [
-    { id: "overview", label: "Dashboard", description: "Operational queues and Beta status." },
-    { id: "users", label: "Users", description: "Current user-management capability and limitations." },
+    { id: "overview", label: "Dashboard", description: "Authoritative operational queues and access summaries." },
+    { id: "users", label: "Users", description: "User search, role visibility, and platform access status." },
     { id: "manufacturers", label: "Manufacturers", description: "Manufacturer application review." },
     { id: "products", label: "Products", description: "Product lifecycle review." },
     ...sharedTransactionWorkspaces.filter((workspace) => workspace.id !== "quotes"),

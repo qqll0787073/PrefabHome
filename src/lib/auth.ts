@@ -13,6 +13,7 @@ export interface AuthUser {
   email: string;
   fullName: string;
   role: Role;
+  status?: "active" | "pending" | "suspended";
 }
 
 export interface LoginCredentials {
@@ -69,7 +70,7 @@ async function loadSupabaseProfile(userId: string, email: string): Promise<AuthU
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id,email,full_name,role")
+    .select("id,email,full_name,role,status")
     .eq("id", userId)
     .maybeSingle();
 
@@ -82,6 +83,7 @@ async function loadSupabaseProfile(userId: string, email: string): Promise<AuthU
     email: data?.email ?? email,
     fullName: data?.full_name ?? email.split("@")[0],
     role: isRole(data?.role) ? data.role : "buyer",
+    status: data?.status === "pending" || data?.status === "suspended" ? data.status : "active",
   };
 }
 
@@ -174,6 +176,7 @@ export function useAuth(): AuthState {
         email,
         fullName: email.split("@")[0],
         role: intendedPortal,
+        status: "active",
       };
       setDemoUser(demoUser);
       setUser(demoUser);
@@ -210,6 +213,7 @@ export function useAuth(): AuthState {
         email,
         fullName: fullName?.trim() || email.split("@")[0],
         role: registrationRole,
+        status: "active",
       };
       setDemoUser(demoUser);
       setUser(demoUser);
@@ -240,6 +244,7 @@ export function useAuth(): AuthState {
         email,
         fullName: fullName?.trim() || email.split("@")[0],
         role: registrationRole,
+        status: "active",
       });
     } else if (data.user) {
       setError("Registration created. Check your email to confirm the account before signing in.");

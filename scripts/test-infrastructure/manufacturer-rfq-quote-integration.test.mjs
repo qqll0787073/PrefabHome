@@ -10,7 +10,7 @@ const builder = readFileSync("src/features/quotes/QuoteBuilder.tsx", "utf8");
 
 test("Sprint 5C.3 adds no migration and preserves migration 0025 authority and lineage enforcement", () => {
   const migrations = readdirSync("supabase/migrations").filter((file) => /^\d{4}_.+\.sql$/.test(file)).sort();
-  assert.equal(migrations.length, 33);
+  assert.equal(migrations.length, 34);
   assert.match(migration, /create or replace function public\.create_rfq_quote_revision\(quote_uuid uuid\)/);
   assert.match(migration, /source_quote\.rfq_id is distinct from quote_record\.rfq_id/);
   assert.match(migration, /perform public\.assert_rfq_quote_lineage\(quote_record\.id, quote_record\.rfq_id, source_quote\.id\)/);
