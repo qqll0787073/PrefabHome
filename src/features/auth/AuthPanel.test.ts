@@ -7,9 +7,11 @@ import {
   buildLoginCredentials,
   buildRegistrationCredentials,
   RegistrationRoleField,
+  PasswordRecoveryPanel,
 } from "./AuthPanel";
 
 const noopAuthAction = async () => undefined;
+const noopEmailAction = async () => "Request received.";
 
 test("login shows a read-only portal entry and database role authority copy", () => {
   const markup = renderToStaticMarkup(createElement(AuthPanel, {
@@ -19,6 +21,8 @@ test("login shows a read-only portal entry and database role authority copy", ()
     isLoading: false,
     onLogin: noopAuthAction,
     onRegister: noopAuthAction,
+    onRequestPasswordRecovery: noopEmailAction,
+    onResendConfirmation: noopEmailAction,
   }));
 
   assert.match(markup, /Signing in to: Manufacturer Portal/);
@@ -30,6 +34,47 @@ test("login shows a read-only portal entry and database role authority copy", ()
   assert.match(markup, /id="auth-password"/);
   assert.match(markup, /autoComplete="current-password"/);
   assert.match(markup, /aria-busy="false"/);
+  assert.match(markup, /Forgot password\?/);
+  assert.match(markup, /Resend confirmation email/);
+});
+
+test("direct recovery route without a valid recovery event cannot show the password form", () => {
+  const markup = renderToStaticMarkup(createElement(PasswordRecoveryPanel, {
+    authMode: "supabase",
+    recoveryState: "idle",
+    recoveryError: null,
+    onUpdatePassword: noopAuthAction,
+    onClear: () => undefined,
+  }));
+  assert.match(markup, /Recovery link unavailable/);
+  assert.doesNotMatch(markup, /id="recovery-password"/);
+});
+
+test("valid Supabase recovery state exposes the accessible matching-password form", () => {
+  const markup = renderToStaticMarkup(createElement(PasswordRecoveryPanel, {
+    authMode: "supabase",
+    recoveryState: "valid",
+    recoveryError: null,
+    onUpdatePassword: noopAuthAction,
+    onClear: () => undefined,
+  }));
+  assert.match(markup, /Choose a new password/);
+  assert.match(markup, /id="recovery-password"/);
+  assert.match(markup, /id="recovery-confirmation"/);
+  assert.match(markup, /minLength="6"/);
+  assert.match(markup, /role, status, and Manufacturer approval are unchanged/);
+});
+
+test("demo mode never simulates password recovery", () => {
+  const markup = renderToStaticMarkup(createElement(PasswordRecoveryPanel, {
+    authMode: "demo",
+    recoveryState: "valid",
+    recoveryError: null,
+    onUpdatePassword: noopAuthAction,
+    onClear: () => undefined,
+  }));
+  assert.match(markup, /not simulated in demo mode/);
+  assert.doesNotMatch(markup, /id="recovery-password"/);
 });
 
 test("auth failures are announced, associated with credentials, and expose invalid state", () => {
@@ -40,6 +85,8 @@ test("auth failures are announced, associated with credentials, and expose inval
     isLoading: false,
     onLogin: noopAuthAction,
     onRegister: noopAuthAction,
+    onRequestPasswordRecovery: noopEmailAction,
+    onResendConfirmation: noopEmailAction,
   }));
 
   assert.match(markup, /role="alert"/);

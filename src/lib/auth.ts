@@ -7,6 +7,14 @@ import {
 } from "./runtimeConfig";
 import { isRole, sanitizeRegistrationRole } from "./authRoles";
 import type { Role } from "../types";
+import {
+  clearAuthModeFromSearch,
+  isRecoveryRoute,
+  replaceRecoveredPassword,
+  requestConfirmationEmail,
+  requestRecoveryEmail,
+  recoveryErrorMessage,
+} from "./authRecovery";
 
 export interface AuthUser {
   id: string;
@@ -34,8 +42,15 @@ export interface AuthState {
   isLoading: boolean;
   error: string | null;
   mode: "supabase" | "demo";
+  recoveryRequested: boolean;
+  recoveryState: "idle" | "valid" | "updated";
+  recoveryError: string | null;
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (credentials: RegistrationCredentials) => Promise<void>;
+  requestPasswordRecovery: (email: string) => Promise<string>;
+  resendConfirmation: (email: string) => Promise<string>;
+  updateRecoveredPassword: (password: string) => Promise<void>;
+  clearRecovery: () => void;
   logout: () => Promise<void>;
 }
 
@@ -95,6 +110,11 @@ export function useAuth(): AuthState {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [recoveryRequested, setRecoveryRequested] = useState(
+    () => typeof window !== "undefined" && isRecoveryRoute(window.location.search),
+  );
+  const [recoveryState, setRecoveryState] = useState<"idle" | "valid" | "updated">("idle");
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -140,8 +160,13 @@ export function useAuth(): AuthState {
       };
     }
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
       try {
+        if (event === "PASSWORD_RECOVERY") {
+          setRecoveryRequested(true);
+          setRecoveryState("valid");
+          setRecoveryError(null);
+        }
         if (session?.user.email) {
           const profile = await loadSupabaseProfile(session.user.id, session.user.email);
           if (isMounted) setUser(profile);
@@ -267,13 +292,70 @@ export function useAuth(): AuthState {
     setUser(null);
   }
 
+  async function requestPasswordRecovery(email: string): Promise<string> {
+    setRecoveryError(null);
+    if (!supabase) {
+      if (demoAuthAllowed) throw new Error("Password recovery requires Supabase Auth and is unavailable in demo mode.");
+      throw new Error(unavailableAuthMessage);
+    }
+    return requestRecoveryEmail(supabase.auth, email, window.location.origin);
+  }
+
+  async function resendConfirmation(email: string): Promise<string> {
+    setRecoveryError(null);
+    if (!supabase) {
+      if (demoAuthAllowed) throw new Error("Email confirmation requires Supabase Auth and is unavailable in demo mode.");
+      throw new Error(unavailableAuthMessage);
+    }
+    return requestConfirmationEmail(supabase.auth, email, window.location.origin);
+  }
+
+  async function updateRecoveredPassword(password: string): Promise<void> {
+    setRecoveryError(null);
+    if (!supabase || recoveryState !== "valid") {
+      const message = recoveryErrorMessage();
+      setRecoveryError(message);
+      throw new Error(message);
+    }
+    try {
+      await replaceRecoveredPassword(supabase.auth, password);
+    } catch {
+      const message = recoveryErrorMessage();
+      setRecoveryError(message);
+      throw new Error(message);
+    }
+    const { error: signOutError } = await supabase.auth.signOut();
+    if (signOutError) {
+      setRecoveryError("Your password was updated, but the current session could not be closed. Sign out before continuing.");
+      throw signOutError;
+    }
+    setUser(null);
+    setRecoveryState("updated");
+  }
+
+  function clearRecovery() {
+    setRecoveryRequested(false);
+    setRecoveryState("idle");
+    setRecoveryError(null);
+    if (typeof window !== "undefined") {
+      window.history.replaceState({}, "", `/marketplace${clearAuthModeFromSearch(window.location.search)}`);
+    }
+  }
+
   return {
     user,
     isLoading,
     error,
     mode,
+    recoveryRequested,
+    recoveryState,
+    recoveryError,
     login,
     register,
+    requestPasswordRecovery,
+    resendConfirmation,
+    updateRecoveredPassword,
+    clearRecovery,
     logout,
   };
 }

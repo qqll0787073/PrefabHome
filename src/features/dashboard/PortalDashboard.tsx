@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState } from "react";
 import { roleLabels } from "../../app/constants";
 import { LoadingState } from "../../components/common/LoadingState";
-import { AuthPanel } from "../auth/AuthPanel";
+import { AuthPanel, PasswordRecoveryPanel } from "../auth/AuthPanel";
 import { portalWorkspaceDefinition, type PortalWorkspace } from "../../lib/portalNavigation";
 import type { AuthState } from "../../lib/auth";
 import type { Role } from "../../types";
@@ -135,11 +135,15 @@ export function PortalDashboard({
 
   return (
     <>
-      {!auth.user && (
-        <AuthPanel activeRole={role} authError={auth.error} authMode={auth.mode} isLoading={auth.isLoading} onLogin={auth.login} onRegister={auth.register} />
+      {auth.recoveryRequested && (
+        <PasswordRecoveryPanel authMode={auth.mode} recoveryState={auth.recoveryState} recoveryError={auth.recoveryError} onUpdatePassword={auth.updateRecoveredPassword} onClear={auth.clearRecovery} />
       )}
 
-      {auth.user && !hasPortalAccess && (
+      {!auth.recoveryRequested && !auth.user && (
+        <AuthPanel activeRole={role} authError={auth.error} authMode={auth.mode} isLoading={auth.isLoading} onLogin={auth.login} onRegister={auth.register} onRequestPasswordRecovery={auth.requestPasswordRecovery} onResendConfirmation={auth.resendConfirmation} />
+      )}
+
+      {!auth.recoveryRequested && auth.user && !hasPortalAccess && (
         <section className="panel access-panel">
           <p className="eyebrow">Protected Portal</p>
           <h2>Role access required</h2>
@@ -148,7 +152,7 @@ export function PortalDashboard({
         </section>
       )}
 
-      {hasPortalAccess && (
+      {!auth.recoveryRequested && hasPortalAccess && (
         <section className="portal-shell">
           <header className="portal-shell-header">
             <div>
