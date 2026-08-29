@@ -13,7 +13,7 @@ test("Buyer provisioning remains operator-only and absent from frontend imports"
 });
 
 test("Buyer provisioning introduces no migration or manual profile SQL", () => {
-  assert.deepEqual(readdirSync("supabase/migrations").filter((item) => item.endsWith(".sql")).map((item) => item.slice(0, 4)), Array.from({ length: 33 }, (_, index) => String(index + 1).padStart(4, "0")));
+  assert.deepEqual(readdirSync("supabase/migrations").filter((item) => item.endsWith(".sql")).map((item) => item.slice(0, 4)), Array.from({ length: 34 }, (_, index) => String(index + 1).padStart(4, "0")));
   assert.doesNotMatch(`${cli}\n${core}\n${adapter}`, /insert\s+into|update\s+public\.profiles|from\s+auth\.users/i);
 });
 

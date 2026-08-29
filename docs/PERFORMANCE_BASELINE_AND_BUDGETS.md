@@ -51,13 +51,13 @@ The initial JavaScript boundary is 282,245 bytes smaller, a 57.7% reduction. Tot
 
 | Budget | Ceiling | Reason |
 | --- | ---: | --- |
-| Total artifact bytes | 825,000 | About 6.5% above the split build |
-| Total JavaScript bytes | 780,000 | About 6.7% JavaScript headroom |
+| Total artifact bytes | 900,000 | Includes the reviewed Sprint 5D.1 Admin Users and operational-summary chunks |
+| Total JavaScript bytes | 850,000 | Keeps limited headroom above the Sprint 5D.1 split build |
 | Total CSS bytes | 28,000 | Allows small accessibility additions without hiding broad growth |
 | Initial JavaScript bytes | 230,000 | About 11% headroom while preventing the former portal re-import |
-| Largest JavaScript bytes | 310,000 | About 9% headroom above the portal chunk |
+| Largest JavaScript bytes | 315,000 | Bounded headroom for the authenticated portal shell |
 | Largest CSS bytes | 28,000 | Matches the total CSS ceiling |
-| JavaScript files | 55 | Allows four additional intentional lazy chunks |
+| JavaScript files | 58 | Includes the intentional lazy Admin Users, Admin Overview, and shared Admin service chunks |
 | CSS files | 2 | Allows one reviewed split stylesheet |
 | Source maps | 0 | Public source maps remain unapproved |
 | Duplicate exact-hash groups | 0 | Exact duplicate files are not accepted |

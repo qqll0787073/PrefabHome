@@ -34,8 +34,8 @@ const migrationFiles = (await readdir(migrationsDirectory))
   .filter((file) => /^\d{4}_.+\.sql$/.test(file))
   .sort();
 
-assert.equal(migrationFiles.length, 33, "Expected exactly migrations 0001-0033.");
-assert.equal(migrationFiles.at(-1), "0033_secure_manufacturer_company_profile.sql");
+assert.equal(migrationFiles.length, 34, "Expected exactly migrations 0001-0034.");
+assert.equal(migrationFiles.at(-1), "0034_admin_dashboard_user_management.sql");
 
 const client = new Client({ connectionString: databaseUrl, application_name: "prefab-disposable-validation" });
 const results = [];
@@ -85,6 +85,8 @@ try {
   await client.query(manufacturerProductRegression);
   const manufacturerCompanyProfileRegression = await readFile(resolve("supabase/tests/manufacturer_company_profile_security.sql"), "utf8");
   await client.query(manufacturerCompanyProfileRegression);
+  const adminUserManagementRegression = await readFile(resolve("supabase/tests/admin_dashboard_user_management_security.sql"), "utf8");
+  await client.query(adminUserManagementRegression);
 
   const directoryPrivileges = await client.query(`
     select grantee, privilege_type
