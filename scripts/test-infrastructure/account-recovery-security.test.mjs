@@ -10,20 +10,18 @@ const dashboard = readFileSync(new URL("../../src/features/dashboard/PortalDashb
 test("recovery authority requires the Supabase PASSWORD_RECOVERY event", () => {
   assert.match(auth, /event === "PASSWORD_RECOVERY"[\s\S]*setRecoveryState\("valid"\)/);
   assert.match(auth, /recoveryState !== "valid"/);
-  assert.match(dashboard, /auth\.recoveryRequested[\s\S]*recoveryState=\{auth\.recoveryState\}/);
+  assert.match(dashboard, /auth\.recoveryState !== "none"[\s\S]*recoveryState=\{auth\.recoveryState\}/);
   assert.doesNotMatch(recovery, /recovery.*(?:role|status|application_status)/i);
 });
 
-test("recovery and confirmation redirects are fixed internal destinations", () => {
-  assert.match(recovery, /new URL\("\/marketplace", trustedOrigin\)/);
-  assert.match(recovery, /redirect\.searchParams\.set\("auth", mode\)/);
+test("recovery redirect is a fixed internal destination", () => {
+  assert.match(recovery, /new URL\("\/marketplace\?auth=recovery", new URL\(origin\)\.origin\)/);
   assert.doesNotMatch(recovery, /returnTo|redirect_uri|nextUrl|window\.location\.assign/);
 });
 
 test("browser recovery uses only ordinary Supabase Auth methods", () => {
-  assert.match(recovery, /resetPasswordForEmail/);
-  assert.match(recovery, /\.resend/);
-  assert.match(recovery, /updateUser/);
+  assert.match(auth, /resetPasswordForEmail/);
+  assert.match(auth, /updateUser\(\{ password \}\)/);
   assert.doesNotMatch(auth + recovery + panel, /service_role|SUPABASE_SERVICE|auth\.admin|createUser\(|profiles.*update|application_status/);
 });
 

@@ -8,11 +8,9 @@ import {
 import { isRole, sanitizeRegistrationRole } from "./authRoles";
 import type { Role } from "../types";
 import {
-  clearAuthModeFromSearch,
+  fixedRecoveryRedirect,
   isRecoveryRoute,
-  replaceRecoveredPassword,
-  requestConfirmationEmail,
-  requestRecoveryEmail,
+  neutralRecoveryMessage,
   recoveryErrorMessage,
 } from "./authRecovery";
 
@@ -42,13 +40,10 @@ export interface AuthState {
   isLoading: boolean;
   error: string | null;
   mode: "supabase" | "demo";
-  recoveryRequested: boolean;
-  recoveryState: "idle" | "valid" | "updated";
-  recoveryError: string | null;
+  recoveryState: "none" | "idle" | "valid" | "updated";
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (credentials: RegistrationCredentials) => Promise<void>;
   requestPasswordRecovery: (email: string) => Promise<string>;
-  resendConfirmation: (email: string) => Promise<string>;
   updateRecoveredPassword: (password: string) => Promise<void>;
   clearRecovery: () => void;
   logout: () => Promise<void>;
@@ -110,11 +105,9 @@ export function useAuth(): AuthState {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [recoveryRequested, setRecoveryRequested] = useState(
-    () => typeof window !== "undefined" && isRecoveryRoute(window.location.search),
+  const [recoveryState, setRecoveryState] = useState<"none" | "idle" | "valid" | "updated">(
+    () => typeof window !== "undefined" && isRecoveryRoute(window.location.search) ? "idle" : "none",
   );
-  const [recoveryState, setRecoveryState] = useState<"idle" | "valid" | "updated">("idle");
-  const [recoveryError, setRecoveryError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -163,9 +156,7 @@ export function useAuth(): AuthState {
     const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
       try {
         if (event === "PASSWORD_RECOVERY") {
-          setRecoveryRequested(true);
           setRecoveryState("valid");
-          setRecoveryError(null);
         }
         if (session?.user.email) {
           const profile = await loadSupabaseProfile(session.user.id, session.user.email);
@@ -293,52 +284,38 @@ export function useAuth(): AuthState {
   }
 
   async function requestPasswordRecovery(email: string): Promise<string> {
-    setRecoveryError(null);
     if (!supabase) {
       if (demoAuthAllowed) throw new Error("Password recovery requires Supabase Auth and is unavailable in demo mode.");
       throw new Error(unavailableAuthMessage);
     }
-    return requestRecoveryEmail(supabase.auth, email, window.location.origin);
-  }
-
-  async function resendConfirmation(email: string): Promise<string> {
-    setRecoveryError(null);
-    if (!supabase) {
-      if (demoAuthAllowed) throw new Error("Email confirmation requires Supabase Auth and is unavailable in demo mode.");
-      throw new Error(unavailableAuthMessage);
+    try {
+      await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: fixedRecoveryRedirect(window.location.origin),
+      });
+    } catch {
+      // Keep the response neutral even when the provider rejects the request.
     }
-    return requestConfirmationEmail(supabase.auth, email, window.location.origin);
+    return neutralRecoveryMessage;
   }
 
   async function updateRecoveredPassword(password: string): Promise<void> {
-    setRecoveryError(null);
     if (!supabase || recoveryState !== "valid") {
-      const message = recoveryErrorMessage();
-      setRecoveryError(message);
-      throw new Error(message);
+      throw new Error(recoveryErrorMessage());
     }
-    try {
-      await replaceRecoveredPassword(supabase.auth, password);
-    } catch {
-      const message = recoveryErrorMessage();
-      setRecoveryError(message);
-      throw new Error(message);
-    }
+    const { error: updateError } = await supabase.auth.updateUser({ password });
+    if (updateError) throw new Error(recoveryErrorMessage());
     const { error: signOutError } = await supabase.auth.signOut();
     if (signOutError) {
-      setRecoveryError("Your password was updated, but the current session could not be closed. Sign out before continuing.");
-      throw signOutError;
+      throw new Error("Password updated, but sign-out failed. Sign out before continuing.");
     }
     setUser(null);
     setRecoveryState("updated");
   }
 
   function clearRecovery() {
-    setRecoveryRequested(false);
-    setRecoveryState("idle");
-    setRecoveryError(null);
+    setRecoveryState("none");
     if (typeof window !== "undefined") {
-      window.history.replaceState({}, "", `/marketplace${clearAuthModeFromSearch(window.location.search)}`);
+      window.history.replaceState({}, "", "/marketplace");
     }
   }
 
@@ -347,13 +324,10 @@ export function useAuth(): AuthState {
     isLoading,
     error,
     mode,
-    recoveryRequested,
     recoveryState,
-    recoveryError,
     login,
     register,
     requestPasswordRecovery,
-    resendConfirmation,
     updateRecoveredPassword,
     clearRecovery,
     logout,

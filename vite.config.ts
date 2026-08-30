@@ -44,6 +44,9 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), publicSiteMetadataPlugin(publicSiteUrl)],
     build: {
       sourcemap: false,
+      rollupOptions: {
+        output: { experimentalMinChunkSize: 7_000 },
+      },
     },
   };
 });

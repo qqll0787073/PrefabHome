@@ -2,7 +2,7 @@ import React, { useEffect, useId, useRef, useState, type FormEvent } from "react
 import { roleLabels } from "../../app/constants";
 import type { LoginCredentials, RegistrationCredentials } from "../../lib/auth";
 import type { Role } from "../../types";
-import { canSubmitRecoveredPassword, validateRecoveredPassword } from "../../lib/authRecovery";
+import { validateRecoveredPassword } from "../../lib/authRecovery";
 
 type RegistrationRole = Exclude<Role, "admin">;
 
@@ -31,7 +31,9 @@ interface AuthPanelProps {
   onLogin: (credentials: LoginCredentials) => Promise<void>;
   onRegister: (credentials: RegistrationCredentials) => Promise<void>;
   onRequestPasswordRecovery: (email: string) => Promise<string>;
-  onResendConfirmation: (email: string) => Promise<string>;
+  recoveryState?: "idle" | "valid" | "updated";
+  onUpdatePassword?: (password: string) => Promise<void>;
+  onClearRecovery?: () => void;
 }
 
 interface LoginPortalEntryProps {
@@ -50,6 +52,16 @@ export function LoginPortalEntry({ activeRole }: LoginPortalEntryProps) {
 interface RegistrationRoleFieldProps {
   value: RegistrationRole;
   onChange: (role: RegistrationRole) => void;
+}
+
+interface AuthFieldProps {
+  id: string; label: string; value: string; onChange: (value: string) => void;
+  type?: "text" | "email" | "password"; autoComplete: string; placeholder?: string;
+  describedBy?: string; invalid?: boolean; minLength?: number;
+}
+
+function AuthField({ id, label, value, onChange, type = "text", autoComplete, placeholder, describedBy, invalid, minLength }: AuthFieldProps) {
+  return <label htmlFor={id}>{label}<input id={id} type={type} value={value} onChange={(event) => onChange(event.target.value)} autoComplete={autoComplete} placeholder={placeholder} aria-invalid={invalid} aria-describedby={describedBy} minLength={minLength} required /></label>;
 }
 
 export function RegistrationRoleField({ value, onChange }: RegistrationRoleFieldProps) {
@@ -79,11 +91,15 @@ export function AuthPanel({
   onLogin,
   onRegister,
   onRequestPasswordRecovery,
-  onResendConfirmation,
+  recoveryState,
+  onUpdatePassword,
+  onClearRecovery,
 }: AuthPanelProps) {
-  const [formMode, setFormMode] = useState<"login" | "register" | "forgot" | "resend">("login");
+  const recovering = recoveryState !== undefined;
+  const [formMode, setFormMode] = useState<"login" | "register" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
   const [fullName, setFullName] = useState("");
   const [registrationRole, setRegistrationRole] = useState<RegistrationRole>(
     activeRole === "manufacturer" ? "manufacturer" : "buyer",
@@ -111,17 +127,24 @@ export function AuthPanel({
     setActionError(null);
 
     try {
-      if (formMode === "login") {
+      if (recovering && onUpdatePassword) {
+        const errors = validateRecoveredPassword(password, confirmation);
+        if (errors.length > 0) {
+          setActionError(errors.join(" "));
+          return;
+        }
+        await onUpdatePassword(password);
+        setPassword("");
+        setConfirmation("");
+      } else if (formMode === "login") {
         await onLogin(buildLoginCredentials(email, password, activeRole));
       } else if (formMode === "register") {
         await onRegister(buildRegistrationCredentials(email, password, fullName, registrationRole));
       } else if (formMode === "forgot") {
         setActionMessage(await onRequestPasswordRecovery(email));
-      } else {
-        setActionMessage(await onResendConfirmation(email));
       }
     } catch (caught) {
-      if (formMode === "forgot" || formMode === "resend") {
+      if (recovering || formMode === "forgot") {
         setActionError(caught instanceof Error ? caught.message : "The request could not be completed.");
       }
     } finally {
@@ -129,12 +152,18 @@ export function AuthPanel({
     }
   }
 
+  if (recovering && (authMode === "demo" || recoveryState !== "valid")) {
+    const demo = authMode === "demo";
+    const updated = recoveryState === "updated";
+    return <section className="auth-panel"><h2>{demo ? "Password recovery unavailable" : updated ? "Password updated" : "Recovery link unavailable"}</h2><p>{demo ? "Password recovery requires real Supabase Auth and is not simulated in demo mode." : updated ? "Sign in with your new password." : "The link is invalid, expired, already used, or has no recovery session."}</p><button type="button" onClick={onClearRecovery}>{demo ? "Back to Login" : "Return to Login"}</button></section>;
+  }
+
   return (
     <section className="auth-panel">
       <div>
         <p className="eyebrow">{authMode === "supabase" ? "Supabase Auth" : "Demo Auth"}</p>
-        <h2>{formMode === "login" ? "Sign in to continue" : formMode === "register" ? "Create a portal account" : formMode === "forgot" ? "Recover your password" : "Resend confirmation email"}</h2>
-        {formMode === "login" ? (
+        <h2>{recovering ? "Choose a new password" : formMode === "login" ? "Sign in to continue" : formMode === "register" ? "Create a portal account" : "Recover your password"}</h2>
+        {recovering ? <p>This changes your credential only; role, status, and Manufacturer approval are unchanged.</p> : formMode === "login" ? (
           <p>Use your existing account credentials to continue to the selected portal.</p>
         ) : formMode === "register" ? (
           <p>Create a Buyer or Manufacturer account. Account approval and access remain database-controlled.</p>
@@ -142,7 +171,7 @@ export function AuthPanel({
       </div>
 
       <form onSubmit={handleSubmit} className="auth-form" aria-busy={isLoading || isSubmitting}>
-        {(formMode === "login" || formMode === "register") && <div className="segmented-control">
+        {!recovering && (formMode === "login" || formMode === "register") && <div className="segmented-control">
           <button
             type="button"
             className={formMode === "login" ? "active" : ""}
@@ -161,110 +190,38 @@ export function AuthPanel({
           </button>
         </div>}
 
-        {formMode === "register" && (
-          <label htmlFor="auth-full-name">
-            Full name
-            <input
-              id="auth-full-name"
-              value={fullName}
-              onChange={(event) => setFullName(event.target.value)}
-              placeholder="Jane Smith"
-              autoComplete="name"
-              required
-            />
-          </label>
+        {!recovering && formMode === "register" && (
+          <AuthField id="auth-full-name" label="Full name" value={fullName} onChange={setFullName} placeholder="Jane Smith" autoComplete="name" />
         )}
 
-        <label htmlFor="auth-email">
-          Email
-          <input
-            id="auth-email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="name@example.com"
-            autoComplete="email"
-            aria-invalid={Boolean(authError)}
-            aria-describedby={authError ? authErrorId : undefined}
-            required
-          />
-        </label>
+        {!recovering && <AuthField id="auth-email" label="Email" type="email" value={email} onChange={setEmail} placeholder="name@example.com" autoComplete="email" invalid={Boolean(authError)} describedBy={authError ? authErrorId : undefined} />}
 
-        {(formMode === "login" || formMode === "register") && <label htmlFor="auth-password">
-          Password
-          <input
-            id="auth-password"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="At least 6 characters"
-            minLength={6}
-            autoComplete={formMode === "login" ? "current-password" : "new-password"}
-            aria-invalid={Boolean(authError)}
-            aria-describedby={authError ? authErrorId : undefined}
-            required
-          />
-        </label>}
+        {(recovering || formMode === "login" || formMode === "register") && <AuthField id="auth-password" label={recovering ? "New password" : "Password"} type="password" value={password} onChange={setPassword} placeholder="At least 6 characters" minLength={6} autoComplete={recovering || formMode === "register" ? "new-password" : "current-password"} invalid={Boolean(authError)} describedBy={authError ? authErrorId : undefined} />}
 
-        {formMode === "login" ? (
+        {recovering && <AuthField id="recovery-confirmation" label="Confirm new password" type="password" value={confirmation} onChange={setConfirmation} minLength={6} autoComplete="new-password" />}
+
+        {!recovering && (formMode === "login" ? (
           <LoginPortalEntry activeRole={activeRole} />
         ) : formMode === "register" ? (
           <RegistrationRoleField value={registrationRole} onChange={setRegistrationRole} />
-        ) : null}
+        ) : null)}
 
-        {authError && (
+        {!recovering && authError && (
           <p id={authErrorId} ref={authErrorRef} className="form-error" role="alert" tabIndex={-1}>
             {authError}
           </p>
         )}
 
         {actionError && <p className="form-error" role="alert">{actionError}</p>}
-        {actionMessage && <p className="form-notice" role="status">{actionMessage}</p>}
+        {!recovering && actionMessage && <p className="form-notice" role="status">{actionMessage}</p>}
 
         <button type="submit" disabled={isLoading || isSubmitting}>
-          {isSubmitting ? "Working..." : formMode === "login" ? "Login" : formMode === "register" ? "Register" : formMode === "forgot" ? "Send recovery email" : "Resend confirmation email"}
+          {isSubmitting ? "Working..." : recovering ? "Update password" : formMode === "login" ? "Login" : formMode === "register" ? "Register" : "Send recovery email"}
         </button>
-        {formMode === "login" && <div className="auth-secondary-actions"><button type="button" className="ghost" onClick={() => setFormMode("forgot")}>Forgot password?</button><button type="button" className="ghost" onClick={() => setFormMode("resend")}>Resend confirmation email</button></div>}
-        {(formMode === "forgot" || formMode === "resend") && <button type="button" className="ghost" onClick={() => { setFormMode("login"); setActionError(null); setActionMessage(null); }}>Back to Login</button>}
+        {!recovering && formMode === "login" && <button type="button" className="ghost" onClick={() => setFormMode("forgot")}>Forgot password?</button>}
+        {!recovering && formMode === "forgot" && <button type="button" className="ghost" onClick={() => { setFormMode("login"); setActionError(null); setActionMessage(null); }}>Back to Login</button>}
+        {recovering && <button type="button" className="ghost" disabled={isSubmitting} onClick={onClearRecovery}>Cancel</button>}
       </form>
     </section>
   );
-}
-
-interface PasswordRecoveryPanelProps {
-  authMode: "supabase" | "demo";
-  recoveryState: "idle" | "valid" | "updated";
-  recoveryError: string | null;
-  onUpdatePassword: (password: string) => Promise<void>;
-  onClear: () => void;
-}
-
-export function PasswordRecoveryPanel({ authMode, recoveryState, recoveryError, onUpdatePassword, onClear }: PasswordRecoveryPanelProps) {
-  const [password, setPassword] = useState("");
-  const [confirmation, setConfirmation] = useState("");
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const errors = validateRecoveredPassword(password, confirmation);
-    setValidationErrors(errors);
-    if (!canSubmitRecoveredPassword(errors, isSubmitting)) return;
-    setIsSubmitting(true);
-    try {
-      await onUpdatePassword(password);
-      setPassword("");
-      setConfirmation("");
-    } catch {
-      // The Auth provider exposes a sanitized recovery error.
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  if (authMode === "demo") return <section className="auth-panel"><h2>Password recovery unavailable</h2><p>Password recovery requires real Supabase Auth and is not simulated in demo mode.</p><button type="button" onClick={onClear}>Back to Login</button></section>;
-  if (recoveryState === "updated") return <section className="auth-panel"><h2>Password updated</h2><p>Your password was updated successfully. Sign in with the new password.</p><button type="button" onClick={onClear}>Return to Login</button></section>;
-  if (recoveryState !== "valid") return <section className="auth-panel"><h2>Recovery link unavailable</h2><p>This recovery link is invalid, expired, already used, or does not have a valid recovery session.</p><button type="button" onClick={onClear}>Return to Login</button></section>;
-
-  return <section className="auth-panel"><div><p className="eyebrow">Account recovery</p><h2>Choose a new password</h2><p>This changes your Supabase Auth credential only. Account role, status, and Manufacturer approval are unchanged.</p></div><form className="auth-form" onSubmit={submit} aria-busy={isSubmitting}><label htmlFor="recovery-password">New password<input id="recovery-password" type="password" autoComplete="new-password" minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} required /></label><label htmlFor="recovery-confirmation">Confirm new password<input id="recovery-confirmation" type="password" autoComplete="new-password" minLength={6} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required /></label>{validationErrors.length > 0 && <div className="form-error" role="alert">{validationErrors.map((item) => <p key={item}>{item}</p>)}</div>}{recoveryError && <p className="form-error" role="alert">{recoveryError}</p>}<button type="submit" disabled={isSubmitting}>{isSubmitting ? "Updating..." : "Update password"}</button><button type="button" className="ghost" disabled={isSubmitting} onClick={onClear}>Cancel</button></form></section>;
 }
