@@ -31,7 +31,7 @@ interface AuthPanelProps {
   onLogin: (credentials: LoginCredentials) => Promise<void>;
   onRegister: (credentials: RegistrationCredentials) => Promise<void>;
   onRequestPasswordRecovery: (email: string) => Promise<string>;
-  recoveryState?: "idle" | "valid" | "updated";
+  recoveryState?: "idle" | "valid";
   onUpdatePassword?: (password: string) => Promise<void>;
   onClearRecovery?: () => void;
 }
@@ -51,27 +51,26 @@ export function LoginPortalEntry({ activeRole }: LoginPortalEntryProps) {
 
 interface RegistrationRoleFieldProps {
   value: RegistrationRole;
-  onChange: (role: RegistrationRole) => void;
 }
 
 interface AuthFieldProps {
-  id: string; label: string; value: string; onChange: (value: string) => void;
+  id: string; label: string;
   type?: "text" | "email" | "password"; autoComplete: string; placeholder?: string;
   describedBy?: string; invalid?: boolean; minLength?: number;
 }
 
-function AuthField({ id, label, value, onChange, type = "text", autoComplete, placeholder, describedBy, invalid, minLength }: AuthFieldProps) {
-  return <label htmlFor={id}>{label}<input id={id} type={type} value={value} onChange={(event) => onChange(event.target.value)} autoComplete={autoComplete} placeholder={placeholder} aria-invalid={invalid} aria-describedby={describedBy} minLength={minLength} required /></label>;
+function AuthField({ id, label, type = "text", autoComplete, placeholder, describedBy, invalid, minLength }: AuthFieldProps) {
+  return <label htmlFor={id}>{label}<input id={id} name={id} type={type} autoComplete={autoComplete} placeholder={placeholder} aria-invalid={invalid} aria-describedby={describedBy} minLength={minLength} required /></label>;
 }
 
-export function RegistrationRoleField({ value, onChange }: RegistrationRoleFieldProps) {
+export function RegistrationRoleField({ value }: RegistrationRoleFieldProps) {
   return (
     <label htmlFor="registration-account-role">
       Account role
       <select
         id="registration-account-role"
-        value={value}
-        onChange={(event) => onChange(event.target.value as RegistrationRole)}
+        name="registration-account-role"
+        defaultValue={value}
       >
         <option value="buyer">{roleLabels.buyer}</option>
         <option value="manufacturer">{roleLabels.manufacturer}</option>
@@ -97,24 +96,10 @@ export function AuthPanel({
 }: AuthPanelProps) {
   const recovering = recoveryState !== undefined;
   const [formMode, setFormMode] = useState<"login" | "register" | "forgot">("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmation, setConfirmation] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [registrationRole, setRegistrationRole] = useState<RegistrationRole>(
-    activeRole === "manufacturer" ? "manufacturer" : "buyer",
-  );
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<[string, boolean] | null>(null);
   const authErrorId = useId();
   const authErrorRef = useRef<HTMLParagraphElement>(null);
-
-  useEffect(() => {
-    if (formMode === "register") {
-      setRegistrationRole(activeRole === "manufacturer" ? "manufacturer" : "buyer");
-    }
-  }, [activeRole, formMode]);
 
   useEffect(() => {
     if (authError) authErrorRef.current?.focus();
@@ -123,29 +108,32 @@ export function AuthPanel({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
-    setActionMessage(null);
-    setActionError(null);
+    setFeedback(null);
+    const form = event.currentTarget;
+    const fields = Object.fromEntries(new FormData(form)) as Record<string, string>;
+    const email = fields["auth-email"] ?? "";
+    const password = fields["auth-password"] ?? "";
 
     try {
       if (recovering && onUpdatePassword) {
-        const errors = validateRecoveredPassword(password, confirmation);
+        const errors = validateRecoveredPassword(password, fields["recovery-confirmation"] ?? "");
         if (errors.length > 0) {
-          setActionError(errors.join(" "));
+          setFeedback([errors.join(" "), true]);
           return;
         }
         await onUpdatePassword(password);
-        setPassword("");
-        setConfirmation("");
+        form.reset();
+        setFeedback(["Password updated. Sign in with your new password.", false]);
       } else if (formMode === "login") {
         await onLogin(buildLoginCredentials(email, password, activeRole));
       } else if (formMode === "register") {
-        await onRegister(buildRegistrationCredentials(email, password, fullName, registrationRole));
+        await onRegister(buildRegistrationCredentials(email, password, fields["auth-full-name"] ?? "", fields["registration-account-role"] as RegistrationRole));
       } else if (formMode === "forgot") {
-        setActionMessage(await onRequestPasswordRecovery(email));
+        setFeedback([await onRequestPasswordRecovery(email), false]);
       }
     } catch (caught) {
       if (recovering || formMode === "forgot") {
-        setActionError(caught instanceof Error ? caught.message : "The request could not be completed.");
+        setFeedback([caught instanceof Error ? caught.message : "The request could not be completed.", true]);
       }
     } finally {
       setIsSubmitting(false);
@@ -154,8 +142,7 @@ export function AuthPanel({
 
   if (recovering && (authMode === "demo" || recoveryState !== "valid")) {
     const demo = authMode === "demo";
-    const updated = recoveryState === "updated";
-    return <section className="auth-panel"><h2>{demo ? "Password recovery unavailable" : updated ? "Password updated" : "Recovery link unavailable"}</h2><p>{demo ? "Password recovery requires real Supabase Auth and is not simulated in demo mode." : updated ? "Sign in with your new password." : "The link is invalid, expired, already used, or has no recovery session."}</p><button type="button" onClick={onClearRecovery}>{demo ? "Back to Login" : "Return to Login"}</button></section>;
+    return <section className="auth-panel"><h2>{demo ? "Password recovery unavailable" : "Recovery link unavailable"}</h2><p>{demo ? "Password recovery requires real Supabase Auth and is not simulated in demo mode." : "The link is invalid, expired, already used, or has no recovery session."}</p><button type="button" onClick={onClearRecovery}>Return to Login</button></section>;
   }
 
   return (
@@ -191,19 +178,19 @@ export function AuthPanel({
         </div>}
 
         {!recovering && formMode === "register" && (
-          <AuthField id="auth-full-name" label="Full name" value={fullName} onChange={setFullName} placeholder="Jane Smith" autoComplete="name" />
+          <AuthField id="auth-full-name" label="Full name" placeholder="Jane Smith" autoComplete="name" />
         )}
 
-        {!recovering && <AuthField id="auth-email" label="Email" type="email" value={email} onChange={setEmail} placeholder="name@example.com" autoComplete="email" invalid={Boolean(authError)} describedBy={authError ? authErrorId : undefined} />}
+        {!recovering && <AuthField id="auth-email" label="Email" type="email" placeholder="name@example.com" autoComplete="email" invalid={Boolean(authError)} describedBy={authError ? authErrorId : undefined} />}
 
-        {(recovering || formMode === "login" || formMode === "register") && <AuthField id="auth-password" label={recovering ? "New password" : "Password"} type="password" value={password} onChange={setPassword} placeholder="At least 6 characters" minLength={6} autoComplete={recovering || formMode === "register" ? "new-password" : "current-password"} invalid={Boolean(authError)} describedBy={authError ? authErrorId : undefined} />}
+        {(recovering || formMode === "login" || formMode === "register") && <AuthField id="auth-password" label={recovering ? "New password" : "Password"} type="password" placeholder="At least 6 characters" minLength={6} autoComplete={recovering || formMode === "register" ? "new-password" : "current-password"} invalid={Boolean(authError)} describedBy={authError ? authErrorId : undefined} />}
 
-        {recovering && <AuthField id="recovery-confirmation" label="Confirm new password" type="password" value={confirmation} onChange={setConfirmation} minLength={6} autoComplete="new-password" />}
+        {recovering && <AuthField id="recovery-confirmation" label="Confirm new password" type="password" minLength={6} autoComplete="new-password" />}
 
         {!recovering && (formMode === "login" ? (
           <LoginPortalEntry activeRole={activeRole} />
         ) : formMode === "register" ? (
-          <RegistrationRoleField value={registrationRole} onChange={setRegistrationRole} />
+          <RegistrationRoleField key={activeRole} value={activeRole === "manufacturer" ? "manufacturer" : "buyer"} />
         ) : null)}
 
         {!recovering && authError && (
@@ -212,14 +199,13 @@ export function AuthPanel({
           </p>
         )}
 
-        {actionError && <p className="form-error" role="alert">{actionError}</p>}
-        {!recovering && actionMessage && <p className="form-notice" role="status">{actionMessage}</p>}
+        {feedback && <p className={feedback[1] ? "form-error" : "form-notice"} role={feedback[1] ? "alert" : "status"}>{feedback[0]}</p>}
 
         <button type="submit" disabled={isLoading || isSubmitting}>
           {isSubmitting ? "Working..." : recovering ? "Update password" : formMode === "login" ? "Login" : formMode === "register" ? "Register" : "Send recovery email"}
         </button>
         {!recovering && formMode === "login" && <button type="button" className="ghost" onClick={() => setFormMode("forgot")}>Forgot password?</button>}
-        {!recovering && formMode === "forgot" && <button type="button" className="ghost" onClick={() => { setFormMode("login"); setActionError(null); setActionMessage(null); }}>Back to Login</button>}
+        {!recovering && formMode === "forgot" && <button type="button" className="ghost" onClick={() => { setFormMode("login"); setFeedback(null); }}>Back to Login</button>}
         {recovering && <button type="button" className="ghost" disabled={isSubmitting} onClick={onClearRecovery}>Cancel</button>}
       </form>
     </section>

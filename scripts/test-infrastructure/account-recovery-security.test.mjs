@@ -10,7 +10,7 @@ const dashboard = readFileSync(new URL("../../src/features/dashboard/PortalDashb
 test("recovery authority requires the Supabase PASSWORD_RECOVERY event", () => {
   assert.match(auth, /event === "PASSWORD_RECOVERY"[\s\S]*setRecoveryState\("valid"\)/);
   assert.match(auth, /recoveryState !== "valid"/);
-  assert.match(dashboard, /auth\.recoveryState !== "none"[\s\S]*recoveryState=\{auth\.recoveryState\}/);
+  assert.match(dashboard, /if \(auth\.recoveryState\)[\s\S]*recoveryState=\{auth\.recoveryState\}/);
   assert.doesNotMatch(recovery, /recovery.*(?:role|status|application_status)/i);
 });
 

@@ -40,7 +40,7 @@ export interface AuthState {
   isLoading: boolean;
   error: string | null;
   mode: "supabase" | "demo";
-  recoveryState: "none" | "idle" | "valid" | "updated";
+  recoveryState: "idle" | "valid" | null;
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (credentials: RegistrationCredentials) => Promise<void>;
   requestPasswordRecovery: (email: string) => Promise<string>;
@@ -105,8 +105,8 @@ export function useAuth(): AuthState {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [recoveryState, setRecoveryState] = useState<"none" | "idle" | "valid" | "updated">(
-    () => typeof window !== "undefined" && isRecoveryRoute(window.location.search) ? "idle" : "none",
+  const [recoveryState, setRecoveryState] = useState<"idle" | "valid" | null>(
+    () => typeof window !== "undefined" && isRecoveryRoute(window.location.search) ? "idle" : null,
   );
 
   useEffect(() => {
@@ -309,11 +309,11 @@ export function useAuth(): AuthState {
       throw new Error("Password updated, but sign-out failed. Sign out before continuing.");
     }
     setUser(null);
-    setRecoveryState("updated");
+    clearRecovery();
   }
 
   function clearRecovery() {
-    setRecoveryState("none");
+    setRecoveryState(null);
     if (typeof window !== "undefined") {
       window.history.replaceState({}, "", "/marketplace");
     }

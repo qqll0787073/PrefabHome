@@ -89,6 +89,18 @@ export function PortalDashboard({
   const [preferredShippingReadinessId, setPreferredShippingReadinessId] = useState<string | null>(null);
   const definition = portalWorkspaceDefinition(role, workspace);
 
+  if (auth.recoveryState) {
+    return <AuthPanel activeRole={role} authError={auth.error} authMode={auth.mode} isLoading={auth.isLoading} onLogin={auth.login} onRegister={auth.register} onRequestPasswordRecovery={auth.requestPasswordRecovery} recoveryState={auth.recoveryState} onUpdatePassword={auth.updateRecoveredPassword} onClearRecovery={auth.clearRecovery} />;
+  }
+
+  if (!auth.user) {
+    return <AuthPanel activeRole={role} authError={auth.error} authMode={auth.mode} isLoading={auth.isLoading} onLogin={auth.login} onRegister={auth.register} onRequestPasswordRecovery={auth.requestPasswordRecovery} />;
+  }
+
+  if (!hasPortalAccess) {
+    return <section className="panel access-panel"><p className="eyebrow">Protected Portal</p><h2>Role access required</h2><p>You are signed in as {roleLabels[auth.user.role]}. Switch back to that portal before opening {roleLabels[role]}.</p><button type="button" onClick={() => onRoleChange(auth.user?.role ?? "buyer")}>Go to my portal</button></section>;
+  }
+
   function openLogistics(shippingReadinessId?: string) {
     setPreferredShippingReadinessId(shippingReadinessId ?? null);
     onWorkspaceChange("logistics");
@@ -138,26 +150,7 @@ export function PortalDashboard({
   }
 
   return (
-    <>
-      {auth.recoveryState !== "none" && (
-        <AuthPanel activeRole={role} authError={auth.error} authMode={auth.mode} isLoading={auth.isLoading} onLogin={auth.login} onRegister={auth.register} onRequestPasswordRecovery={auth.requestPasswordRecovery} recoveryState={auth.recoveryState} onUpdatePassword={auth.updateRecoveredPassword} onClearRecovery={auth.clearRecovery} />
-      )}
-
-      {auth.recoveryState === "none" && !auth.user && (
-        <AuthPanel activeRole={role} authError={auth.error} authMode={auth.mode} isLoading={auth.isLoading} onLogin={auth.login} onRegister={auth.register} onRequestPasswordRecovery={auth.requestPasswordRecovery} />
-      )}
-
-      {auth.recoveryState === "none" && auth.user && !hasPortalAccess && (
-        <section className="panel access-panel">
-          <p className="eyebrow">Protected Portal</p>
-          <h2>Role access required</h2>
-          <p>You are signed in as {roleLabels[auth.user.role]}. Switch back to that portal before opening {roleLabels[role]}.</p>
-          <button type="button" onClick={() => onRoleChange(auth.user?.role ?? "buyer")}>Go to my portal</button>
-        </section>
-      )}
-
-      {auth.recoveryState === "none" && hasPortalAccess && (
-        <section className="portal-shell">
+    <section className="portal-shell">
           <header className="portal-shell-header">
             <div>
               <p className="eyebrow">{roleLabels[role]}</p>
@@ -172,8 +165,6 @@ export function PortalDashboard({
               {workspaceContent()}
             </Suspense>
           </div>
-        </section>
-      )}
-    </>
+    </section>
   );
 }

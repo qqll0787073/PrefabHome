@@ -98,7 +98,6 @@ test("auth failures are announced, associated with credentials, and expose inval
 test("registration role field offers Buyer and Manufacturer but never Admin", () => {
   const markup = renderToStaticMarkup(createElement(RegistrationRoleField, {
     value: "buyer",
-    onChange: () => undefined,
   }));
 
   assert.match(markup, /Buyer Portal/);
