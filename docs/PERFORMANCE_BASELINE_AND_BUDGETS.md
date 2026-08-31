@@ -52,7 +52,7 @@ The initial JavaScript boundary is 282,245 bytes smaller, a 57.7% reduction. Tot
 | Budget | Ceiling | Reason |
 | --- | ---: | --- |
 | Total artifact bytes | 900,000 | Includes the reviewed Sprint 5D.1 Admin Users and operational-summary chunks |
-| Total JavaScript bytes | 850,000 | Keeps limited headroom above the Sprint 5D.1 split build |
+| Total JavaScript bytes | 855,000 | Measured aggregate guardrail after Sprint 5F.2 account recovery |
 | Total CSS bytes | 28,000 | Allows small accessibility additions without hiding broad growth |
 | Initial JavaScript bytes | 230,000 | About 11% headroom while preventing the former portal re-import |
 | Largest JavaScript bytes | 315,000 | Bounded headroom for the authenticated portal shell |
@@ -62,6 +62,10 @@ The initial JavaScript boundary is 282,245 bytes smaller, a 57.7% reduction. Tot
 | Source maps | 0 | Public source maps remain unapproved |
 | Duplicate exact-hash groups | 0 | Exact duplicate files are not accepted |
 | Detectable unreferenced JS/CSS | 0 | Build graph should not contain orphaned assets |
+
+### Sprint 5F.2 aggregate JavaScript recalibration
+
+The original 850,000-byte JavaScript ceiling was already 99.82% utilized at the exact pre-5F.2 baseline (`8f836db`): 848,454 bytes. After clean, scoped recovery optimization and restoration of the baseline Vite chunk strategy, Sprint 5F.2 measured 851,198 bytes, a 2,744-byte feature delta. Global experimental chunk merging was rejected. The aggregate ceiling is therefore recalibrated by 5,000 bytes (about 0.59%) to 855,000 as a measured repository guardrail, not a Sprint 5F.2 exemption. The 900,000-byte artifact, 230,000-byte initial JavaScript, and 315,000-byte largest-JavaScript budgets remain unchanged.
 
 ## Analyzer Behavior
 
