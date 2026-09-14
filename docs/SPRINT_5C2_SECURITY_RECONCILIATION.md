@@ -61,10 +61,10 @@ The source repair and validation are ready for review. Staging's public RPC rema
 | 49 | Medium | 0 unresolved code findings; live Staging RPC drift remains a documented external apply blocker |
 | 50 | Low/Nit | 0 |
 | 51 | Commit | fix(security): reconcile manufacturer product validation; exact SHA provided in final handoff and PR |
-| 52 | PR | Draft against auth-profiles; URL provided in final handoff |
-| 53 | Blocker | Explicit approval for ordered Staging application of 0033–0036 |
+| 52 | PR | Draft creation attempted against auth-profiles; GitHub integration returned 403 Resource not accessible by integration. No PR created; branch is pushed |
+| 53 | Blocker | Explicit approval for ordered Staging application of 0033–0036; GitHub integration permission also prevents Draft PR creation |
 | 54 | Security reconciliation complete? | NO: prepared/tested, but live public RPC not yet replaced |
-| 55 | Next Owner action | Review Draft PR and approve the full ordered Staging sequence 0033–0036. Then apply normally and repeat live definition, privilege, inventory and regression postflight. Do not merge automatically |
+| 55 | Next Owner action | Create a Draft PR from security/sprint-5c2-reconciliation into auth-profiles, or restore PR-write integration permission. Review the repair and separately authorize ordered Staging 0033–0036 after full-sequence validation. Then apply normally and repeat live definition, privilege, inventory and regression postflight. Do not merge automatically |
 
 ## Pending migration dependency review
 
