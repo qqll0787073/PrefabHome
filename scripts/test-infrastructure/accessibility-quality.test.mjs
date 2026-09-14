@@ -163,13 +163,13 @@ test("quality gate is non-networking, non-deploying, and CI remains read-only", 
   assert.doesNotMatch(workflow, /\bsupabase\b|\bdeploy\b|git\s+tag|create[- ]release/i);
 });
 
-test("migrations contain 0001 through suspended Buyer hardening 0035", () => {
+test("migrations contain 0001 through Product reconciliation 0036", () => {
   const migrations = readdirSync("supabase/migrations").filter((file) => /^\d{4}_.+\.sql$/.test(file)).sort();
-  assert.equal(migrations.length, 35);
+  assert.equal(migrations.length, 36);
   assert.equal(migrations[0].slice(0, 4), "0001");
-  assert.equal(migrations.at(-1), "0035_harden_suspended_buyer_transaction_authority.sql");
+  assert.equal(migrations.at(-1), "0036_reconcile_manufacturer_product_numeric_validation.sql");
   const changed = execFileSync("git", [
-    "diff", "--name-only", resolveAuthProfilesMigrationBaseline(), "--", "supabase/migrations", ":(exclude)supabase/migrations/0032_secure_manufacturer_product_management.sql", ":(exclude)supabase/migrations/0033_secure_manufacturer_company_profile.sql", ":(exclude)supabase/migrations/0034_admin_dashboard_user_management.sql", ":(exclude)supabase/migrations/0035_harden_suspended_buyer_transaction_authority.sql",
+    "diff", "--name-only", resolveAuthProfilesMigrationBaseline(), "--", "supabase/migrations", ":(exclude)supabase/migrations/0032_secure_manufacturer_product_management.sql", ":(exclude)supabase/migrations/0033_secure_manufacturer_company_profile.sql", ":(exclude)supabase/migrations/0034_admin_dashboard_user_management.sql", ":(exclude)supabase/migrations/0035_harden_suspended_buyer_transaction_authority.sql", ":(exclude)supabase/migrations/0036_reconcile_manufacturer_product_numeric_validation.sql",
   ], { encoding: "utf8", windowsHide: true }).trim();
   assert.ok(
     changed === "",
