@@ -6,6 +6,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { MarketplaceProduct } from "../../types";
 import { MarketplaceProductDetail } from "./MarketplaceProductDetail";
+import { buyerProductRFQPath } from "../../lib/portalNavigation";
 
 (globalThis as typeof globalThis & { React: typeof React }).React = React;
 
@@ -55,7 +56,13 @@ test("direct product route has accessible loading and sanitized unavailable stat
 });
 
 test("logged-out Request Quote enters the existing Buyer auth gate", () => {
-  assert.match(detailSource, /if \(!user\)[\s\S]*view=dashboard&workspace=rfqs/);
+  assert.match(detailSource, /if \(!user\)\s*\{\s*window\.location\.assign\(buyerProductRFQPath\(product\.id\)\);\s*return;/);
+  const destination = new URL(buyerProductRFQPath(product.id), "https://example.test");
+  assert.equal(destination.pathname, "/marketplace");
+  assert.equal(destination.searchParams.get("view"), "dashboard");
+  assert.equal(destination.searchParams.get("workspace"), "rfqs");
+  assert.equal(destination.searchParams.get("product"), product.id);
+  assert.equal(destination.origin, "https://example.test");
 });
 
 test("RFQ dialog fails closed for non-Buyers and announces pending and error states", () => {

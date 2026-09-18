@@ -2,6 +2,10 @@
 
 ## Status
 
+Current Staging follow-up: migration 0037 restored the remaining 17 individually reviewed canonical transaction guards under separate Owner authorization. Live postflight reports zero disabled public user triggers and passing rollback security regressions. See [PR #52 restoration audit](PR52_TRANSACTION_TRIGGER_RESTORATION.md). The historical disabling actor and operation remain unknown. Production was not contacted.
+
+The following records the original incident and the earlier, deliberately limited 0025 recovery scope.
+
 A read-only staging catalog audit observed 29 of 48 user triggers in `public` disabled. The cause is unknown. No repository-controlled statement that disables this set was found, and neither manual DDL nor an external restore has been proven as the cause.
 
 Migration `0025_restore_rfq_quote_authority.sql` is intentionally limited to the 12 RFQ/Quote triggers approved for Sprint 3A.3. It does not establish whole-database trigger health and does not alter the other 17 disabled triggers.

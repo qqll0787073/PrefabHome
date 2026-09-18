@@ -88,16 +88,16 @@ test("Vite source maps are disabled and public CI/environment examples are non-c
   assert.match(environmentExample, /VITE_ENABLE_MARKETPLACE_DEMO=false/);
 });
 
-test("migration baseline 0001 through 0031 is unchanged and 0032-0035 are review-only", () => {
+test("migration baseline 0001 through 0031 is unchanged and 0032-0037 are review-only", () => {
   const migrations = readdirSync("supabase/migrations")
     .filter((file) => /^\d{4}_.+\.sql$/.test(file))
     .sort();
-  assert.equal(migrations.length, 35);
+  assert.equal(migrations.length, 37);
   assert.equal(migrations[0].slice(0, 4), "0001");
-  assert.equal(migrations.at(-1), "0035_harden_suspended_buyer_transaction_authority.sql");
+  assert.equal(migrations.at(-1), "0037_restore_transaction_write_protection.sql");
   const changed = execFileSync(
     "git",
-    ["diff", "--name-only", resolveAuthProfilesMigrationBaseline(), "--", "supabase/migrations", ":(exclude)supabase/migrations/0032_secure_manufacturer_product_management.sql", ":(exclude)supabase/migrations/0033_secure_manufacturer_company_profile.sql", ":(exclude)supabase/migrations/0034_admin_dashboard_user_management.sql", ":(exclude)supabase/migrations/0035_harden_suspended_buyer_transaction_authority.sql"],
+    ["diff", "--name-only", resolveAuthProfilesMigrationBaseline(), "--", "supabase/migrations", ":(exclude)supabase/migrations/0032_secure_manufacturer_product_management.sql", ":(exclude)supabase/migrations/0033_secure_manufacturer_company_profile.sql", ":(exclude)supabase/migrations/0034_admin_dashboard_user_management.sql", ":(exclude)supabase/migrations/0035_harden_suspended_buyer_transaction_authority.sql", ":(exclude)supabase/migrations/0036_reconcile_manufacturer_product_numeric_validation.sql", ":(exclude)supabase/migrations/0037_restore_transaction_write_protection.sql"],
     { encoding: "utf8", windowsHide: true },
   ).trim();
   assert.ok(
