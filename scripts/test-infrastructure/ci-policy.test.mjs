@@ -41,10 +41,10 @@ test("CI contains no deployment, release, Supabase, or database-write commands",
   assert.doesNotMatch(workflow, /eoyrfrjbjglfudfuwxdf|bvzbkjpbnczquecwqvlm/);
 });
 
-test("beta migrations are unchanged through 0031 and reviewed local inventory includes 0032-0036", () => {
+test("beta migrations are unchanged through 0031 and reviewed local inventory includes 0032-0037", () => {
   const changed = execFileSync(
     "git",
-    ["diff", "--name-only", "beta-v1.0.0", "--", "supabase/migrations", ":(exclude)supabase/migrations/0032_secure_manufacturer_product_management.sql", ":(exclude)supabase/migrations/0033_secure_manufacturer_company_profile.sql", ":(exclude)supabase/migrations/0034_admin_dashboard_user_management.sql", ":(exclude)supabase/migrations/0035_harden_suspended_buyer_transaction_authority.sql", ":(exclude)supabase/migrations/0036_reconcile_manufacturer_product_numeric_validation.sql"],
+    ["diff", "--name-only", "beta-v1.0.0", "--", "supabase/migrations", ":(exclude)supabase/migrations/0032_secure_manufacturer_product_management.sql", ":(exclude)supabase/migrations/0033_secure_manufacturer_company_profile.sql", ":(exclude)supabase/migrations/0034_admin_dashboard_user_management.sql", ":(exclude)supabase/migrations/0035_harden_suspended_buyer_transaction_authority.sql", ":(exclude)supabase/migrations/0036_reconcile_manufacturer_product_numeric_validation.sql", ":(exclude)supabase/migrations/0037_restore_transaction_write_protection.sql"],
     { encoding: "utf8", windowsHide: true }
   ).trim();
   const expectedWith0029 = [

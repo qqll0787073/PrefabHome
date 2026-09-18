@@ -125,18 +125,18 @@ test("build-time public URL replacement is deterministic and non-networking", ()
   assert.doesNotMatch(vite, /\bfetch\s*\(|node:(?:http|https|net|tls)|\bdeploy\b/i);
 });
 
-test("CI stays read-only with unchanged baseline migrations and reviewed 0032-0036", () => {
+test("CI stays read-only with unchanged baseline migrations and reviewed 0032-0037", () => {
   const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
   assert.match(workflow, /^\s*- production-sprint-2d\s*$/m);
   assert.match(workflow, /permissions:\s*\n\s+contents: read/);
   const executableLines = workflow.split(/\r?\n/).filter((line) => /^\s*run:/.test(line)).join("\n");
   assert.doesNotMatch(executableLines, /\bdeploy\b|supabase\s+db|migration\s+(?:apply|repair)|git\s+tag|create[- ]release/i);
   const migrations = readdirSync("supabase/migrations").filter((file) => /^\d{4}_.+\.sql$/.test(file)).sort();
-  assert.equal(migrations.length, 36);
+  assert.equal(migrations.length, 37);
   assert.equal(migrations[0].slice(0, 4), "0001");
-  assert.equal(migrations.at(-1), "0036_reconcile_manufacturer_product_numeric_validation.sql");
+  assert.equal(migrations.at(-1), "0037_restore_transaction_write_protection.sql");
   const changed = execFileSync("git", [
-    "diff", "--name-only", resolveAuthProfilesMigrationBaseline(), "--", "supabase/migrations", ":(exclude)supabase/migrations/0032_secure_manufacturer_product_management.sql", ":(exclude)supabase/migrations/0033_secure_manufacturer_company_profile.sql", ":(exclude)supabase/migrations/0034_admin_dashboard_user_management.sql", ":(exclude)supabase/migrations/0035_harden_suspended_buyer_transaction_authority.sql", ":(exclude)supabase/migrations/0036_reconcile_manufacturer_product_numeric_validation.sql",
+    "diff", "--name-only", resolveAuthProfilesMigrationBaseline(), "--", "supabase/migrations", ":(exclude)supabase/migrations/0032_secure_manufacturer_product_management.sql", ":(exclude)supabase/migrations/0033_secure_manufacturer_company_profile.sql", ":(exclude)supabase/migrations/0034_admin_dashboard_user_management.sql", ":(exclude)supabase/migrations/0035_harden_suspended_buyer_transaction_authority.sql", ":(exclude)supabase/migrations/0036_reconcile_manufacturer_product_numeric_validation.sql", ":(exclude)supabase/migrations/0037_restore_transaction_write_protection.sql",
   ], { encoding: "utf8", windowsHide: true }).trim();
   assert.ok(
     changed === "",

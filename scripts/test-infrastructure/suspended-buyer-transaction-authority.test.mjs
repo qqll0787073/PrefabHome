@@ -9,10 +9,10 @@ function functionBody(name) {
   return migration.match(new RegExp(`create or replace function public\\.${name}\\([\\s\\S]+?\\n\\$\\$;`, "i"))?.[0] ?? "";
 }
 
-test("0035 remains present beneath the 0036 reconciliation", () => {
+test("0035 remains present beneath the 0037 trigger restoration", () => {
   const migrations = readdirSync("supabase/migrations").filter((file) => /^\d{4}_.+\.sql$/.test(file)).sort();
-  assert.equal(migrations.length, 36);
-  assert.equal(migrations.at(-1), "0036_reconcile_manufacturer_product_numeric_validation.sql");
+  assert.equal(migrations.length, 37);
+  assert.equal(migrations.at(-1), "0037_restore_transaction_write_protection.sql");
 });
 
 test("participant access helpers require active Buyer authority without weakening other participants", () => {

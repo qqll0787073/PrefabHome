@@ -34,8 +34,8 @@ const migrationFiles = (await readdir(migrationsDirectory))
   .filter((file) => /^\d{4}_.+\.sql$/.test(file))
   .sort();
 
-assert.equal(migrationFiles.length, 36, "Expected exactly migrations 0001-0036.");
-assert.equal(migrationFiles.at(-1), "0036_reconcile_manufacturer_product_numeric_validation.sql");
+assert.equal(migrationFiles.length, 37, "Expected exactly migrations 0001-0037.");
+assert.equal(migrationFiles.at(-1), "0037_restore_transaction_write_protection.sql");
 
 const client = new Client({ connectionString: databaseUrl, application_name: "prefab-disposable-validation" });
 const results = [];
@@ -79,6 +79,7 @@ try {
   }
 
   const regressionFiles = [
+    "transaction_trigger_restoration_security.sql",
     "suspended_buyer_transaction_authority_security.sql",
     "admin_dashboard_user_management_security.sql",
     "manufacturer_product_management_security.sql",
