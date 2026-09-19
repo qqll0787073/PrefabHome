@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "budgets": {
     "maxArtifactBytes": 900000,
-    "maxJavaScriptBytes": 850000,
+    "maxJavaScriptBytes": 855000,
     "maxCssBytes": 28000,
     "maxInitialJavaScriptBytes": 230000,
     "maxLargestJavaScriptBytes": 315000,

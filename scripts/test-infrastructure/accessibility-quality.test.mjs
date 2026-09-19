@@ -107,15 +107,16 @@ test("image components include accessible text and deliberate loading behavior",
 test("auth form exposes labels, autocomplete, busy state, invalid state, and associated errors", () => {
   const auth = source("src/features/auth/AuthPanel.tsx");
   for (const id of ["auth-full-name", "auth-email", "auth-password", "registration-account-role"]) {
-    assert.match(auth, new RegExp(`htmlFor="${id}"`));
     assert.match(auth, new RegExp(`id="${id}"`));
   }
+  assert.match(auth, /<label htmlFor=\{id\}>[\s\S]*<input id=\{id\}/);
+  assert.match(auth, /<label htmlFor="registration-account-role">/);
   assert.match(auth, /aria-busy=\{isLoading \|\| isSubmitting\}/);
-  assert.match(auth, /aria-invalid=\{Boolean\(authError\)\}/);
-  assert.match(auth, /aria-describedby=\{authError \? authErrorId : undefined\}/);
+  assert.match(auth, /aria-invalid=\{invalid\}/);
+  assert.match(auth, /describedBy=\{authError \? authErrorId : undefined\}/);
   assert.match(auth, /role="alert" tabIndex=\{-1\}/);
   assert.match(auth, /autoComplete="email"/);
-  assert.match(auth, /"current-password" : "new-password"/);
+  assert.match(auth, /"new-password" : "current-password"/);
 });
 
 test("CSS preserves focus, reduced-motion, forced-colors, and narrow reflow rules", () => {

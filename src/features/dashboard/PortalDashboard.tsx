@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useState, type ComponentType } from "react";
 import { roleLabels } from "../../app/constants";
 import { LoadingState } from "../../components/common/LoadingState";
 import { AuthPanel } from "../auth/AuthPanel";
@@ -8,41 +8,45 @@ import type { Role } from "../../types";
 import { PortalOverview } from "./PortalOverview";
 import { PortalWorkspaceNavigation } from "./PortalWorkspaceNavigation";
 
-const BuyerRFQDashboard = lazy(() => import("../rfqs/BuyerRFQDashboard").then((module) => ({ default: module.BuyerRFQDashboard })));
-const BuyerFavoritesWorkspace = lazy(() => import("../favorites/BuyerFavoritesWorkspace").then((module) => ({ default: module.BuyerFavoritesWorkspace })));
-const BuyerMessagesWorkspace = lazy(() => import("../messages/BuyerMessagesWorkspace").then((module) => ({ default: module.BuyerMessagesWorkspace })));
-const BuyerProfileWorkspace = lazy(() => import("../profile/BuyerProfileWorkspace").then((module) => ({ default: module.BuyerProfileWorkspace })));
-const BuyerManufacturersWorkspace = lazy(() => import("../manufacturers/ManufacturerWorkspace").then((module) => ({ default: module.BuyerManufacturersWorkspace })));
-const ManufacturerRFQInbox = lazy(() => import("../rfqs/ManufacturerRFQInbox").then((module) => ({ default: module.ManufacturerRFQInbox })));
-const AdminRFQManagement = lazy(() => import("../rfqs/AdminRFQManagement").then((module) => ({ default: module.AdminRFQManagement })));
-const BuyerPurchaseOrders = lazy(() => import("../purchase-orders/BuyerPurchaseOrders").then((module) => ({ default: module.BuyerPurchaseOrders })));
-const ManufacturerPurchaseOrders = lazy(() => import("../purchase-orders/ManufacturerPurchaseOrders").then((module) => ({ default: module.ManufacturerPurchaseOrders })));
-const AdminPurchaseOrderManagement = lazy(() => import("../purchase-orders/AdminPurchaseOrderManagement").then((module) => ({ default: module.AdminPurchaseOrderManagement })));
-const BuyerContracts = lazy(() => import("../contracts/BuyerContracts").then((module) => ({ default: module.BuyerContracts })));
-const ManufacturerContracts = lazy(() => import("../contracts/ManufacturerContracts").then((module) => ({ default: module.ManufacturerContracts })));
-const AdminContractManagement = lazy(() => import("../contracts/AdminContractManagement").then((module) => ({ default: module.AdminContractManagement })));
-const BuyerSignaturePreparation = lazy(() => import("../signatures/BuyerSignaturePreparation").then((module) => ({ default: module.BuyerSignaturePreparation })));
-const ManufacturerSignaturePreparation = lazy(() => import("../signatures/ManufacturerSignaturePreparation").then((module) => ({ default: module.ManufacturerSignaturePreparation })));
-const AdminSignaturePreparation = lazy(() => import("../signatures/AdminSignaturePreparation").then((module) => ({ default: module.AdminSignaturePreparation })));
-const BuyerSignatureDelivery = lazy(() => import("../signature-delivery/BuyerSignatureDelivery").then((module) => ({ default: module.BuyerSignatureDelivery })));
-const ManufacturerSignatureDelivery = lazy(() => import("../signature-delivery/ManufacturerSignatureDelivery").then((module) => ({ default: module.ManufacturerSignatureDelivery })));
-const AdminSignatureDelivery = lazy(() => import("../signature-delivery/AdminSignatureDelivery").then((module) => ({ default: module.AdminSignatureDelivery })));
-const BuyerInvoices = lazy(() => import("../invoices/BuyerInvoices").then((module) => ({ default: module.BuyerInvoices })));
-const ManufacturerInvoices = lazy(() => import("../invoices/ManufacturerInvoices").then((module) => ({ default: module.ManufacturerInvoices })));
-const AdminInvoices = lazy(() => import("../invoices/AdminInvoices").then((module) => ({ default: module.AdminInvoices })));
-const BuyerPayments = lazy(() => import("../payments/BuyerPayments").then((module) => ({ default: module.BuyerPayments })));
-const ManufacturerPayments = lazy(() => import("../payments/ManufacturerPayments").then((module) => ({ default: module.ManufacturerPayments })));
-const AdminPayments = lazy(() => import("../payments/AdminPayments").then((module) => ({ default: module.AdminPayments })));
-const BuyerShippingReadiness = lazy(() => import("../shipping-readiness/BuyerShippingReadiness").then((module) => ({ default: module.BuyerShippingReadiness })));
-const ManufacturerShippingReadiness = lazy(() => import("../shipping-readiness/ManufacturerShippingReadiness").then((module) => ({ default: module.ManufacturerShippingReadiness })));
-const AdminShippingReadiness = lazy(() => import("../shipping-readiness/AdminShippingReadiness").then((module) => ({ default: module.AdminShippingReadiness })));
-const ParticipantLogisticsWorkspace = lazy(() => import("../logistics/ParticipantLogisticsWorkspace").then((module) => ({ default: module.ParticipantLogisticsWorkspace })));
-const AdminLogisticsWorkspace = lazy(() => import("../logistics/AdminLogisticsWorkspace").then((module) => ({ default: module.AdminLogisticsWorkspace })));
-const ManufacturerWorkspace = lazy(() => import("../manufacturers/ManufacturerWorkspace").then((module) => ({ default: module.ManufacturerWorkspace })));
-const ManufacturerProductList = lazy(() => import("../products/ManufacturerProductList").then((module) => ({ default: module.ManufacturerProductList })));
-const AdminManufacturerReview = lazy(() => import("../manufacturers/AdminManufacturerReview").then((module) => ({ default: module.AdminManufacturerReview })));
-const AdminProductReview = lazy(() => import("../products/AdminProductReview").then((module) => ({ default: module.AdminProductReview })));
-const AdminUsersWorkspace = lazy(() => import("../admin/AdminUsersWorkspace").then((module) => ({ default: module.AdminUsersWorkspace })));
+function lazyNamed<T extends ComponentType<any>>(loader: () => Promise<unknown>, name: string) {
+  return lazy(async () => ({ default: (await loader() as Record<string, T>)[name] }));
+}
+
+const BuyerRFQDashboard = lazyNamed(() => import("../rfqs/BuyerRFQDashboard"), "BuyerRFQDashboard");
+const BuyerFavoritesWorkspace = lazyNamed(() => import("../favorites/BuyerFavoritesWorkspace"), "BuyerFavoritesWorkspace");
+const BuyerMessagesWorkspace = lazyNamed(() => import("../messages/BuyerMessagesWorkspace"), "BuyerMessagesWorkspace");
+const BuyerProfileWorkspace = lazyNamed(() => import("../profile/BuyerProfileWorkspace"), "BuyerProfileWorkspace");
+const BuyerManufacturersWorkspace = lazyNamed(() => import("../manufacturers/ManufacturerWorkspace"), "BuyerManufacturersWorkspace");
+const ManufacturerRFQInbox = lazyNamed(() => import("../rfqs/ManufacturerRFQInbox"), "ManufacturerRFQInbox");
+const AdminRFQManagement = lazyNamed(() => import("../rfqs/AdminRFQManagement"), "AdminRFQManagement");
+const BuyerPurchaseOrders = lazyNamed(() => import("../purchase-orders/BuyerPurchaseOrders"), "BuyerPurchaseOrders");
+const ManufacturerPurchaseOrders = lazyNamed(() => import("../purchase-orders/ManufacturerPurchaseOrders"), "ManufacturerPurchaseOrders");
+const AdminPurchaseOrderManagement = lazyNamed(() => import("../purchase-orders/AdminPurchaseOrderManagement"), "AdminPurchaseOrderManagement");
+const BuyerContracts = lazyNamed(() => import("../contracts/BuyerContracts"), "BuyerContracts");
+const ManufacturerContracts = lazyNamed(() => import("../contracts/ManufacturerContracts"), "ManufacturerContracts");
+const AdminContractManagement = lazyNamed(() => import("../contracts/AdminContractManagement"), "AdminContractManagement");
+const BuyerSignaturePreparation = lazyNamed(() => import("../signatures/BuyerSignaturePreparation"), "BuyerSignaturePreparation");
+const ManufacturerSignaturePreparation = lazyNamed(() => import("../signatures/ManufacturerSignaturePreparation"), "ManufacturerSignaturePreparation");
+const AdminSignaturePreparation = lazyNamed(() => import("../signatures/AdminSignaturePreparation"), "AdminSignaturePreparation");
+const BuyerSignatureDelivery = lazyNamed(() => import("../signature-delivery/BuyerSignatureDelivery"), "BuyerSignatureDelivery");
+const ManufacturerSignatureDelivery = lazyNamed(() => import("../signature-delivery/ManufacturerSignatureDelivery"), "ManufacturerSignatureDelivery");
+const AdminSignatureDelivery = lazyNamed(() => import("../signature-delivery/AdminSignatureDelivery"), "AdminSignatureDelivery");
+const BuyerInvoices = lazyNamed(() => import("../invoices/BuyerInvoices"), "BuyerInvoices");
+const ManufacturerInvoices = lazyNamed(() => import("../invoices/ManufacturerInvoices"), "ManufacturerInvoices");
+const AdminInvoices = lazyNamed(() => import("../invoices/AdminInvoices"), "AdminInvoices");
+const BuyerPayments = lazyNamed(() => import("../payments/BuyerPayments"), "BuyerPayments");
+const ManufacturerPayments = lazyNamed(() => import("../payments/ManufacturerPayments"), "ManufacturerPayments");
+const AdminPayments = lazyNamed(() => import("../payments/AdminPayments"), "AdminPayments");
+const BuyerShippingReadiness = lazyNamed(() => import("../shipping-readiness/BuyerShippingReadiness"), "BuyerShippingReadiness");
+const ManufacturerShippingReadiness = lazyNamed(() => import("../shipping-readiness/ManufacturerShippingReadiness"), "ManufacturerShippingReadiness");
+const AdminShippingReadiness = lazyNamed(() => import("../shipping-readiness/AdminShippingReadiness"), "AdminShippingReadiness");
+const ParticipantLogisticsWorkspace = lazyNamed(() => import("../logistics/ParticipantLogisticsWorkspace"), "ParticipantLogisticsWorkspace");
+const AdminLogisticsWorkspace = lazyNamed(() => import("../logistics/AdminLogisticsWorkspace"), "AdminLogisticsWorkspace");
+const ManufacturerWorkspace = lazyNamed(() => import("../manufacturers/ManufacturerWorkspace"), "ManufacturerWorkspace");
+const ManufacturerProductList = lazyNamed(() => import("../products/ManufacturerProductList"), "ManufacturerProductList");
+const AdminManufacturerReview = lazyNamed(() => import("../manufacturers/AdminManufacturerReview"), "AdminManufacturerReview");
+const AdminProductReview = lazyNamed(() => import("../products/AdminProductReview"), "AdminProductReview");
+const AdminUsersWorkspace = lazyNamed(() => import("../admin/AdminUsersWorkspace"), "AdminUsersWorkspace");
 
 interface PortalDashboardProps {
   auth: AuthState;
@@ -84,6 +88,18 @@ export function PortalDashboard({
   const hasPortalAccess = Boolean(auth.user && auth.user.role === role && auth.user.status !== "suspended");
   const [preferredShippingReadinessId, setPreferredShippingReadinessId] = useState<string | null>(null);
   const definition = portalWorkspaceDefinition(role, workspace);
+
+  if (auth.recoveryState) {
+    return <AuthPanel activeRole={role} authError={auth.error} authMode={auth.mode} isLoading={auth.isLoading} onLogin={auth.login} onRegister={auth.register} onRequestPasswordRecovery={auth.requestPasswordRecovery} recoveryState={auth.recoveryState} onUpdatePassword={auth.updateRecoveredPassword} onClearRecovery={auth.clearRecovery} />;
+  }
+
+  if (!auth.user) {
+    return <AuthPanel activeRole={role} authError={auth.error} authMode={auth.mode} isLoading={auth.isLoading} onLogin={auth.login} onRegister={auth.register} onRequestPasswordRecovery={auth.requestPasswordRecovery} />;
+  }
+
+  if (!hasPortalAccess) {
+    return <section className="panel access-panel"><p className="eyebrow">Protected Portal</p><h2>Role access required</h2><p>You are signed in as {roleLabels[auth.user.role]}. Switch back to that portal before opening {roleLabels[role]}.</p><button type="button" onClick={() => onRoleChange(auth.user?.role ?? "buyer")}>Go to my portal</button></section>;
+  }
 
   function openLogistics(shippingReadinessId?: string) {
     setPreferredShippingReadinessId(shippingReadinessId ?? null);
@@ -134,22 +150,7 @@ export function PortalDashboard({
   }
 
   return (
-    <>
-      {!auth.user && (
-        <AuthPanel activeRole={role} authError={auth.error} authMode={auth.mode} isLoading={auth.isLoading} onLogin={auth.login} onRegister={auth.register} />
-      )}
-
-      {auth.user && !hasPortalAccess && (
-        <section className="panel access-panel">
-          <p className="eyebrow">Protected Portal</p>
-          <h2>Role access required</h2>
-          <p>You are signed in as {roleLabels[auth.user.role]}. Switch back to that portal before opening {roleLabels[role]}.</p>
-          <button type="button" onClick={() => onRoleChange(auth.user?.role ?? "buyer")}>Go to my portal</button>
-        </section>
-      )}
-
-      {hasPortalAccess && (
-        <section className="portal-shell">
+    <section className="portal-shell">
           <header className="portal-shell-header">
             <div>
               <p className="eyebrow">{roleLabels[role]}</p>
@@ -164,8 +165,6 @@ export function PortalDashboard({
               {workspaceContent()}
             </Suspense>
           </div>
-        </section>
-      )}
-    </>
+    </section>
   );
 }
